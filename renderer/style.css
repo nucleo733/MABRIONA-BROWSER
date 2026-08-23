@@ -1,10 +1,12 @@
 :root {
-  --bg: #101114;
-  --bg-raised: #1a1b1f;
+  --bg: #060606;
+  --bg-raised: #131313;
+  --bg-raised-2: #1a1a1a;
   --border: rgba(255, 255, 255, 0.08);
-  --text: #e8e8ea;
-  --text-dim: rgba(232, 232, 234, 0.55);
-  --accent: #d4ff00;
+  --text: #f2f2f2;
+  --text-dim: rgba(242, 242, 242, 0.55);
+  --volt: #d4ff00;
+  --volt-soft: rgba(212, 255, 0, 0.14);
 }
 
 * { box-sizing: border-box; }
@@ -24,11 +26,23 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/* ---------------- Marca — mismo patrón que el header de MABRIONA STUDIO ---------------- */
+#brandbar {
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 12px;
+  -webkit-app-region: drag;
+}
+#logo { font-size: 13px; letter-spacing: 0.02em; -webkit-app-region: no-drag; }
+#logo-mabriona { font-weight: 800; color: var(--text); }
+#logo-browser { font-weight: 700; color: var(--volt); }
+
 #tabstrip {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 8px 0;
+  padding: 0 8px;
   height: 34px;
   overflow-x: auto;
 }
@@ -38,8 +52,8 @@ body {
   align-items: center;
   gap: 6px;
   max-width: 200px;
-  padding: 6px 10px;
-  border-radius: 8px 8px 0 0;
+  padding: 6px 12px;
+  border-radius: 999px;
   background: var(--bg-raised);
   color: var(--text-dim);
   font-size: 12px;
@@ -51,9 +65,10 @@ body {
 }
 
 .tab.active {
-  background: #232429;
+  background: var(--volt-soft);
   color: var(--text);
-  border-color: var(--border);
+  border-color: rgba(212, 255, 0, 0.4);
+  box-shadow: 0 0 14px rgba(212, 255, 0, 0.18);
 }
 
 .tab .tab-title {
@@ -67,7 +82,7 @@ body {
   opacity: 0.6;
   font-size: 11px;
 }
-.tab .tab-close:hover { opacity: 1; }
+.tab .tab-close:hover { opacity: 1; color: var(--volt); }
 
 #btn-new-tab {
   background: none;
@@ -76,14 +91,15 @@ body {
   font-size: 16px;
   cursor: pointer;
   padding: 2px 8px;
+  border-radius: 999px;
 }
-#btn-new-tab:hover { color: var(--accent); }
+#btn-new-tab:hover { color: var(--volt); background: var(--volt-soft); }
 
 #toolbar {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px;
+  padding: 8px 10px;
   height: 50px;
 }
 
@@ -91,7 +107,7 @@ body {
   background: var(--bg-raised);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 8px;
+  border-radius: 999px;
   width: 32px;
   height: 32px;
   cursor: pointer;
@@ -100,15 +116,20 @@ body {
   align-items: center;
   justify-content: center;
   position: relative;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
 }
-.nav-btn:hover { border-color: var(--accent); }
-.nav-btn:disabled { opacity: 0.35; cursor: default; }
+.nav-btn:hover {
+  border-color: rgba(212, 255, 0, 0.5);
+  box-shadow: 0 0 16px rgba(212, 255, 0, 0.35), 0 0 32px rgba(212, 255, 0, 0.18);
+  background: var(--bg-raised-2);
+}
+.nav-btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; border-color: var(--border); }
 
 #shields-count {
   position: absolute;
   bottom: -4px;
   right: -4px;
-  background: var(--accent);
+  background: var(--volt);
   color: #000;
   font-size: 9px;
   font-weight: 700;
@@ -120,28 +141,29 @@ body {
 #address {
   flex: 1;
   height: 32px;
-  border-radius: 8px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: var(--bg-raised);
   color: var(--text);
-  padding: 0 12px;
+  padding: 0 16px;
   font-size: 13px;
 }
 #address:focus {
   outline: none;
-  border-color: var(--accent);
+  border-color: var(--volt);
+  box-shadow: 0 0 0 1px rgba(212, 255, 0, 0.3), 0 0 20px rgba(212, 255, 0, 0.2);
 }
 
 .panel {
   position: absolute;
-  top: 90px;
+  top: 124px;
   right: 12px;
   width: 340px;
   max-height: 60vh;
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   z-index: 50;
   display: flex;
   flex-direction: column;
@@ -152,11 +174,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
@@ -168,28 +190,28 @@ body {
   cursor: pointer;
   font-size: 11px;
 }
-.panel-header button:hover { color: var(--accent); }
+.panel-header button:hover { color: var(--volt); }
 
-.panel-body { padding: 12px; font-size: 12px; color: var(--text-dim); }
-.shields-toggle { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 10px; }
+.panel-body { padding: 14px; font-size: 12px; color: var(--text-dim); }
+.shields-toggle { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 10px; accent-color: var(--volt); }
 .shields-note { line-height: 1.5; }
 
 .panel-list {
   list-style: none;
   margin: 0;
-  padding: 4px;
+  padding: 6px;
   overflow-y: auto;
 }
 .panel-list li {
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 12px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.panel-list li:hover { background: rgba(255, 255, 255, 0.05); }
+.panel-list li:hover { background: var(--volt-soft); }
 .panel-list .item-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-list .item-url { color: var(--text-dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-list .empty { color: var(--text-dim); text-align: center; padding: 16px 8px; cursor: default; }

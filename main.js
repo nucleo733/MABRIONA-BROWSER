@@ -6,7 +6,7 @@ const { createStore } = require('./store')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
 
-const TOOLBAR_HEIGHT = 84
+const TOOLBAR_HEIGHT = 118
 
 const store = createStore(path.join(app.getPath('userData'), 'mabriona-browser-data.json'))
 
