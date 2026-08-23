@@ -10,6 +10,12 @@ const TOOLBAR_HEIGHT = 118
 
 const store = createStore(path.join(app.getPath('userData'), 'mabriona-browser-data.json'))
 
+// Red de seguridad: un error inesperado en un solo callback (ej. una pestaña cerrándose en un
+// mal momento) no debe tumbar toda la ventana del navegador — se registra y sigue.
+process.on('uncaughtException', (err) => {
+  console.error('[MABRIONA Browser] error no manejado:', err)
+})
+
 /** @type {BrowserWindow | null} */
 let mainWindow = null
 /** @type {Map<number, { view: BrowserView, id: number, title: string, url: string, blockedCount: number }>} */
@@ -22,7 +28,12 @@ function sendToRenderer(channel, payload) {
 }
 
 function serializeTab(tab) {
-  const wc = tab.view.webContents
+  const wc = tab.view && tab.view.webContents
+  // El webContents puede no estar listo todavía (arranque) o ya estar destruido (pestaña
+  // cerrándose justo en este instante) — nunca crashear la app entera por una foto de estado.
+  if (!wc || wc.isDestroyed()) {
+    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId }
+  }
   return {
     id: tab.id,
     title: tab.title || 'Nueva pestaña',
@@ -106,7 +117,7 @@ function closeTab(id) {
   if (!tab) return
   const wasActive = id === activeTabId
   if (mainWindow) mainWindow.removeBrowserView(tab.view)
-  tab.view.webContents.close()
+  if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
   tabs.delete(id)
   if (wasActive) {
     const remaining = Array.from(tabs.keys())
