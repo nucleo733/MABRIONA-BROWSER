@@ -22,7 +22,8 @@ body {
 #chrome {
   display: flex;
   flex-direction: column;
-  background: var(--bg);
+  /* Mismo fondo que MABRIONA STUDIO: glow radial oscuro sobre negro, no un negro plano. */
+  background: radial-gradient(circle at 28% -10%, rgba(212, 255, 0, 0.10) 0%, rgba(20, 24, 6, 0.5) 32%, var(--bg) 68%);
   border-bottom: 1px solid var(--border);
 }
 
