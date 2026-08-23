@@ -20,13 +20,17 @@
   "build": {
     "appId": "com.mabriona.browser",
     "productName": "MABRIONA Browser",
+    "icon": "build/icon.icns",
     "files": [
       "main.js",
       "preload.js",
+      "store.js",
+      "address-resolver.js",
       "renderer/**/*",
       "shields/**/*"
     ],
     "mac": {
+      "icon": "build/icon.icns",
       "category": "public.app-category.productivity",
       "target": [
         { "target": "dir", "arch": ["x64", "arm64"] }
