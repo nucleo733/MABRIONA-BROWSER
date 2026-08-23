@@ -1,0 +1,39 @@
+{
+  "name": "mabriona-browser",
+  "productName": "MABRIONA Browser",
+  "version": "0.1.0",
+  "description": "El navegador web propio de MABRIONA Corporation — motor Chromium real (Electron), pestañas, historial, favoritos, descargas, privacidad y MABRIONA SHIELDS.",
+  "main": "main.js",
+  "author": "Wber733",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/",
+    "dist": "electron-builder --mac dmg"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "playwright": "^1.61.1"
+  },
+  "build": {
+    "appId": "com.mabriona.browser",
+    "productName": "MABRIONA Browser",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "shields/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "target": [
+        { "target": "dir", "arch": ["x64", "arm64"] }
+      ]
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

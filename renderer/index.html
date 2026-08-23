@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self';" />
+  <title>MABRIONA Browser</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="chrome">
+    <div id="tabstrip" role="tablist" aria-label="Pestañas">
+      <button id="btn-new-tab" title="Nueva pestaña" aria-label="Nueva pestaña">+</button>
+    </div>
+    <div id="toolbar">
+      <button id="btn-back" class="nav-btn" title="Atrás" aria-label="Atrás">←</button>
+      <button id="btn-forward" class="nav-btn" title="Adelante" aria-label="Adelante">→</button>
+      <button id="btn-reload" class="nav-btn" title="Recargar" aria-label="Recargar">⟳</button>
+      <input id="address" type="text" placeholder="Buscar o escribir una dirección web" aria-label="Barra de direcciones" />
+      <button id="btn-fav" class="nav-btn" title="Agregar a favoritos" aria-label="Agregar a favoritos">☆</button>
+      <button id="btn-shields" class="nav-btn" title="MABRIONA SHIELDS" aria-label="MABRIONA SHIELDS">
+        🛡️<span id="shields-count">0</span>
+      </button>
+      <button id="btn-history" class="nav-btn" title="Historial" aria-label="Historial">🕘</button>
+      <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
+      <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
+    </div>
+  </div>
+
+  <div id="panel-history" class="panel hidden" role="dialog" aria-label="Historial">
+    <div class="panel-header">
+      <span>Historial</span>
+      <button class="panel-clear" data-clear="history">Vaciar</button>
+      <button class="panel-close" data-close="history">✕</button>
+    </div>
+    <ul id="history-list" class="panel-list"></ul>
+  </div>
+
+  <div id="panel-favorites" class="panel hidden" role="dialog" aria-label="Favoritos">
+    <div class="panel-header">
+      <span>Favoritos</span>
+      <button class="panel-close" data-close="favorites">✕</button>
+    </div>
+    <ul id="favorites-list" class="panel-list"></ul>
+  </div>
+
+  <div id="panel-downloads" class="panel hidden" role="dialog" aria-label="Descargas">
+    <div class="panel-header">
+      <span>Descargas</span>
+      <button class="panel-close" data-close="downloads">✕</button>
+    </div>
+    <ul id="downloads-list" class="panel-list"></ul>
+  </div>
+
+  <div id="panel-shields" class="panel hidden" role="dialog" aria-label="MABRIONA SHIELDS">
+    <div class="panel-header">
+      <span>MABRIONA SHIELDS</span>
+      <button class="panel-close" data-close="shields">✕</button>
+    </div>
+    <div class="panel-body">
+      <label class="shields-toggle">
+        <input id="shields-toggle-input" type="checkbox" />
+        Bloquear anuncios y rastreadores de terceros
+      </label>
+      <p class="shields-note">
+        MABRIONA SHIELDS bloquea dominios conocidos de publicidad/rastreo en cualquier sitio.
+        No apunta a YouTube: los anuncios dentro del reproductor de YouTube viajan por el mismo
+        canal que el video real y bloquearlos rompería la reproducción — MABRIONA no lo hace.
+      </p>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
