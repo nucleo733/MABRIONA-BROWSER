@@ -38,7 +38,8 @@ function render(tabsState) {
   })
 
   if (activeTab && document.activeElement !== address) {
-    address.value = activeTab.url === 'about:blank' ? '' : activeTab.url
+    const isHome = activeTab.url === 'about:blank' || activeTab.url.endsWith('/renderer/newtab.html')
+    address.value = isHome ? '' : activeTab.url
   }
   btnBack.disabled = !activeTab?.canGoBack
   btnForward.disabled = !activeTab?.canGoForward

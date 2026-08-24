@@ -1,6 +1,12 @@
 'use strict'
 
-const HOME_URL = 'https://duckduckgo.com/'
+const path = require('node:path')
+const { pathToFileURL } = require('node:url')
+
+// Pestaña nueva/inicial — página propia con el estilo de MABRIONA en vez de
+// mostrar la home de DuckDuckGo (con su propia marca/promociones). La
+// búsqueda sigue yendo a DuckDuckGo (sin API key, sin rastrear).
+const HOME_URL = pathToFileURL(path.join(__dirname, 'renderer', 'newtab.html')).toString()
 
 /**
  * Resuelve lo que el usuario escribió en la barra de direcciones: URL

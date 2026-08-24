@@ -77,7 +77,7 @@ function createTab(initialUrl) {
     broadcastTabs()
     if (tab.id === activeTabId) {
       const url = wc.getURL()
-      if (url && url !== 'about:blank') {
+      if (url && url !== 'about:blank' && url !== HOME_URL) {
         store.addHistoryEntry({ url, title: tab.title, visitedAt: Date.now() })
       }
     }
