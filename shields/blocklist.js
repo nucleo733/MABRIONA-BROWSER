@@ -14,7 +14,7 @@
  * anuncios dentro del reproductor de YouTube viajan por el mismo canal
  * que el video real (CDN de video, no un dominio de "ads" separado) —
  * bloquearlos rompería la reproducción del video en sí, y esa no es la
- * función de este bloqueador (ver /Users/wber733/repos/MABRIONA-STUDIO,
+ * función de este bloqueador (ver, en el repo de MABRIONA-STUDIO, la
  * fase "reproducción de YouTube sin interrupciones publicitarias" —
  * ahí se documentó por qué eso no se implementa).
  */
