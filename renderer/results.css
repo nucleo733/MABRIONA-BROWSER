@@ -82,3 +82,17 @@ main {
 }
 .related a { color: #f2f2f2; text-decoration: none; font-size: 14px; }
 .related a:hover { color: #d4ff00; }
+
+/* Resultados de búsqueda real (cuando hay una key configurada) — lista simple, sin marca ajena. */
+.result-list .card { padding: 16px 20px; }
+.result-title {
+  display: block;
+  color: #f2f2f2;
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 4px;
+}
+.result-title:hover { color: #d4ff00; text-decoration: underline; }
+.result-url { color: #d4ff00; font-size: 12px; opacity: 0.75; margin-bottom: 6px; word-break: break-all; }
+.result-desc { color: rgba(242, 242, 242, 0.75); font-size: 13.5px; line-height: 1.5; }

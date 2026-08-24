@@ -14,9 +14,9 @@ function createStore(filePath) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, ...parsed }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, ...parsed }
     } catch {
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null }
     }
   }
 
@@ -77,6 +77,14 @@ function createStore(filePath) {
       data.shieldsEnabled = enabled
       writeAll(data)
       return data.shieldsEnabled
+    },
+
+    // Búsqueda propia de MABRIONA — la key nunca sale del proceso principal (ver main.js).
+    getBraveApiKey: () => data.braveApiKey || null,
+    setBraveApiKey(key) {
+      data.braveApiKey = key || null
+      writeAll(data)
+      return data.braveApiKey
     },
   }
 }

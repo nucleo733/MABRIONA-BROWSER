@@ -5,6 +5,7 @@ const path = require('node:path')
 const { createStore } = require('./store')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
+const { buildRequest, normalizeResults } = require('./search/braveSearch')
 
 const TOOLBAR_HEIGHT = 118
 
@@ -65,6 +66,11 @@ function createTab(initialUrl) {
       sandbox: true,
       nodeIntegration: false,
       partition: 'persist:mabriona-browser',
+      // Solo expone `window.mabrionaSearch.query(...)` (ver search-preload.js) — la página de
+      // resultados propia lo usa para pedir resultados sin tocar ninguna API key directamente.
+      // Inofensivo en cualquier otro sitio: contextBridge no le da nada a la página, la key nunca
+      // sale del proceso principal.
+      preload: path.join(__dirname, 'search-preload.js'),
     },
   })
   const id = nextTabId++
@@ -225,6 +231,23 @@ ipcMain.handle('downloads:show', (_e, filePath) => shell.showItemInFolder(filePa
 
 ipcMain.handle('shields:get-enabled', () => store.getShieldsEnabled())
 ipcMain.handle('shields:set-enabled', (_e, enabled) => store.setShieldsEnabled(enabled))
+
+// Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
+// diseño de MABRIONA) — la key vive solo acá, nunca llega a la página. Si todavía no hay key
+// configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
+ipcMain.handle('search:query', async (_e, text) => {
+  const apiKey = store.getBraveApiKey()
+  if (!apiKey) return { configured: false, results: [] }
+  try {
+    const { url, headers } = buildRequest(text, apiKey)
+    const res = await fetch(url, { headers })
+    if (!res.ok) return { configured: true, error: `error ${res.status}`, results: [] }
+    const data = await res.json()
+    return { configured: true, results: normalizeResults(data) }
+  } catch (err) {
+    return { configured: true, error: String(err), results: [] }
+  }
+})
 
 ipcMain.handle('privacy:clear-data', async () => {
   const sess = session.fromPartition('persist:mabriona-browser')
