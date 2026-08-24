@@ -127,7 +127,7 @@ document.querySelector('[data-clear="history"]').addEventListener('click', async
   refreshHistoryPanel()
 })
 
-function renderList(ulId, items, emptyLabel, onClick) {
+function renderList(ulId, items, emptyLabel, onClick, onDelete) {
   const ul = document.getElementById(ulId)
   ul.innerHTML = ''
   if (items.length === 0) {
@@ -141,15 +141,28 @@ function renderList(ulId, items, emptyLabel, onClick) {
     const li = document.createElement('li')
     li.innerHTML = `<span class="item-title">${escapeHtml(item.title || item.url)}</span><span class="item-url">${escapeHtml(item.url)}</span>`
     li.addEventListener('click', () => onClick(item))
+    if (onDelete) {
+      const del = document.createElement('button')
+      del.className = 'item-delete'
+      del.type = 'button'
+      del.textContent = '✕'
+      del.title = 'Eliminar esta entrada'
+      del.addEventListener('click', (e) => { e.stopPropagation(); onDelete(item) })
+      li.appendChild(del)
+    }
     ul.appendChild(li)
   }
 }
 
 async function refreshHistoryPanel() {
   const history = await mabrionaBrowser.listHistory()
-  renderList('history-list', history, 'Sin historial todavía', (item) => {
-    if (activeTab) mabrionaBrowser.navigate(activeTab.id, item.url)
-  })
+  renderList(
+    'history-list',
+    history,
+    'Sin historial todavía',
+    (item) => { if (activeTab) mabrionaBrowser.navigate(activeTab.id, item.url) },
+    async (item) => { await mabrionaBrowser.removeHistoryEntry(item.url); refreshHistoryPanel() },
+  )
 }
 async function refreshFavoritesPanel() {
   const favorites = await mabrionaBrowser.listFavorites()
@@ -177,3 +190,35 @@ mabrionaBrowser.onDownloadsState(() => {
   if (!document.getElementById('panel-downloads').classList.contains('hidden')) refreshDownloadsPanel()
 })
 mabrionaBrowser.getTabsState().then(render)
+
+// Permisos por sitio (cámara/micrófono) — pedido real de un sitio real, el usuario decide de
+// verdad; nunca se asume "permitir" ni "bloquear" sin que la persona lo haya tocado.
+const KIND_LABEL = { camera: 'la cámara', microphone: 'el micrófono' }
+const permissionQueue = []
+let permissionShowing = null
+const permissionBanner = document.getElementById('permission-banner')
+const permissionText = document.getElementById('permission-text')
+
+function showNextPermissionRequest() {
+  if (permissionShowing || permissionQueue.length === 0) return
+  permissionShowing = permissionQueue.shift()
+  const labels = permissionShowing.kinds.map((k) => KIND_LABEL[k] || k).join(' y ')
+  permissionText.textContent = `${permissionShowing.origin} solicita acceso a ${labels}.`
+  permissionBanner.classList.remove('hidden')
+}
+
+function resolvePermission(allow) {
+  if (!permissionShowing) return
+  mabrionaBrowser.respondPermission(permissionShowing.requestId, allow)
+  permissionShowing = null
+  permissionBanner.classList.add('hidden')
+  showNextPermissionRequest()
+}
+
+document.getElementById('permission-allow').addEventListener('click', () => resolvePermission(true))
+document.getElementById('permission-deny').addEventListener('click', () => resolvePermission(false))
+
+mabrionaBrowser.onPermissionRequest((req) => {
+  permissionQueue.push(req)
+  showNextPermissionRequest()
+})

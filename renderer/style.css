@@ -204,7 +204,8 @@ body {
   overflow-y: auto;
 }
 .panel-list li {
-  padding: 8px 10px;
+  position: relative;
+  padding: 8px 28px 8px 10px;
   border-radius: 8px;
   font-size: 12px;
   cursor: pointer;
@@ -216,3 +217,45 @@ body {
 .panel-list .item-title { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-list .item-url { color: var(--text-dim); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .panel-list .empty { color: var(--text-dim); text-align: center; padding: 16px 8px; cursor: default; }
+.panel-list .item-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 999px;
+}
+.panel-list .item-delete:hover { color: var(--volt); background: rgba(212, 255, 0, 0.12); }
+
+#permission-banner {
+  position: absolute;
+  top: 124px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-raised-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  z-index: 60;
+  font-size: 12px;
+  max-width: 480px;
+}
+#permission-banner.hidden { display: none; }
+#permission-banner button {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+#permission-deny { background: var(--bg-raised); color: var(--text); }
+#permission-allow { background: var(--volt); color: #000; }

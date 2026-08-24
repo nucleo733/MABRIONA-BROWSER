@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';" />
   <title>MABRIONA Browser</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -28,6 +28,12 @@
       <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
       <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
     </div>
+  </div>
+
+  <div id="permission-banner" class="hidden" role="alertdialog" aria-label="Solicitud de permiso">
+    <span id="permission-text"></span>
+    <button id="permission-deny" type="button">Bloquear</button>
+    <button id="permission-allow" type="button">Permitir</button>
   </div>
 
   <div id="panel-history" class="panel hidden" role="dialog" aria-label="Historial">

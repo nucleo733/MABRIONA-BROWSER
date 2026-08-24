@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   listHistory: () => ipcRenderer.invoke('history:list'),
   clearHistory: () => ipcRenderer.invoke('history:clear'),
+  removeHistoryEntry: (url) => ipcRenderer.invoke('history:remove', url),
 
   listFavorites: () => ipcRenderer.invoke('favorites:list'),
   addFavorite: (fav) => ipcRenderer.invoke('favorites:add', fav),
@@ -33,4 +34,9 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   setShieldsEnabled: (enabled) => ipcRenderer.invoke('shields:set-enabled', enabled),
 
   clearPrivacyData: () => ipcRenderer.invoke('privacy:clear-data'),
+
+  onPermissionRequest: (cb) => ipcRenderer.on('permissions:request', (_e, req) => cb(req)),
+  respondPermission: (requestId, allow) => ipcRenderer.invoke('permissions:respond', { requestId, allow }),
+  listPermissions: () => ipcRenderer.invoke('permissions:list'),
+  setPermission: (origin, kind, decision) => ipcRenderer.invoke('permissions:set', { origin, kind, decision }),
 })

@@ -14,9 +14,9 @@ function createStore(filePath) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, ...parsed }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, ...parsed }
     } catch {
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {} }
     }
   }
 
@@ -37,6 +37,11 @@ function createStore(filePath) {
     },
     clearHistory() {
       data.history = []
+      writeAll(data)
+      return data.history
+    },
+    removeHistoryEntry(url) {
+      data.history = data.history.filter((h) => h.url !== url)
       writeAll(data)
       return data.history
     },
@@ -86,6 +91,17 @@ function createStore(filePath) {
       writeAll(data)
       return data.braveApiKey
     },
+
+    // Permisos por sitio (cámara/micrófono) — decisión real del usuario, persistida por origen.
+    getPermission(origin, kind) {
+      return data.permissions[origin]?.[kind] || null // null = todavía no se decidió
+    },
+    setPermission(origin, kind, decision) {
+      data.permissions[origin] = { ...data.permissions[origin], [kind]: decision }
+      writeAll(data)
+      return data.permissions[origin]
+    },
+    listPermissions: () => data.permissions,
   }
 }
 

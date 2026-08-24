@@ -169,6 +169,43 @@ function installDownloads() {
   })
 }
 
+/** Callbacks pendientes de permiso, esperando la decisión real del usuario desde el chrome. */
+const pendingPermissionRequests = new Map()
+let nextPermissionRequestId = 1
+
+/**
+ * Permisos por sitio (cámara/micrófono) — arquitectura real:
+ * sitio pide getUserMedia → Electron dispara este handler → si ya hay
+ * una decisión guardada para ese origen se resuelve solo; si no, se le
+ * pregunta al usuario desde el chrome (permissions:request) y se
+ * persiste la respuesta para la próxima vez. Todo lo que no sea
+ * cámara/micrófono se deniega por defecto (seguro, sin excepciones
+ * todavía en esta fase).
+ */
+function installPermissions() {
+  const sess = session.fromPartition('persist:mabriona-browser')
+  sess.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    if (permission !== 'media') { callback(false); return }
+    const mediaTypes = details.mediaTypes || []
+    const kinds = []
+    if (mediaTypes.includes('video')) kinds.push('camera')
+    if (mediaTypes.includes('audio')) kinds.push('microphone')
+    if (kinds.length === 0) { callback(false); return }
+
+    let origin
+    try { origin = new URL(details.requestingUrl).origin } catch { callback(false); return }
+
+    const stored = kinds.map((k) => store.getPermission(origin, k))
+    if (stored.every((d) => d === 'allow')) { callback(true); return }
+    if (stored.some((d) => d === 'deny')) { callback(false); return }
+
+    // Ninguna decisión guardada todavía — preguntarle al usuario de verdad, no asumir.
+    const requestId = nextPermissionRequestId++
+    pendingPermissionRequests.set(requestId, { callback, origin, kinds })
+    sendToRenderer('permissions:request', { requestId, origin, kinds })
+  })
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -191,6 +228,7 @@ function createWindow() {
 app.whenReady().then(() => {
   installShields()
   installDownloads()
+  installPermissions()
   createWindow()
 
   app.on('activate', () => {
@@ -220,6 +258,7 @@ ipcMain.handle('tabs:get-state', () => Array.from(tabs.values()).map(serializeTa
 
 ipcMain.handle('history:list', () => store.getState().history)
 ipcMain.handle('history:clear', () => store.clearHistory())
+ipcMain.handle('history:remove', (_e, url) => store.removeHistoryEntry(url))
 
 ipcMain.handle('favorites:list', () => store.listFavorites())
 ipcMain.handle('favorites:add', (_e, fav) => store.addFavorite(fav))
@@ -253,6 +292,19 @@ ipcMain.handle('tabs:screenshot', async (_e, id) => {
 
 ipcMain.handle('shields:get-enabled', () => store.getShieldsEnabled())
 ipcMain.handle('shields:set-enabled', (_e, enabled) => store.setShieldsEnabled(enabled))
+
+// El usuario ya decidió (Allow/Deny) sobre un pedido de cámara/micrófono real, mostrado en el
+// chrome — se persiste por origen y se resuelve el callback que Electron estaba esperando.
+ipcMain.handle('permissions:respond', (_e, { requestId, allow }) => {
+  const pending = pendingPermissionRequests.get(requestId)
+  if (!pending) return false
+  pendingPermissionRequests.delete(requestId)
+  for (const kind of pending.kinds) store.setPermission(pending.origin, kind, allow ? 'allow' : 'deny')
+  pending.callback(allow)
+  return true
+})
+ipcMain.handle('permissions:list', () => store.listPermissions())
+ipcMain.handle('permissions:set', (_e, { origin, kind, decision }) => store.setPermission(origin, kind, decision))
 
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
 // diseño de MABRIONA) — la key vive solo acá, nunca llega a la página. Si todavía no hay key

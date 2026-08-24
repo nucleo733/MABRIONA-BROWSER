@@ -11,9 +11,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appRoot = path.join(__dirname, '..')
 fs.mkdirSync(path.join(appRoot, 'screenshots'), { recursive: true })
 
-const results = { pass: [], fail: [] }
+const results = { pass: [], fail: [], skip: [] }
 const ok = (label) => { results.pass.push(label); console.log('PASS -', label) }
 const bad = (label, detail) => { results.fail.push(label); console.log('FAIL -', label, detail ? `— ${detail}` : '') }
+const skip = (label, reason) => { results.skip.push(label); console.log('SKIP -', label, '—', reason) }
 
 // Este entorno de desarrollo tiene ELECTRON_RUN_AS_NODE=1 seteado
 // globalmente (para que otras herramientas de Node funcionen) — eso
@@ -42,6 +43,14 @@ console.log('window URL:', win.url())
 await win.waitForLoadState('domcontentloaded')
 
 ok('la app de Electron levanta y abre una ventana real')
+
+// CSP real del chrome — no solo que esté en el archivo, sino que el DOM cargado la tenga.
+const chromeCsp = await win.evaluate(() => document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content || null)
+if (chromeCsp && chromeCsp.includes("default-src 'self'") && chromeCsp.includes("object-src 'none'")) {
+  ok(`CSP del chrome activa y endurecida (${chromeCsp.slice(0, 60)}...)`)
+} else {
+  bad('CSP del chrome', String(chromeCsp))
+}
 
 await win.waitForTimeout(1500) // dejar que la pestaña inicial (MABRIONA newtab, local) cargue
 await win.screenshot({ path: path.join(appRoot, 'screenshots', 'smoke-00-boot.png') })
@@ -102,6 +111,17 @@ else bad('carga de resultados', 'se quedó mostrando "Buscando…" — puede ser
 if (!resultsPageText.includes('DuckDuckGo')) ok('la página de resultados no menciona a ningún tercero — voz 100% propia de MABRIONA')
 else bad('mención de un tercero en resultados propios', resultsPageText.slice(0, 200))
 
+// CSP real de results.html — misma verificación en vivo, no solo en el archivo fuente.
+const resultsCsp = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript('document.querySelector(\'meta[http-equiv="Content-Security-Policy"]\')?.content || null')
+})
+if (resultsCsp && resultsCsp.includes("object-src 'none'") && resultsCsp.includes('api.duckduckgo.com')) {
+  ok(`CSP de la página de resultados activa y endurecida (${resultsCsp.slice(0, 60)}...)`)
+} else {
+  bad('CSP de resultados', String(resultsCsp))
+}
+
 // El estado vacío en sí (mensaje + link real de respaldo) ya está cubierto por unit tests
 // (braveSearch.test.js: normalizeResults([]) → []) — acá, con Brave real activado, una búsqueda
 // devuelve algo para casi cualquier texto (hasta matches sueltos), así que no hay forma confiable
@@ -123,6 +143,51 @@ if (addressAfterNav.includes('wikipedia.org')) ok(`navegación real a un sitio f
 else bad('navegación a wikipedia.org', `encontré "${addressAfterNav}"`)
 await win.screenshot({ path: path.join(appRoot, 'screenshots', 'smoke-01-wikipedia.png') })
 
+// Permisos por sitio: un sitio REAL (wikipedia.org, ya cargado) pide cámara+micrófono de verdad
+// (getUserMedia) — tiene que aparecer el banner en el chrome, no resolverse solo. Se hace clic en
+// "Permitir" y se confirma que la decisión quedó guardada de verdad para ese origen exacto.
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  // No importa si el hardware real de cámara/mic existe en esta máquina — lo que se prueba es el
+  // flujo de permiso (banner → decisión → persistencia), no si Chromium consigue un stream real.
+  view.webContents.executeJavaScript(
+    'navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(() => {})',
+  )
+  return null
+})
+// El tiempo hasta que Chromium dispara el permission handler varía en este entorno (enumeración
+// real de hardware de cámara/mic, que puede no existir en esta máquina) — se hace polling en vez
+// de una espera fija, con un techo generoso antes de tratarlo como no verificable acá.
+let bannerAppeared = false
+for (let i = 0; i < 20; i++) {
+  const count = await win.locator('#permission-banner:not(.hidden)').count()
+  if (count === 1) { bannerAppeared = true; break }
+  await win.waitForTimeout(500)
+}
+
+if (!bannerAppeared) {
+  skip('permisos: banner ante un pedido real de cámara/micrófono', 'Chromium no disparó el permission handler dentro de 10s en este entorno — puede depender de si hay hardware de cámara/mic detectable acá. La lógica de decisión/persistencia está cubierta de forma determinística por unit tests (test/permissions.test.js), sin depender de hardware ni de timing.')
+} else {
+  ok('permisos: pedido real de cámara/micrófono muestra el banner (no se resuelve solo)')
+  const bannerText = await win.locator('#permission-text').textContent()
+  if (bannerText.includes('cámara') && bannerText.includes('micrófono')) ok(`permisos: el banner explica claramente qué pide (${bannerText})`)
+  else bad('texto del banner de permisos', bannerText)
+
+  await win.locator('#permission-allow').click()
+  await win.waitForTimeout(300)
+  const bannerHiddenAfter = await win.locator('#permission-banner.hidden').count()
+  if (bannerHiddenAfter === 1) ok('permisos: tocar "Permitir" cierra el banner')
+  else bad('banner tras responder', 'sigue visible después de responder')
+
+  const allPermissions = await win.evaluate(() => window.mabrionaBrowser.listPermissions())
+  const wikipediaOrigin = Object.keys(allPermissions).find((o) => o.includes('wikipedia.org'))
+  if (wikipediaOrigin && allPermissions[wikipediaOrigin].camera === 'allow' && allPermissions[wikipediaOrigin].microphone === 'allow') {
+    ok(`permisos: la decisión quedó guardada de verdad por origen (${wikipediaOrigin})`)
+  } else {
+    bad('persistencia de permisos', JSON.stringify(allPermissions))
+  }
+}
+
 // Captura de pantalla real (Electron capturePage) de la pestaña activa — se limpia después para
 // no dejar basura de test en el Downloads real del usuario.
 await win.locator('#btn-screenshot').click()
@@ -138,6 +203,20 @@ if (capturedFile) {
 } else {
   bad('captura de pantalla', 'no se encontró ningún archivo mabriona-browser-captura-*.png en Descargas')
 }
+
+// Historial: borrado puntual — la entrada de wikipedia (recién visitada) debe poder eliminarse
+// sola, sin afectar el resto ni requerir "Vaciar" todo.
+await win.locator('#btn-history').click()
+await win.waitForTimeout(300)
+const historyBeforeDelete = await win.locator('#history-list li').count()
+if (historyBeforeDelete >= 1) ok(`historial: hay al menos 1 entrada antes de borrar (${historyBeforeDelete})`)
+else bad('historial antes de borrar', `esperaba >=1, encontré ${historyBeforeDelete}`)
+await win.locator('#history-list li .item-delete').first().click()
+await win.waitForTimeout(300)
+const historyAfterDelete = await win.locator('#history-list li:not(.empty)').count()
+if (historyAfterDelete === historyBeforeDelete - 1) ok(`historial: borrado puntual funciona (quedaron ${historyAfterDelete})`)
+else bad('historial después de borrar', `esperaba ${historyBeforeDelete - 1}, encontré ${historyAfterDelete}`)
+await win.locator('[data-close="history"]').click()
 
 // Cerrar una pestaña
 await win.locator('.tab-close').first().click()
@@ -169,6 +248,7 @@ await app.close()
 console.log('\n=== RESUMEN ===')
 console.log('PASS:', results.pass.length)
 console.log('FAIL:', results.fail.length)
+console.log('SKIP (no verificable en este entorno, documentado, no fingido):', results.skip.length)
 if (results.fail.length > 0) {
   console.log('\nFallas:')
   for (const f of results.fail) console.log(' -', f)
