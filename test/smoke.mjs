@@ -279,6 +279,38 @@ await win.waitForTimeout(300)
 const shieldsToggleVisible = await win.locator('#shields-toggle-input').isVisible()
 if (shieldsToggleVisible) ok('panel de MABRIONA SHIELDS abre con el toggle visible')
 else bad('panel de shields', 'el toggle no está visible')
+await win.locator('[data-close="shields"]').click()
+
+// Settings — solo capacidades reales conectadas, nada de switches decorativos.
+await win.locator('#btn-settings').click()
+await win.waitForTimeout(300)
+const downloadsPathText = await win.locator('#settings-downloads-path').textContent()
+if (downloadsPathText.includes('Carpeta actual:') && downloadsPathText.length > 'Carpeta actual:'.length) {
+  ok(`settings: muestra la carpeta real de descargas (${downloadsPathText})`)
+} else {
+  bad('settings — carpeta de descargas', downloadsPathText)
+}
+
+await win.locator('#settings-clear-data').click()
+await win.waitForTimeout(300)
+const clearDataBtnText = await win.locator('#settings-clear-data').textContent()
+if (clearDataBtnText.includes('Listo')) ok('settings: "Borrar datos de navegación" ejecuta la limpieza real (session.clearStorageData)')
+else bad('settings — borrar datos', clearDataBtnText)
+
+// Permisos en Settings: se siembra una decisión real (mismo IPC que usa el banner) y se confirma
+// que aparece en la lista y que "olvidarla" la saca de verdad.
+await win.evaluate(() => window.mabrionaBrowser.setPermission('https://ejemplo-test.com', 'camera', 'allow'))
+await win.evaluate(() => window.refreshSettingsPanel()) // ya está abierto — solo refrescar la lista, no togglear el panel
+await win.waitForTimeout(300)
+const permissionRowVisible = await win.locator('#settings-permissions-list li:has-text("ejemplo-test.com")').count()
+if (permissionRowVisible === 1) ok('settings: un permiso guardado aparece en la lista, con su origen y decisión reales')
+else bad('settings — lista de permisos', `esperaba 1 fila, encontré ${permissionRowVisible}`)
+
+await win.locator('#settings-permissions-list li:has-text("ejemplo-test.com") .item-delete').click()
+await win.waitForTimeout(300)
+const permissionRowAfterForget = await win.locator('#settings-permissions-list li:has-text("ejemplo-test.com")').count()
+if (permissionRowAfterForget === 0) ok('settings: "olvidar" un permiso lo saca de verdad de la lista')
+else bad('settings — olvidar permiso', 'sigue apareciendo después de olvidarlo')
 
 await app.close()
 

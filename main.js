@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, BrowserView, ipcMain, session, shell } = require('electron')
+const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const { createStore } = require('./store')
@@ -152,11 +152,16 @@ function installShields() {
   })
 }
 
+/** Carpeta real de descargas — la que eligió el usuario en Settings, o el Downloads del sistema si no eligió ninguna. */
+function currentDownloadsDir() {
+  return store.getDownloadsDir() || app.getPath('downloads')
+}
+
 function installDownloads() {
   const sess = session.fromPartition('persist:mabriona-browser')
   sess.on('will-download', (_event, item) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const savePath = path.join(app.getPath('downloads'), item.getFilename())
+    const savePath = path.join(currentDownloadsDir(), item.getFilename())
     item.setSavePath(savePath)
     store.addDownload({ id, filename: item.getFilename(), path: savePath, url: item.getURL(), state: 'progressing', startedAt: Date.now() })
     sendToRenderer('downloads:state', store.listDownloads())
@@ -291,7 +296,7 @@ ipcMain.handle('tabs:screenshot', async (_e, id) => {
   try {
     const image = await tab.view.webContents.capturePage()
     const filename = `mabriona-browser-captura-${Date.now()}.png`
-    const savePath = path.join(app.getPath('downloads'), filename)
+    const savePath = path.join(currentDownloadsDir(), filename)
     fs.writeFileSync(savePath, image.toPNG())
     const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const now = Date.now()
@@ -318,6 +323,16 @@ ipcMain.handle('permissions:respond', (_e, { requestId, allow }) => {
 })
 ipcMain.handle('permissions:list', () => store.listPermissions())
 ipcMain.handle('permissions:set', (_e, { origin, kind, decision }) => store.setPermission(origin, kind, decision))
+ipcMain.handle('permissions:clear', (_e, { origin, kind }) => store.clearPermission(origin, kind))
+
+// Settings — Descargas: diálogo real de macOS (dialog.showOpenDialog), no un input de texto libre.
+ipcMain.handle('settings:get-downloads-dir', () => currentDownloadsDir())
+ipcMain.handle('settings:choose-downloads-dir', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory', 'createDirectory'] })
+  if (result.canceled || result.filePaths.length === 0) return currentDownloadsDir()
+  store.setDownloadsDir(result.filePaths[0])
+  return currentDownloadsDir()
+})
 
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
 // diseño de MABRIONA) — la key vive solo acá, nunca llega a la página. Si todavía no hay key

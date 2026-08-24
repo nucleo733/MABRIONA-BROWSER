@@ -107,7 +107,7 @@ btnScreenshot.addEventListener('click', async () => {
 
 // ---------------- Paneles (historial / favoritos / descargas / shields) ----------------
 
-const panels = ['history', 'favorites', 'downloads', 'shields']
+const panels = ['history', 'favorites', 'downloads', 'shields', 'settings']
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')
 }
@@ -122,6 +122,7 @@ document.getElementById('btn-history').addEventListener('click', () => { toggleP
 document.getElementById('btn-favorites').addEventListener('click', () => { togglePanel('favorites'); refreshFavoritesPanel() })
 document.getElementById('btn-downloads').addEventListener('click', () => { togglePanel('downloads'); refreshDownloadsPanel() })
 document.getElementById('btn-shields').addEventListener('click', () => { togglePanel('shields'); refreshShieldsPanel() })
+document.getElementById('btn-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
 document.querySelectorAll('.panel-close').forEach((btn) => btn.addEventListener('click', (e) => {
   document.getElementById(`panel-${e.target.dataset.close}`).classList.add('hidden')
 }))
@@ -186,6 +187,61 @@ async function refreshShieldsPanel() {
 }
 document.getElementById('shields-toggle-input').addEventListener('change', (e) => {
   mabrionaBrowser.setShieldsEnabled(e.target.checked)
+})
+
+// ---------------- Settings — solo capacidades reales, nada de switches decorativos ----------------
+
+async function refreshSettingsPanel() {
+  const dir = await mabrionaBrowser.getDownloadsDir()
+  document.getElementById('settings-downloads-path').textContent = `Carpeta actual: ${dir}`
+  await refreshSettingsPermissions()
+}
+
+async function refreshSettingsPermissions() {
+  const all = await mabrionaBrowser.listPermissions()
+  const ul = document.getElementById('settings-permissions-list')
+  ul.innerHTML = ''
+  const rows = []
+  for (const [origin, kinds] of Object.entries(all)) {
+    for (const [kind, decision] of Object.entries(kinds)) rows.push({ origin, kind, decision })
+  }
+  if (rows.length === 0) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'Ningún sitio pidió permisos todavía'
+    ul.appendChild(li)
+    return
+  }
+  const kindLabel = { camera: 'Cámara', microphone: 'Micrófono' }
+  for (const row of rows) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span class="item-title">${escapeHtml(row.origin)} — ${kindLabel[row.kind] || row.kind}</span><span class="item-url">${row.decision === 'allow' ? 'Permitido' : 'Bloqueado'}</span>`
+    const toggle = document.createElement('button')
+    toggle.className = 'item-delete'
+    toggle.type = 'button'
+    toggle.title = 'Olvidar esta decisión (va a volver a preguntar)'
+    toggle.textContent = '✕'
+    toggle.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      await mabrionaBrowser.clearPermission(row.origin, row.kind)
+      refreshSettingsPermissions()
+    })
+    li.appendChild(toggle)
+    ul.appendChild(li)
+  }
+}
+
+document.getElementById('settings-clear-data').addEventListener('click', async () => {
+  const btn = document.getElementById('settings-clear-data')
+  btn.disabled = true
+  const original = btn.textContent
+  await mabrionaBrowser.clearPrivacyData()
+  btn.textContent = 'Listo ✓'
+  setTimeout(() => { btn.textContent = original; btn.disabled = false }, 1200)
+})
+document.getElementById('settings-choose-downloads').addEventListener('click', async () => {
+  const dir = await mabrionaBrowser.chooseDownloadsDir()
+  document.getElementById('settings-downloads-path').textContent = `Carpeta actual: ${dir}`
 })
 
 mabrionaBrowser.onTabsState(render)

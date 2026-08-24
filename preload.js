@@ -43,4 +43,8 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   respondPermission: (requestId, allow) => ipcRenderer.invoke('permissions:respond', { requestId, allow }),
   listPermissions: () => ipcRenderer.invoke('permissions:list'),
   setPermission: (origin, kind, decision) => ipcRenderer.invoke('permissions:set', { origin, kind, decision }),
+  clearPermission: (origin, kind) => ipcRenderer.invoke('permissions:clear', { origin, kind }),
+
+  getDownloadsDir: () => ipcRenderer.invoke('settings:get-downloads-dir'),
+  chooseDownloadsDir: () => ipcRenderer.invoke('settings:choose-downloads-dir'),
 })

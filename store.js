@@ -14,9 +14,9 @@ function createStore(filePath) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, ...parsed }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null, ...parsed }
     } catch {
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {} }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null }
     }
   }
 
@@ -102,6 +102,18 @@ function createStore(filePath) {
       return data.permissions[origin]
     },
     listPermissions: () => data.permissions,
+    clearPermission(origin, kind) {
+      if (data.permissions[origin]) delete data.permissions[origin][kind]
+      writeAll(data)
+      return data.permissions
+    },
+
+    getDownloadsDir: () => data.downloadsDir, // null = usar el default del sistema
+    setDownloadsDir(dir) {
+      data.downloadsDir = dir || null
+      writeAll(data)
+      return data.downloadsDir
+    },
   }
 }
 

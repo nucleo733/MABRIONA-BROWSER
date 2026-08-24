@@ -197,6 +197,31 @@ body {
 .shields-toggle { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 13px; margin-bottom: 10px; accent-color: var(--volt); }
 .shields-note { line-height: 1.5; }
 
+.settings-section { margin-bottom: 18px; }
+.settings-section:last-child { margin-bottom: 0; }
+.settings-section h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.settings-note { color: var(--text-dim); font-size: 11px; line-height: 1.5; margin: 6px 0 0; word-break: break-all; }
+.settings-btn {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.settings-btn:hover { border-color: var(--volt); color: var(--volt); }
+.settings-btn:disabled { opacity: 0.6; cursor: default; }
+#settings-permissions-list { max-height: 160px; padding: 0; }
+
 .panel-list {
   list-style: none;
   margin: 0;

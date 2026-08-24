@@ -27,6 +27,7 @@
       <button id="btn-history" class="nav-btn" title="Historial" aria-label="Historial">🕘</button>
       <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
       <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
+      <button id="btn-settings" class="nav-btn" title="Configuración" aria-label="Configuración">⚙️</button>
     </div>
   </div>
 
@@ -84,6 +85,31 @@
         No apunta a YouTube: los anuncios dentro del reproductor de YouTube viajan por el mismo
         canal que el video real y bloquearlos rompería la reproducción — MABRIONA no lo hace.
       </p>
+    </div>
+  </div>
+
+  <div id="panel-settings" class="panel hidden" role="dialog" aria-label="Configuración">
+    <div class="panel-header">
+      <span>Configuración</span>
+      <button class="panel-close" data-close="settings">✕</button>
+    </div>
+    <div class="panel-body">
+      <section class="settings-section">
+        <h3>Privacidad</h3>
+        <button id="settings-clear-data" type="button" class="settings-btn">Borrar datos de navegación</button>
+        <p class="settings-note">Borra cookies, almacenamiento y caché de esta sesión (persist:mabriona-browser). No borra historial ni favoritos — esos se borran aparte, en sus propios paneles.</p>
+      </section>
+
+      <section class="settings-section">
+        <h3>Descargas</h3>
+        <p id="settings-downloads-path" class="settings-note"></p>
+        <button id="settings-choose-downloads" type="button" class="settings-btn">Elegir carpeta…</button>
+      </section>
+
+      <section class="settings-section">
+        <h3>Permisos por sitio</h3>
+        <ul id="settings-permissions-list" class="panel-list"></ul>
+      </section>
     </div>
   </div>
 
