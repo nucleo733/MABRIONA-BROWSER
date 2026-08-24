@@ -6,7 +6,7 @@ const fs = require('node:fs')
 const { createStore } = require('./store')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
-const { buildRequest, normalizeResults } = require('./search/braveSearch')
+const { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos } = require('./search/braveSearch')
 
 const TOOLBAR_HEIGHT = 118
 
@@ -339,15 +339,15 @@ ipcMain.handle('settings:choose-downloads-dir', async () => {
 // configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
 ipcMain.handle('search:query', async (_e, text) => {
   const apiKey = store.getBraveApiKey()
-  if (!apiKey) return { configured: false, results: [] }
+  if (!apiKey) return { configured: false, web: [], infobox: null, videos: [] }
   try {
     const { url, headers } = buildRequest(text, apiKey)
     const res = await fetch(url, { headers })
-    if (!res.ok) return { configured: true, error: `error ${res.status}`, results: [] }
+    if (!res.ok) return { configured: true, error: `error ${res.status}`, web: [], infobox: null, videos: [] }
     const data = await res.json()
-    return { configured: true, results: normalizeResults(data) }
+    return { configured: true, web: normalizeResults(data), infobox: normalizeInfobox(data), videos: normalizeVideos(data) }
   } catch (err) {
-    return { configured: true, error: String(err), results: [] }
+    return { configured: true, error: String(err), web: [], infobox: null, videos: [] }
   }
 })
 

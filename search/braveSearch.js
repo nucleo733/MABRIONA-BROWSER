@@ -41,4 +41,47 @@ function normalizeResults(data) {
     }))
 }
 
-module.exports = { buildRequest, normalizeResults, BRAVE_ENDPOINT }
+/**
+ * Entity Focus — el panel de entidad (persona/lugar/cosa reconocida) que Brave arma a partir de
+ * fuentes como Wikipedia, cuando la búsqueda tiene una entidad clara. Es dato real de la API, no
+ * un Knowledge Panel simulado — si Brave no lo manda, esta función devuelve `null` y MABRIONA
+ * Search simplemente no muestra Entity Focus para esa búsqueda (nunca inventa uno).
+ */
+function normalizeInfobox(data) {
+  const box = data?.infobox?.results?.[0]
+  if (!box || !box.title) return null
+  return {
+    title: String(box.title),
+    category: typeof box.category === 'string' ? box.category : null,
+    description: typeof box.description === 'string' ? box.description : '',
+    longDescription: typeof box.long_desc === 'string' ? box.long_desc : '',
+    sourceUrl: typeof box.url === 'string' ? box.url : null,
+    attributes: Array.isArray(box.attributes)
+      ? box.attributes
+          .filter((a) => Array.isArray(a) && a.length === 2)
+          .map(([label, value]) => ({ label: String(label), value: String(value) }))
+      : [],
+    profiles: Array.isArray(box.profiles)
+      ? box.profiles
+          .filter((p) => p && p.name && p.url)
+          .map((p) => ({ name: String(p.name), url: String(p.url), icon: typeof p.img === 'string' ? p.img : null }))
+      : [],
+  }
+}
+
+/** Videos reales (mayormente YouTube) que Brave ya trae en la misma respuesta — sin API aparte. */
+function normalizeVideos(data) {
+  const results = data?.videos?.results
+  if (!Array.isArray(results)) return []
+  return results
+    .filter((v) => v && v.url && v.title)
+    .map((v) => ({
+      title: String(v.title),
+      url: String(v.url),
+      thumbnail: v.thumbnail && typeof v.thumbnail.src === 'string' ? v.thumbnail.src : null,
+      duration: v.video && typeof v.video.duration === 'string' ? v.video.duration : null,
+      source: v.video && typeof v.video.publisher === 'string' ? v.video.publisher : null,
+    }))
+}
+
+module.exports = { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, BRAVE_ENDPOINT }

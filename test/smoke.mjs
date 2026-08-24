@@ -127,6 +127,57 @@ if (resultsCsp && resultsCsp.includes("object-src 'none'") && resultsCsp.include
 // devuelve algo para casi cualquier texto (hasta matches sueltos), así que no hay forma confiable
 // de forzar ese estado en un end-to-end en vivo sin que se vuelva un test frágil.
 
+// MABRIONA Search — Spectrum + Entity Focus, con una búsqueda que sabemos que trae entidad real
+// (Brave reconoce "romeo santos" como persona vía Wikipedia — mismo tipo de dato que ya se vio en
+// la auditoría de esta fase).
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'romeo santos'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(3000)
+const spectrumInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    tabs: Array.from(document.querySelectorAll('.spectrum-tab')).map((b) => b.textContent),
+    hasEntityFocus: !!document.querySelector('.entity-focus'),
+    entityTitle: document.querySelector('.entity-focus h2')?.textContent || null,
+    hasVideoGrid: !!document.querySelector('.video-grid'),
+    bodyText: document.body.innerText.slice(0, 400),
+  })`)
+})
+console.log('Spectrum:', JSON.stringify(spectrumInfo.tabs), '| Entity Focus:', spectrumInfo.hasEntityFocus, spectrumInfo.entityTitle)
+if (spectrumInfo.tabs.includes('Todo')) ok(`MABRIONA Search: Spectrum muestra pestañas reales (${spectrumInfo.tabs.join(', ')})`)
+else bad('Spectrum', JSON.stringify(spectrumInfo))
+if (spectrumInfo.hasEntityFocus && spectrumInfo.entityTitle) ok(`MABRIONA Search: Entity Focus real para una entidad reconocida (${spectrumInfo.entityTitle})`)
+else skip('Entity Focus', 'Brave no devolvió infobox para esta búsqueda en esta corrida — no siempre es determinístico, no es un bug si el resto de Spectrum funciona')
+if (spectrumInfo.tabs.includes('Video') ? spectrumInfo.hasVideoGrid : true) ok('MABRIONA Search: la pestaña Video (si aparece) trae una grilla real')
+else bad('Video grid', 'la pestaña Video está pero no hay grilla')
+
+// Cambiar de pestaña Spectrum (Web) tiene que mostrar la lista completa, sin Entity Focus ni video.
+if (spectrumInfo.tabs.includes('Web')) {
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('.spectrum-tab')).find((b) => b.textContent === 'Web').click();",
+    )
+  })
+  await win.waitForTimeout(300)
+  const webTabInfo = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      hasEntityFocus: !!document.querySelector('.entity-focus'),
+      resultCount: document.querySelectorAll('.result-list .card').length,
+    })`)
+  })
+  if (!webTabInfo.hasEntityFocus && webTabInfo.resultCount > 0) {
+    ok(`MABRIONA Search: la pestaña Web muestra solo resultados web reales (${webTabInfo.resultCount})`)
+  } else {
+    bad('pestaña Web', JSON.stringify(webTabInfo))
+  }
+}
+
 // Nueva pestaña real
 await win.locator('#btn-new-tab').click()
 await win.waitForTimeout(500)

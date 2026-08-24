@@ -1,89 +1,209 @@
+/* MABRIONA Search — oscuro + cristal + profundidad. El volt es señal (activo/selección/IA),
+   nunca relleno de pantalla — evita a propósito parecerse a "Google oscuro con verde". */
+:root {
+  --bg: #08090a;
+  --surface: rgba(255, 255, 255, 0.035);
+  --surface-raised: rgba(255, 255, 255, 0.055);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --text: #f2f2f0;
+  --text-dim: rgba(242, 242, 240, 0.58);
+  --text-faint: rgba(242, 242, 240, 0.38);
+  --volt: #d4ff00;
+  --volt-dim: rgba(212, 255, 0, 0.55);
+}
+
 * { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   min-height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #ffffff;
-  color: #202124;
+  background:
+    radial-gradient(ellipse 60% 40% at 20% -5%, rgba(212, 255, 0, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 35% at 85% 10%, rgba(255, 255, 255, 0.025) 0%, transparent 55%),
+    var(--bg);
+  color: var(--text);
 }
 
 header {
   display: flex;
   align-items: center;
-  gap: 24px;
-  padding: 18px 40px;
-  border-bottom: 1px solid #ebebeb;
-  width: 100%;
+  gap: 28px;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border-soft);
 }
+.logo { font-size: 14px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
+.mabriona { color: var(--text); }
+.browser { color: var(--volt); font-weight: 700; }
 
-.logo { font-size: 15px; font-weight: 800; white-space: nowrap; }
-.mabriona { color: #202124; }
-.browser { color: #8a9d00; font-weight: 700; }
-
-#search-form { flex: 1; }
+#search-form { flex: 1; max-width: 620px; }
 #q {
   width: 100%;
-  height: 40px;
+  height: 42px;
   border-radius: 999px;
-  border: 1px solid #dfe1e5;
-  background: #ffffff;
-  color: #202124;
-  padding: 0 18px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  padding: 0 20px;
   font-size: 14px;
   outline: none;
 }
-#q:focus {
-  border-color: #8a9d00;
-  box-shadow: 0 1px 6px rgba(32, 33, 36, 0.18);
+#q::placeholder { color: var(--text-faint); }
+#q:focus { border-color: var(--volt-dim); box-shadow: 0 0 0 1px rgba(212, 255, 0, 0.18); }
+
+/* ---------------- Spectrum — pestañas propias, no la fila horizontal de Google ---------------- */
+#spectrum {
+  display: flex;
+  gap: 6px;
+  padding: 14px 32px;
+  border-bottom: 1px solid var(--border-soft);
+}
+#spectrum.hidden { display: none; }
+.spectrum-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.spectrum-tab:hover { background: var(--surface); color: var(--text); }
+.spectrum-tab.active { background: var(--surface-raised); border-color: var(--border); color: var(--volt); }
+
+main { max-width: 880px; margin: 0 auto; padding: 28px 32px 72px; }
+
+.loading, .empty, .note { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
+.empty { color: var(--text); font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+
+/* ---------------- Entity Focus — panel de entidad, lenguaje propio ---------------- */
+.entity-focus {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(16px);
+  border-radius: 22px;
+  padding: 28px 30px;
+  margin-bottom: 28px;
+}
+.entity-focus .entity-category {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--volt);
+  margin-bottom: 8px;
+}
+.entity-focus h2 { margin: 0 0 8px; font-size: 26px; font-weight: 800; }
+.entity-focus .entity-desc { margin: 0 0 18px; font-size: 14px; color: var(--text-dim); line-height: 1.6; max-width: 620px; }
+.entity-attrs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px 24px;
+  margin-bottom: 18px;
+}
+.entity-attr { font-size: 12.5px; }
+.entity-attr .label { color: var(--text-faint); display: block; margin-bottom: 2px; }
+.entity-attr .value { color: var(--text); line-height: 1.4; }
+.entity-profiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.entity-profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.entity-profile:hover { border-color: var(--volt-dim); color: var(--volt); }
+.entity-profile img { width: 14px; height: 14px; border-radius: 3px; }
+
+/* ---------------- Secciones (Video dentro de Todo, headers propios) ---------------- */
+.section-heading {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin: 0 0 12px;
 }
 
-main {
+/* ---------------- Resultados web ---------------- */
+.result-list .card { padding: 16px 0; border-bottom: 1px solid var(--border-soft); }
+.result-title {
+  display: block;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 3px;
+}
+.result-title:hover { color: var(--volt); }
+.result-url { color: var(--text-faint); font-size: 12px; margin-bottom: 5px; word-break: break-all; }
+.result-desc { color: var(--text-dim); font-size: 13.5px; line-height: 1.55; }
+
+/* ---------------- Video grid ---------------- */
+.video-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+.video-card { text-decoration: none; color: var(--text); }
+.video-thumb {
+  position: relative;
   width: 100%;
-  padding: 24px 40px 60px;
+  aspect-ratio: 16/9;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+  margin-bottom: 8px;
 }
-
-.loading, .empty, .note { color: #5f6368; font-size: 14px; line-height: 1.6; }
-.empty { color: #202124; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
-
-.card {
-  padding: 16px 0;
-  border-bottom: 1px solid #f1f1f1;
+.video-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.video-duration {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 5px;
 }
-.card h2 { margin: 0 0 6px; font-size: 18px; color: #202124; }
-.card p { margin: 0; font-size: 14px; line-height: 1.6; color: #4d5156; }
-.card .answer { font-size: 20px; font-weight: 700; color: #202124; }
+.video-title { font-size: 13px; font-weight: 700; line-height: 1.35; margin-bottom: 3px; }
+.video-source { font-size: 11px; color: var(--text-faint); }
+.video-card:hover .video-title { color: var(--volt); }
+
+/* ---------------- Instant Answer (respaldo sin key) — mismo lenguaje visual ---------------- */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px 22px; margin-bottom: 16px; }
+.card h2 { margin: 0 0 8px; font-size: 17px; color: var(--text); }
+.card p { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text-dim); }
+.card .answer { font-size: 19px; font-weight: 700; color: var(--text); }
 
 .source-link, .fallback-link {
   display: inline-block;
   margin-top: 10px;
-  color: #6b7b00;
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--volt);
+  font-size: 12.5px;
+  font-weight: 700;
   text-decoration: none;
 }
 .source-link:hover, .fallback-link:hover { text-decoration: underline; }
 .fallback-link { margin-top: 16px; }
 
-.related {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-}
-.related li { padding: 10px 0; border-bottom: 1px solid #f1f1f1; }
-.related a { color: #1a0dab; text-decoration: none; font-size: 14px; }
-.related a:hover { text-decoration: underline; }
-
-/* Resultados de búsqueda real — mismo formato clásico de cualquier buscador: título, url, texto. */
-.result-list .card { padding: 16px 0; border-bottom: 1px solid #f1f1f1; }
-.result-title {
-  display: block;
-  color: #1a0dab;
-  font-size: 18px;
-  font-weight: 400;
-  text-decoration: none;
-  margin-bottom: 2px;
-}
-.result-title:hover { text-decoration: underline; }
-.result-url { color: #5f6368; font-size: 13px; margin-bottom: 4px; word-break: break-all; }
-.result-desc { color: #4d5156; font-size: 14px; line-height: 1.5; }
+.related { list-style: none; margin: 8px 0 0; padding: 0; }
+.related li { padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+.related a { color: var(--text); text-decoration: none; font-size: 13.5px; }
+.related a:hover { color: var(--volt); }
