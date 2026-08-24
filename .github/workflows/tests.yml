@@ -1,0 +1,21 @@
+name: Tests
+
+# Corre los unit tests reales (lógica pura, sin Electron) en cada push/PR — no bloquea nada más
+# de este repo. El build multiplataforma + release sigue siendo manual por ahora (ver
+# docs/FASE-PUBLICACION-WEB.md, sección CI/CD: PENDIENTE).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit-tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm test
