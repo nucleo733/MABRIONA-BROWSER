@@ -24,10 +24,12 @@
     "files": [
       "main.js",
       "preload.js",
+      "search-preload.js",
       "store.js",
       "address-resolver.js",
       "renderer/**/*",
-      "shields/**/*"
+      "shields/**/*",
+      "search/**/*"
     ],
     "mac": {
       "icon": "build/icon.icns",

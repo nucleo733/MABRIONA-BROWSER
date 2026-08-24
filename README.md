@@ -49,11 +49,12 @@ verdad (`npm run dist`) nunca tiene esa variable.
 ## Tests
 
 - `npm test` — unidad, lógica pura sin Electron (`shields/blocklist.js`,
-  `address-resolver.js`): 15 tests, node:test.
+  `address-resolver.js`, `search/braveSearch.js`): 21 tests, node:test.
 - `node test/smoke.mjs` — extremo a extremo real: lanza la app de
   verdad con Playwright (`_electron`), crea/cierra pestañas, navega a
-  sitios reales (DuckDuckGo, Wikipedia), agrega favoritos, abre el
-  panel de MABRIONA SHIELDS. 8 verificaciones, todas reales.
+  sitios reales, busca desde la home y desde la página de resultados
+  propia, agrega favoritos, abre el panel de MABRIONA SHIELDS. 15
+  verificaciones, todas reales.
   - Limitación conocida: los screenshots de Playwright no muestran el
     contenido de la página (la `BrowserView` es una capa nativa
     separada del DOM que Playwright fotografía) — sí se ve el chrome
@@ -61,6 +62,14 @@ verdad (`npm run dist`) nunca tiene esa variable.
     limitación de la herramienta de testing, no un bug de la app — las
     aserciones de navegación (URL, título, cantidad de pestañas) sí
     confirman que la página real cargó.
+- `node test/packaged-app.mjs` — corre la app YA EMPAQUETADA
+  (`dist/mac/MABRIONA Browser.app`, no el código fuente) y confirma
+  que arranca sin crashear. **Correr esto siempre después de
+  `electron-builder` y antes de reinstalar en `/Applications`** — el
+  smoke test normal lanza `electron .` desde el repo, que no detecta
+  un `package.json` → `build.files` incompleto (pasó de verdad: un
+  archivo nuevo quedó afuera del empaquetado y la app instalada no
+  abría, aunque todo el resto de los tests estaba en verde).
 
 ## MABRIONA SHIELDS
 
