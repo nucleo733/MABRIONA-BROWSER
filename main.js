@@ -2,6 +2,7 @@
 
 const { app, BrowserWindow, BrowserView, ipcMain, session, shell } = require('electron')
 const path = require('node:path')
+const fs = require('node:fs')
 const { createStore } = require('./store')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
@@ -228,6 +229,27 @@ ipcMain.handle('favorites:is', (_e, url) => store.isFavorite(url))
 ipcMain.handle('downloads:list', () => store.listDownloads())
 ipcMain.handle('downloads:open', (_e, filePath) => shell.openPath(filePath))
 ipcMain.handle('downloads:show', (_e, filePath) => shell.showItemInFolder(filePath))
+
+// Captura de pantalla real de la pestaña activa (Electron `capturePage`, no un mock) — se guarda
+// como PNG real en Descargas y aparece en el mismo panel de Descargas que ya existe (sin duplicar
+// UI para esto).
+ipcMain.handle('tabs:screenshot', async (_e, id) => {
+  const tab = tabs.get(id)
+  if (!tab || tab.view.webContents.isDestroyed()) return { ok: false, error: 'la pestaña ya no existe' }
+  try {
+    const image = await tab.view.webContents.capturePage()
+    const filename = `mabriona-browser-captura-${Date.now()}.png`
+    const savePath = path.join(app.getPath('downloads'), filename)
+    fs.writeFileSync(savePath, image.toPNG())
+    const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const now = Date.now()
+    store.addDownload({ id: entryId, filename, path: savePath, url: tab.url, state: 'completed', startedAt: now, finishedAt: now })
+    sendToRenderer('downloads:state', store.listDownloads())
+    return { ok: true, path: savePath }
+  } catch (err) {
+    return { ok: false, error: String(err) }
+  }
+})
 
 ipcMain.handle('shields:get-enabled', () => store.getShieldsEnabled())
 ipcMain.handle('shields:set-enabled', (_e, enabled) => store.setShieldsEnabled(enabled))

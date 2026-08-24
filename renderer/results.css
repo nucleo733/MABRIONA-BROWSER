@@ -4,63 +4,60 @@ html, body {
   margin: 0;
   min-height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: radial-gradient(ellipse 90% 60% at 50% -10%, rgba(212, 255, 0, 0.14) 0%, rgba(20, 24, 6, 0.5) 38%, #060606 68%);
-  color: #f2f2f2;
+  background: #ffffff;
+  color: #202124;
 }
 
 header {
   display: flex;
   align-items: center;
   gap: 24px;
-  padding: 20px 28px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 18px 40px;
+  border-bottom: 1px solid #ebebeb;
+  width: 100%;
 }
 
 .logo { font-size: 15px; font-weight: 800; white-space: nowrap; }
-.mabriona { color: #f2f2f2; }
-.browser { color: #d4ff00; font-weight: 700; }
+.mabriona { color: #202124; }
+.browser { color: #8a9d00; font-weight: 700; }
 
-#search-form { flex: 1; max-width: 560px; }
+#search-form { flex: 1; }
 #q {
   width: 100%;
   height: 40px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #131313;
-  color: #f2f2f2;
+  border: 1px solid #dfe1e5;
+  background: #ffffff;
+  color: #202124;
   padding: 0 18px;
   font-size: 14px;
   outline: none;
 }
 #q:focus {
-  border-color: #d4ff00;
-  box-shadow: 0 0 0 1px rgba(212, 255, 0, 0.35), 0 0 24px rgba(212, 255, 0, 0.2);
+  border-color: #8a9d00;
+  box-shadow: 0 1px 6px rgba(32, 33, 36, 0.18);
 }
 
 main {
-  max-width: 640px;
-  margin: 0 auto;
-  padding: 32px 24px 60px;
+  width: 100%;
+  padding: 24px 40px 60px;
 }
 
-.loading, .empty, .note { color: rgba(242, 242, 242, 0.55); font-size: 14px; line-height: 1.6; }
-.empty { color: #f2f2f2; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.loading, .empty, .note { color: #5f6368; font-size: 14px; line-height: 1.6; }
+.empty { color: #202124; font-size: 16px; font-weight: 600; margin-bottom: 4px; }
 
 .card {
-  background: #131313;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 16px;
-  padding: 20px 22px;
-  margin-bottom: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid #f1f1f1;
 }
-.card h2 { margin: 0 0 8px; font-size: 18px; color: #d4ff00; }
-.card p { margin: 0; font-size: 14px; line-height: 1.6; }
-.card .answer { font-size: 20px; font-weight: 700; }
+.card h2 { margin: 0 0 6px; font-size: 18px; color: #202124; }
+.card p { margin: 0; font-size: 14px; line-height: 1.6; color: #4d5156; }
+.card .answer { font-size: 20px; font-weight: 700; color: #202124; }
 
 .source-link, .fallback-link {
   display: inline-block;
-  margin-top: 12px;
-  color: #d4ff00;
+  margin-top: 10px;
+  color: #6b7b00;
   font-size: 13px;
   font-weight: 600;
   text-decoration: none;
@@ -73,26 +70,20 @@ main {
   margin: 8px 0 0;
   padding: 0;
 }
-.related li {
-  padding: 12px 16px;
-  background: #131313;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  margin-bottom: 8px;
-}
-.related a { color: #f2f2f2; text-decoration: none; font-size: 14px; }
-.related a:hover { color: #d4ff00; }
+.related li { padding: 10px 0; border-bottom: 1px solid #f1f1f1; }
+.related a { color: #1a0dab; text-decoration: none; font-size: 14px; }
+.related a:hover { text-decoration: underline; }
 
-/* Resultados de búsqueda real (cuando hay una key configurada) — lista simple, sin marca ajena. */
-.result-list .card { padding: 16px 20px; }
+/* Resultados de búsqueda real — mismo formato clásico de cualquier buscador: título, url, texto. */
+.result-list .card { padding: 16px 0; border-bottom: 1px solid #f1f1f1; }
 .result-title {
   display: block;
-  color: #f2f2f2;
-  font-size: 16px;
-  font-weight: 700;
+  color: #1a0dab;
+  font-size: 18px;
+  font-weight: 400;
   text-decoration: none;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
-.result-title:hover { color: #d4ff00; text-decoration: underline; }
-.result-url { color: #d4ff00; font-size: 12px; opacity: 0.75; margin-bottom: 6px; word-break: break-all; }
-.result-desc { color: rgba(242, 242, 242, 0.75); font-size: 13.5px; line-height: 1.5; }
+.result-title:hover { text-decoration: underline; }
+.result-url { color: #5f6368; font-size: 13px; margin-bottom: 4px; word-break: break-all; }
+.result-desc { color: #4d5156; font-size: 14px; line-height: 1.5; }

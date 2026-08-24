@@ -29,6 +29,16 @@ function el(tag, className, text) {
   return node
 }
 
+/** Brave devuelve snippets con <strong> marcando la coincidencia y entidades HTML (&#x27; etc.) —
+ * se sacan las etiquetas y se decodifican las entidades a texto plano (nunca innerHTML con
+ * contenido de un tercero — decodificar por textarea.value es seguro, no ejecuta nada). */
+function stripHtml(text) {
+  const withoutTags = String(text).replace(/<[^>]*>/g, '')
+  const textarea = document.createElement('textarea')
+  textarea.innerHTML = withoutTags
+  return textarea.value
+}
+
 function renderEmpty(query, container) {
   container.appendChild(el('p', 'empty', 'MABRIONA no encontró una respuesta directa para esto.'))
   const note = el('p', 'note', 'Para la mayoría de búsquedas comunes puede no traer nada todavía.')
@@ -45,10 +55,10 @@ function renderBraveResults(results, container) {
     const card = el('div', 'card')
     const link = el('a', 'result-title')
     link.href = r.url
-    link.textContent = r.title
+    link.textContent = stripHtml(r.title)
     card.appendChild(link)
     card.appendChild(el('p', 'result-url', r.url))
-    if (r.description) card.appendChild(el('p', 'result-desc', r.description))
+    if (r.description) card.appendChild(el('p', 'result-desc', stripHtml(r.description)))
     list.appendChild(card)
   }
   container.appendChild(list)
@@ -60,7 +70,7 @@ function renderInstantAnswer(data, query, container) {
   if (data.Heading || data.AbstractText) {
     const card = el('div', 'card')
     if (data.Heading) card.appendChild(el('h2', null, data.Heading))
-    if (data.AbstractText) card.appendChild(el('p', null, data.AbstractText))
+    if (data.AbstractText) card.appendChild(el('p', null, stripHtml(data.AbstractText)))
     if (data.AbstractURL) {
       const link = el('a', 'source-link')
       link.href = data.AbstractURL
@@ -73,14 +83,14 @@ function renderInstantAnswer(data, query, container) {
 
   if (data.Answer) {
     const card = el('div', 'card')
-    card.appendChild(el('p', 'answer', data.Answer))
+    card.appendChild(el('p', 'answer', stripHtml(data.Answer)))
     container.appendChild(card)
     any = true
   }
 
   if (data.Definition) {
     const card = el('div', 'card')
-    card.appendChild(el('p', null, data.Definition))
+    card.appendChild(el('p', null, stripHtml(data.Definition)))
     if (data.DefinitionURL) {
       const link = el('a', 'source-link')
       link.href = data.DefinitionURL

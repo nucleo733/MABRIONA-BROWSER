@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   removeFavorite: (url) => ipcRenderer.invoke('favorites:remove', url),
   isFavorite: (url) => ipcRenderer.invoke('favorites:is', url),
 
+  captureScreenshot: (id) => ipcRenderer.invoke('tabs:screenshot', id),
+
   listDownloads: () => ipcRenderer.invoke('downloads:list'),
   openDownload: (filePath) => ipcRenderer.invoke('downloads:open', filePath),
   showDownload: (filePath) => ipcRenderer.invoke('downloads:show', filePath),

@@ -8,6 +8,7 @@ const btnBack = document.getElementById('btn-back')
 const btnForward = document.getElementById('btn-forward')
 const btnReload = document.getElementById('btn-reload')
 const btnFav = document.getElementById('btn-fav')
+const btnScreenshot = document.getElementById('btn-screenshot')
 const shieldsCount = document.getElementById('shields-count')
 
 let currentTabs = []
@@ -90,6 +91,15 @@ btnFav.addEventListener('click', async () => {
   else await mabrionaBrowser.addFavorite({ url: activeTab.url, title: activeTab.title, addedAt: Date.now() })
   btnFav.textContent = isFav ? '☆' : '★'
   refreshFavoritesPanel()
+})
+btnScreenshot.addEventListener('click', async () => {
+  if (!activeTab) return
+  btnScreenshot.disabled = true
+  const original = btnScreenshot.textContent
+  const result = await mabrionaBrowser.captureScreenshot(activeTab.id)
+  btnScreenshot.textContent = result.ok ? '✅' : '⚠️'
+  btnScreenshot.title = result.ok ? `Guardada en ${result.path}` : `No se pudo capturar — ${result.error}`
+  setTimeout(() => { btnScreenshot.textContent = original; btnScreenshot.disabled = false }, 1200)
 })
 
 // ---------------- Paneles (historial / favoritos / descargas / shields) ----------------
