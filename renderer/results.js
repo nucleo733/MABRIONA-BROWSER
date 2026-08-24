@@ -25,11 +25,14 @@ function el(tag, className, text) {
 
 function renderEmpty(query, container) {
   container.appendChild(el('p', 'empty', 'MABRIONA no encontró una respuesta directa para esto.'))
-  const note = el('p', 'note', 'La búsqueda propia de MABRIONA usa una API de definiciones/resúmenes, no un buscador general — para la mayoría de búsquedas comunes no va a traer nada.')
+  const note = el('p', 'note', 'La búsqueda propia de MABRIONA busca definiciones/resúmenes de temas conocidos, no toda la web — para la mayoría de búsquedas comunes no va a traer nada.')
   container.appendChild(note)
+  // El texto no nombra a ningún tercero (voz propia de MABRIONA) — el destino real del link sí es
+  // un sitio externo de verdad, y una vez ahí muestra SU identidad real, eso no se puede disfrazar
+  // sin engañar sobre en qué sitio estás parado (mismo criterio que con los anuncios de YouTube).
   const link = el('a', 'fallback-link')
   link.href = `https://duckduckgo.com/?q=${encodeURIComponent(query)}`
-  link.textContent = 'Ver resultados reales en DuckDuckGo →'
+  link.textContent = 'Buscar en la web →'
   container.appendChild(link)
 }
 

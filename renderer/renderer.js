@@ -13,6 +13,20 @@ const shieldsCount = document.getElementById('shields-count')
 let currentTabs = []
 let activeTab = null
 
+/** Barra de direcciones limpia para las páginas propias de MABRIONA — nunca la ruta interna
+ * cruda del archivo (`.../app.asar/renderer/results.html?q=...`), eso no se ve como navegación real. */
+function displayAddress(url) {
+  if (url === 'about:blank' || url.endsWith('/renderer/newtab.html')) return ''
+  if (url.includes('/renderer/results.html')) {
+    try {
+      return new URL(url).searchParams.get('q') || ''
+    } catch {
+      return url
+    }
+  }
+  return url
+}
+
 function render(tabsState) {
   currentTabs = tabsState
   activeTab = tabsState.find((t) => t.isActive) || null
@@ -38,8 +52,7 @@ function render(tabsState) {
   })
 
   if (activeTab && document.activeElement !== address) {
-    const isHome = activeTab.url === 'about:blank' || activeTab.url.endsWith('/renderer/newtab.html')
-    address.value = isHome ? '' : activeTab.url
+    address.value = displayAddress(activeTab.url)
   }
   btnBack.disabled = !activeTab?.canGoBack
   btnForward.disabled = !activeTab?.canGoForward

@@ -73,12 +73,20 @@ await app.evaluate(({ BrowserWindow }) => {
   )
 })
 await win.waitForTimeout(1000)
-const addressAfterSearch = await win.locator('#address').inputValue()
-if (addressAfterSearch.includes('/renderer/results.html') && addressAfterSearch.includes('q=python')) {
-  ok(`buscar desde la página de inicio navega a la página de resultados propia de MABRIONA (${addressAfterSearch})`)
+const urlAfterSearch = await app.evaluate(({ BrowserWindow }) =>
+  BrowserWindow.getAllWindows()[0].getBrowserViews()[0].webContents.getURL(),
+)
+if (urlAfterSearch.includes('/renderer/results.html') && urlAfterSearch.includes('q=python')) {
+  ok(`buscar desde la página de inicio navega de verdad a la página de resultados propia de MABRIONA (${urlAfterSearch})`)
 } else {
-  bad('búsqueda desde la página de inicio', `encontré "${addressAfterSearch}"`)
+  bad('URL real tras la búsqueda', urlAfterSearch)
 }
+
+// La barra de direcciones tiene que verse como navegación real (la búsqueda limpia), no la ruta
+// interna cruda del archivo (.../app.asar/renderer/results.html?q=...).
+const addressAfterSearch = await win.locator('#address').inputValue()
+if (addressAfterSearch === 'python') ok(`la barra de direcciones muestra la búsqueda limpia, no la ruta interna ("${addressAfterSearch}")`)
+else bad('barra de direcciones tras la búsqueda', `esperaba "python", encontré "${addressAfterSearch}"`)
 
 // La página de resultados tiene que traer contenido real (API oficial de Respuestas Instantáneas)
 // y no mostrar la marca de DuckDuckGo en ningún lado — solo el link honesto de "ver resultados
@@ -91,9 +99,38 @@ const resultsPageText = await app.evaluate(({ BrowserWindow }) => {
 console.log('texto de la página de resultados:', resultsPageText.slice(0, 300).replace(/\n+/g, ' | '))
 if (!resultsPageText.includes('Buscando…')) ok('la página de resultados terminó de cargar (no se quedó en "Buscando…")')
 else bad('carga de resultados', 'se quedó mostrando "Buscando…" — puede ser falta de red hacia api.duckduckgo.com en este entorno')
-const mentionsDuckDuckGoOutsideFallback = resultsPageText.includes('DuckDuckGo') && !resultsPageText.includes('Ver resultados reales en DuckDuckGo')
-if (!mentionsDuckDuckGoOutsideFallback) ok('la página de resultados no muestra la marca de DuckDuckGo (salvo el link honesto de fallback, si aparece)')
-else bad('marca de DuckDuckGo en resultados propios', resultsPageText.slice(0, 200))
+if (!resultsPageText.includes('DuckDuckGo')) ok('la página de resultados no menciona a ningún tercero — voz 100% propia de MABRIONA')
+else bad('mención de un tercero en resultados propios', resultsPageText.slice(0, 200))
+
+// Una búsqueda sin respuesta directa (ej. un nombre propio) tiene que mostrar el estado vacío
+// honesto, con voz propia (sin nombrar a nadie) pero el link real sigue llevando a resultados reales.
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'rey john mabriona xyz sin respuesta'; document.querySelector('form').submit();",
+  ).catch((e) => `executeJavaScript submit error: ${e}`)
+})
+await win.waitForTimeout(3000)
+const urlAfterSecondSearch = await app.evaluate(({ BrowserWindow }) =>
+  BrowserWindow.getAllWindows()[0].getBrowserViews()[0].webContents.getURL(),
+)
+console.log('URL tras la segunda búsqueda:', urlAfterSecondSearch)
+const emptyStateInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "({ text: document.body.innerText, href: document.querySelector('.fallback-link')?.href || null })",
+  )
+})
+if (emptyStateInfo.text.includes('no encontró una respuesta directa') && !emptyStateInfo.text.includes('DuckDuckGo')) {
+  ok('estado vacío honesto: mensaje claro, sin nombrar a ningún tercero')
+} else {
+  bad('estado vacío', emptyStateInfo.text.slice(0, 200))
+}
+if (emptyStateInfo.href && emptyStateInfo.href.includes('duckduckgo.com')) {
+  ok('el link del estado vacío sigue llevando de verdad a resultados reales (nunca disfrazado, solo sin nombrarlo en el texto)')
+} else {
+  bad('link real del estado vacío', String(emptyStateInfo.href))
+}
 
 // Nueva pestaña real
 await win.locator('#btn-new-tab').click()
