@@ -6,7 +6,16 @@ const fs = require('node:fs')
 const { createStore } = require('./store')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
-const { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, normalizeFaq } = require('./search/braveSearch')
+const {
+  buildRequest,
+  normalizeResults,
+  normalizeInfobox,
+  normalizeVideos,
+  normalizeFaq,
+  normalizeNews,
+  normalizeDiscussions,
+} = require('./search/braveSearch')
+const { buildContextGraph } = require('./search/contextGraph')
 
 const TOOLBAR_HEIGHT = 118
 
@@ -339,23 +348,33 @@ ipcMain.handle('settings:choose-downloads-dir', async () => {
 // configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
 ipcMain.handle('search:query', async (_e, text) => {
   const apiKey = store.getBraveApiKey()
-  if (!apiKey) return { configured: false, web: [], infobox: null, videos: [], faq: [] }
+  if (!apiKey) return { configured: false, web: [], infobox: null, videos: [], faq: [], contextGraph: null }
   try {
     const { url, headers } = buildRequest(text, apiKey)
     const res = await fetch(url, { headers })
-    if (!res.ok) return { configured: true, error: `error ${res.status}`, web: [], infobox: null, videos: [], faq: [] }
+    if (!res.ok) {
+      return { configured: true, error: `error ${res.status}`, web: [], infobox: null, videos: [], faq: [], contextGraph: null }
+    }
     const data = await res.json()
-    // Todo sale de esta misma respuesta — Brave ya la trae completa, no se hace una segunda
-    // llamada para FAQ (misma regla de Etapa 1: sin llamadas de red extra para "llenar" la UI).
+    // Todo sale de esta misma respuesta — Brave ya la trae completa, no se hace ninguna llamada
+    // extra para FAQ ni para Context Orbit (misma regla desde Etapa 1: sin red extra para "llenar"
+    // la UI). news/discussions se normalizan acá solo para alimentar el grafo — no se exponen como
+    // secciones propias todavía (esas siguen PENDIENTES, ver Etapa 3).
+    const infobox = normalizeInfobox(data)
+    const faq = normalizeFaq(data)
+    const videos = normalizeVideos(data)
+    const news = normalizeNews(data)
+    const discussions = normalizeDiscussions(data)
     return {
       configured: true,
       web: normalizeResults(data),
-      infobox: normalizeInfobox(data),
-      videos: normalizeVideos(data),
-      faq: normalizeFaq(data),
+      infobox,
+      videos,
+      faq,
+      contextGraph: buildContextGraph({ infobox, faq, videos, news, discussions }),
     }
   } catch (err) {
-    return { configured: true, error: String(err), web: [], infobox: null, videos: [], faq: [] }
+    return { configured: true, error: String(err), web: [], infobox: null, videos: [], faq: [], contextGraph: null }
   }
 })
 

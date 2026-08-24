@@ -146,10 +146,12 @@ const spectrumInfo = await app.evaluate(({ BrowserWindow }) => {
     entitySourceHref: document.querySelector('.entity-source')?.getAttribute('href') || null,
     hasVideoGrid: !!document.querySelector('.video-grid'),
     faqQuestionCount: document.querySelectorAll('.faq-item').length,
+    orbitNodeCount: document.querySelectorAll('.orbit-node').length,
+    orbitCoreText: document.querySelector('.orbit-core')?.textContent || null,
     bodyText: document.body.innerText.slice(0, 400),
   })`)
 })
-console.log('Spectrum:', JSON.stringify(spectrumInfo.tabs), '| Entity Focus:', spectrumInfo.hasEntityFocus, spectrumInfo.entityTitle, '| FAQ:', spectrumInfo.faqQuestionCount)
+console.log('Spectrum:', JSON.stringify(spectrumInfo.tabs), '| Entity Focus:', spectrumInfo.hasEntityFocus, spectrumInfo.entityTitle, '| FAQ:', spectrumInfo.faqQuestionCount, '| Orbit:', spectrumInfo.orbitNodeCount)
 if (spectrumInfo.tabs.includes('Todo')) ok(`MABRIONA Search: Spectrum muestra pestañas reales (${spectrumInfo.tabs.join(', ')})`)
 else bad('Spectrum', JSON.stringify(spectrumInfo))
 if (spectrumInfo.hasEntityFocus && spectrumInfo.entityTitle) ok(`MABRIONA Search: Entity Focus real para una entidad reconocida (${spectrumInfo.entityTitle})`)
@@ -184,6 +186,36 @@ if (spectrumInfo.faqQuestionCount > 0) {
   skip('MABRIONA FAQ', 'Brave no devolvió faq para esta búsqueda en esta corrida — no siempre es determinístico, no es un bug si el resto de Spectrum funciona')
 }
 
+// Context Orbit — solo aparece si hay al menos una relación real (evidencia: sourceUrl, perfiles,
+// enlaces reales dentro de attributes, o FAQ/video co-devueltos junto a esta entidad reconocida).
+if (spectrumInfo.hasEntityFocus) {
+  if (spectrumInfo.orbitNodeCount > 0) {
+    ok(`MABRIONA Search: Context Orbit real con relaciones evidenciadas (${spectrumInfo.orbitNodeCount} nodos)`)
+    if (spectrumInfo.orbitCoreText === spectrumInfo.entityTitle) ok('Context Orbit: el núcleo del diagrama es la misma entidad que Entity Focus')
+    else bad('Context Orbit — núcleo', `esperaba "${spectrumInfo.entityTitle}", encontré "${spectrumInfo.orbitCoreText}"`)
+
+    const orbitNodeInfo = await app.evaluate(({ BrowserWindow }) => {
+      const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+      return view.webContents.executeJavaScript(`({
+        firstHref: document.querySelector('.orbit-node')?.getAttribute('href') || null,
+        tooltipText: document.querySelector('.orbit-tooltip')?.textContent || null,
+      })`)
+    })
+    if (orbitNodeInfo.firstHref && orbitNodeInfo.firstHref.startsWith('http')) {
+      ok(`Context Orbit: cada nodo es un enlace real a contenido original (${orbitNodeInfo.firstHref})`)
+    } else {
+      bad('Context Orbit — enlace del nodo', String(orbitNodeInfo.firstHref))
+    }
+    if (orbitNodeInfo.tooltipText && orbitNodeInfo.tooltipText.trim().length > 0) {
+      ok(`Context Orbit: el tooltip explica la relación (${orbitNodeInfo.tooltipText.trim().slice(0, 60)})`)
+    } else {
+      bad('Context Orbit — tooltip', 'no tiene contenido')
+    }
+  } else {
+    skip('Context Orbit', 'esta entidad no trajo ninguna relación real evidenciada en esta corrida (source/perfiles/attributes/FAQ/video) — la ausencia del componente es el comportamiento correcto, no un bug')
+  }
+}
+
 // Cambiar de pestaña Spectrum (Web) tiene que mostrar la lista completa, sin Entity Focus ni video.
 if (spectrumInfo.tabs.includes('Web')) {
   await app.evaluate(({ BrowserWindow }) => {
@@ -198,10 +230,11 @@ if (spectrumInfo.tabs.includes('Web')) {
     return view.webContents.executeJavaScript(`({
       hasEntityFocus: !!document.querySelector('.entity-focus'),
       hasFaq: !!document.querySelector('.mabriona-faq'),
+      hasOrbit: !!document.querySelector('.context-orbit'),
       resultCount: document.querySelectorAll('.result-list .card').length,
     })`)
   })
-  if (!webTabInfo.hasEntityFocus && !webTabInfo.hasFaq && webTabInfo.resultCount > 0) {
+  if (!webTabInfo.hasEntityFocus && !webTabInfo.hasFaq && !webTabInfo.hasOrbit && webTabInfo.resultCount > 0) {
     ok(`MABRIONA Search: la pestaña Web muestra solo resultados web reales (${webTabInfo.resultCount})`)
   } else {
     bad('pestaña Web', JSON.stringify(webTabInfo))

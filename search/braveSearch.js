@@ -108,4 +108,46 @@ function normalizeVideos(data) {
     }))
 }
 
-module.exports = { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, normalizeFaq, BRAVE_ENDPOINT }
+/**
+ * Noticias reales — Brave las trae solo quando la consulta es de actualidad ("taylor swift",
+ * "breaking news today"), no en la mayoría de búsquedas. No se usa para armar una sección/pestaña
+ * de Noticias (esa función sigue PENDIENTE — ver Etapa 3): acá solo se normaliza el dato real para
+ * que Context Orbit pueda usarlo como nodo cuando corresponda.
+ */
+function normalizeNews(data) {
+  const results = data?.news?.results
+  if (!Array.isArray(results)) return []
+  return results
+    .filter((n) => n && n.url && n.title)
+    .map((n) => ({
+      title: String(n.title),
+      url: String(n.url),
+      source: typeof n?.meta_url?.hostname === 'string' ? n.meta_url.hostname : null,
+    }))
+}
+
+/** Discusiones reales (mayormente Reddit) que Brave trae para algunas búsquedas de actualidad/tema
+ * amplio. Mismo criterio que normalizeNews: solo se normaliza para Context Orbit, no se convierte
+ * en una función/pestaña propia todavía. */
+function normalizeDiscussions(data) {
+  const results = data?.discussions?.results
+  if (!Array.isArray(results)) return []
+  return results
+    .filter((d) => d && d.url && d.title)
+    .map((d) => ({
+      title: String(d.title),
+      url: String(d.url),
+      forum: typeof d?.data?.forum_name === 'string' ? d.data.forum_name : null,
+    }))
+}
+
+module.exports = {
+  buildRequest,
+  normalizeResults,
+  normalizeInfobox,
+  normalizeVideos,
+  normalizeFaq,
+  normalizeNews,
+  normalizeDiscussions,
+  BRAVE_ENDPOINT,
+}
