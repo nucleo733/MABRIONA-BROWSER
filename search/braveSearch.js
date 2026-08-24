@@ -22,8 +22,18 @@ const BRAVE_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search'
 // expone imágenes solo por un endpoint aparte, confirmado real (200, JSON) contra esta cuenta.
 const IMAGES_ENDPOINT = 'https://api.search.brave.com/res/v1/images/search'
 
-function buildRequest(query, apiKey) {
-  const url = `${BRAVE_ENDPOINT}?q=${encodeURIComponent(query)}`
+// Valores reales verificados contra la API (una consulta de prueba con freshness=pd/pw/pm/py
+// devuelve listas de resultados genuinamente distintas entre sí y del caso sin filtro — no es un
+// parámetro decorativo). Brave ignora en silencio un valor que no reconoce (no da error 422 como
+// con result_filter), así que este set es la única fuente de verdad — nunca se manda lo que
+// escriba el usuario directo a la API.
+const VALID_FRESHNESS = new Set(['pd', 'pw', 'pm', 'py'])
+
+function buildRequest(query, apiKey, options = {}) {
+  let url = `${BRAVE_ENDPOINT}?q=${encodeURIComponent(query)}`
+  if (options.freshness && VALID_FRESHNESS.has(options.freshness)) {
+    url += `&freshness=${options.freshness}`
+  }
   return {
     url,
     headers: {
@@ -213,6 +223,7 @@ function normalizeDiscussions(data) {
 module.exports = {
   buildRequest,
   buildImagesRequest,
+  VALID_FRESHNESS,
   normalizeResults,
   normalizeInfobox,
   normalizeVideos,

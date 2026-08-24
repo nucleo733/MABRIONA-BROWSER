@@ -351,13 +351,19 @@ ipcMain.handle('settings:choose-downloads-dir', async () => {
 // configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
 const SEARCH_EMPTY = { configured: false, web: [], infobox: null, videos: [], faq: [], news: [], locations: [], contextGraph: null }
 
-ipcMain.handle('search:query', async (_e, text) => {
+ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
   const apiKey = store.getBraveApiKey()
   if (!apiKey) return SEARCH_EMPTY
   try {
-    const { url, headers } = buildRequest(text, apiKey)
+    const { url, headers } = buildRequest(text, apiKey, { freshness })
     const res = await fetch(url, { headers })
-    if (!res.ok) return { ...SEARCH_EMPTY, configured: true, error: `error ${res.status}` }
+    if (!res.ok) {
+      // 429 real (límite de la cuenta, confirmado con cabeceras x-ratelimit-* en Etapa 4) es un caso
+      // distinto de un error genérico — la UI necesita poder decir "esperá un momento" en vez de
+      // "no encontramos nada", que sería engañoso.
+      const errorKind = res.status === 429 ? 'rate_limited' : 'http_error'
+      return { ...SEARCH_EMPTY, configured: true, error: `error ${res.status}`, errorKind }
+    }
     const data = await res.json()
     // Todo sale de esta misma respuesta — Brave ya la trae completa, no se hace ninguna llamada
     // extra para FAQ, News, Locations ni Context Orbit (misma regla desde Etapa 1: sin red extra
@@ -380,7 +386,8 @@ ipcMain.handle('search:query', async (_e, text) => {
       contextGraph: buildContextGraph({ infobox, faq, videos, news, discussions }),
     }
   } catch (err) {
-    return { ...SEARCH_EMPTY, configured: true, error: String(err) }
+    // fetch() lanza acá cuando no hay conexión real (DNS, red caída) — distinto de un error HTTP.
+    return { ...SEARCH_EMPTY, configured: true, error: String(err), errorKind: 'network' }
   }
 })
 

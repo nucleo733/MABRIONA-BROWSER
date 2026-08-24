@@ -62,6 +62,26 @@ function renderEmpty(query, container) {
   container.appendChild(link)
 }
 
+/** Estado de error real y distinguible — antes, cualquier falla (sin conexión, límite de cuenta,
+ * error HTTP) caía en el mismo mensaje genérico de "no encontré nada", que era engañoso: parecía
+ * que la búsqueda no tenía resultados, no que algo falló. `errorKind` viene de `main.js`, que ya
+ * distingue red/límite/HTTP con datos reales (cabeceras/status de la respuesta). */
+function renderSearchError(response, query, freshness, container) {
+  const card = el('div', 'search-error')
+  let message = 'MABRIONA no pudo completar esta búsqueda ahora mismo.'
+  if (response.errorKind === 'rate_limited') {
+    message = 'MABRIONA alcanzó el límite de búsquedas por ahora. Probá de nuevo en unos segundos.'
+  } else if (response.errorKind === 'network') {
+    message = 'No se pudo conectar — revisá tu conexión a internet.'
+  }
+  card.appendChild(el('p', 'search-error-title', message))
+  const retry = el('button', 'search-error-retry', 'Reintentar')
+  retry.type = 'button'
+  retry.addEventListener('click', () => search(query, freshness))
+  card.appendChild(retry)
+  container.appendChild(card)
+}
+
 // ---------------- Entity Focus ----------------
 
 /** Traducción del `category` real que manda Brave (persona/empresa/lugar/app/...) al lenguaje
@@ -249,7 +269,9 @@ function renderImagesGrid(images, container) {
     card.href = img.url
     const thumb = document.createElement('img')
     thumb.src = img.thumbnail
-    thumb.alt = ''
+    // A diferencia de los thumbnails de Video/News/Places (decorativos — el título ya está en texto
+    // visible al lado), acá la imagen ES el contenido principal de la tarjeta: necesita alt real.
+    thumb.alt = stripHtml(img.title)
     thumb.loading = 'lazy'
     card.appendChild(thumb)
     const caption = el('div', 'image-caption')
@@ -357,6 +379,38 @@ function renderContextOrbit(graph, container) {
   container.appendChild(section)
 }
 
+// ---------------- Herramientas (filtros reales) ----------------
+
+/** Único filtro real disponible hoy: frescura por fecha (`freshness` real de Brave, verificado con
+ * llamadas reales — día/semana/mes/año devuelven listas de resultados genuinamente distintas, no es
+ * un control decorativo). País/idioma también son reales en la API pero no se exponen todavía: sin
+ * una necesidad de UX clara (¿de qué país busca el usuario? no hay señal confiable sin inventar una
+ * ubicación), así que se documentan como disponibles-pero-no-expuestos en vez de forzar un control. */
+const FRESHNESS_OPTIONS = [
+  { value: '', label: 'Cualquier momento' },
+  { value: 'pd', label: 'Último día' },
+  { value: 'pw', label: 'Última semana' },
+  { value: 'pm', label: 'Último mes' },
+  { value: 'py', label: 'Último año' },
+]
+
+function mountTools(currentFreshness, onChange) {
+  const wrap = el('div', 'spectrum-tools')
+  const select = document.createElement('select')
+  select.className = 'freshness-select'
+  select.setAttribute('aria-label', 'Filtrar por frescura de los resultados')
+  for (const opt of FRESHNESS_OPTIONS) {
+    const option = document.createElement('option')
+    option.value = opt.value
+    option.textContent = opt.label
+    if (opt.value === currentFreshness) option.selected = true
+    select.appendChild(option)
+  }
+  select.addEventListener('change', () => onChange(select.value))
+  wrap.appendChild(select)
+  return wrap
+}
+
 // ---------------- Spectrum (pestañas propias) ----------------
 
 function buildSpectrum(data) {
@@ -415,7 +469,7 @@ function renderSpectrumView(tabId, data, container) {
   }
 }
 
-function mountSpectrum(data, container) {
+function mountSpectrum(data, container, query, freshness) {
   const tabs = buildSpectrum(data)
   const spectrumEl = document.getElementById('spectrum')
   spectrumEl.replaceChildren()
@@ -424,8 +478,11 @@ function mountSpectrum(data, container) {
   let imagesCache = null
 
   async function draw() {
-    spectrumEl.querySelectorAll('.spectrum-tab').forEach((btn) => {
-      btn.classList.toggle('active', btn.dataset.tab === active)
+    const buttons = Array.from(spectrumEl.querySelectorAll('.spectrum-tab'))
+    buttons.forEach((btn) => {
+      const isActive = btn.dataset.tab === active
+      btn.classList.toggle('active', isActive)
+      btn.setAttribute('aria-selected', String(isActive))
     })
 
     if (active !== 'images') {
@@ -465,9 +522,31 @@ function mountSpectrum(data, container) {
     const btn = el('button', 'spectrum-tab', tab.label)
     btn.type = 'button'
     btn.dataset.tab = tab.id
+    btn.setAttribute('role', 'tab')
+    btn.setAttribute('aria-controls', 'results')
     btn.addEventListener('click', () => { active = tab.id; draw() })
+    // Patrón estándar de teclado para role="tab": flechas mueven el foco Y activan la pestaña
+    // (activación automática) — Tab/Enter ya funcionaban solos por ser un <button> real.
+    btn.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
+      ev.preventDefault()
+      const buttons = Array.from(spectrumEl.querySelectorAll('.spectrum-tab'))
+      const currentIndex = buttons.indexOf(ev.currentTarget)
+      const delta = ev.key === 'ArrowRight' ? 1 : -1
+      const next = buttons[(currentIndex + delta + buttons.length) % buttons.length]
+      next.focus()
+      active = next.dataset.tab
+      draw()
+    })
     spectrumEl.appendChild(btn)
   }
+  spectrumEl.appendChild(mountTools(freshness || '', (newFreshness) => {
+    const url = new URL(location.href)
+    if (newFreshness) url.searchParams.set('fresh', newFreshness)
+    else url.searchParams.delete('fresh')
+    history.replaceState(null, '', url)
+    search(query, newFreshness)
+  }))
   draw()
 }
 
@@ -538,7 +617,7 @@ async function searchInstantAnswer(query, container) {
 
 // ---------------- Orquestación ----------------
 
-async function search(query) {
+async function search(query, freshness) {
   const container = document.getElementById('results')
   document.getElementById('spectrum').classList.add('hidden')
   container.replaceChildren(el('p', 'loading', 'Buscando…'))
@@ -549,8 +628,13 @@ async function search(query) {
 
   if (window.mabrionaSearch) {
     try {
-      const response = await window.mabrionaSearch.query(query)
+      const response = await window.mabrionaSearch.query(query, freshness)
       if (response.configured) {
+        if (response.error) {
+          container.replaceChildren()
+          renderSearchError(response, query, freshness, container)
+          return
+        }
         const hasAnything =
           response.infobox ||
           response.web.length > 0 ||
@@ -558,7 +642,7 @@ async function search(query) {
           (response.faq && response.faq.length > 0) ||
           (response.news && response.news.length > 0) ||
           (response.locations && response.locations.length > 0)
-        if (hasAnything) mountSpectrum(response, container)
+        if (hasAnything) mountSpectrum(response, container, query, freshness)
         else { container.replaceChildren(); renderEmpty(query, container) }
         return
       }
@@ -572,5 +656,6 @@ async function search(query) {
 }
 
 const initialQuery = qs('q')
+const initialFreshness = qs('fresh')
 document.getElementById('q').value = initialQuery
-search(initialQuery)
+search(initialQuery, initialFreshness)

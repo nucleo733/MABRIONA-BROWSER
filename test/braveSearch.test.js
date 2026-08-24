@@ -16,6 +16,23 @@ const {
   IMAGES_ENDPOINT,
 } = require('../search/braveSearch')
 
+test('buildRequest sin opciones no agrega freshness (compatibilidad con las llamadas de Etapas 1-4)', () => {
+  const { url } = buildRequest('bachata', 'fake-key')
+  assert.ok(!url.includes('freshness'))
+})
+
+test('buildRequest agrega freshness real cuando se pide un valor válido (día/semana/mes/año — verificado que cambian los resultados de verdad)', () => {
+  assert.ok(buildRequest('x', 'k', { freshness: 'pd' }).url.endsWith('&freshness=pd'))
+  assert.ok(buildRequest('x', 'k', { freshness: 'pw' }).url.endsWith('&freshness=pw'))
+  assert.ok(buildRequest('x', 'k', { freshness: 'pm' }).url.endsWith('&freshness=pm'))
+  assert.ok(buildRequest('x', 'k', { freshness: 'py' }).url.endsWith('&freshness=py'))
+})
+
+test('buildRequest descarta un freshness inválido en vez de mandarlo tal cual a la API', () => {
+  const { url } = buildRequest('x', 'k', { freshness: 'algo-inventado' })
+  assert.ok(!url.includes('freshness'))
+})
+
 test('buildRequest arma la URL con la query codificada', () => {
   const { url } = buildRequest('bachata dominicana', 'fake-key')
   assert.equal(url, `${BRAVE_ENDPOINT}?q=${encodeURIComponent('bachata dominicana')}`)

@@ -13,8 +13,8 @@
       <input id="q" type="text" name="q" placeholder="Buscar de forma privada…" />
     </form>
   </header>
-  <nav id="spectrum" class="hidden" aria-label="Categorías de resultados"></nav>
-  <main id="results">
+  <nav id="spectrum" class="hidden" role="tablist" aria-label="Categorías de resultados"></nav>
+  <main id="results" role="tabpanel" aria-live="polite">
     <p class="loading">Buscando…</p>
   </main>
   <script src="results.js"></script>

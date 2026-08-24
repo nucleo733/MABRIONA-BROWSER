@@ -77,10 +77,52 @@ header {
 .spectrum-tab:hover { background: var(--surface); color: var(--text); }
 .spectrum-tab.active { background: var(--surface-raised); border-color: var(--border); color: var(--volt); }
 
+/* ---------------- Herramientas (filtro real de frescura) ---------------- */
+.spectrum-tools { margin-left: auto; display: flex; align-items: center; }
+.freshness-select {
+  appearance: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 30px 7px 14px;
+  cursor: pointer;
+  background-image: linear-gradient(45deg, transparent 50%, var(--text-faint) 50%), linear-gradient(135deg, var(--text-faint) 50%, transparent 50%);
+  background-position: right 14px center, right 9px center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+.freshness-select:hover { color: var(--text); border-color: var(--border); }
+.freshness-select:focus-visible { outline: none; border-color: var(--volt-dim); box-shadow: 0 0 0 1px rgba(212, 255, 0, 0.18); }
+.freshness-select option { background: var(--bg); color: var(--text); }
+
 main { max-width: 880px; margin: 0 auto; padding: 28px 32px 72px; }
 
 .loading, .empty, .note { color: var(--text-dim); font-size: 14px; line-height: 1.6; }
 .empty { color: var(--text); font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+
+/* ---------------- Estado de error real (distinto de "sin resultados") ---------------- */
+.search-error {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 22px 24px;
+  max-width: 420px;
+}
+.search-error-title { margin: 0 0 14px; font-size: 14px; color: var(--text); line-height: 1.6; }
+.search-error-retry {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+.search-error-retry:hover { border-color: var(--volt-dim); color: var(--volt); }
 
 /* ---------------- Entity Focus — panel de entidad, lenguaje propio ---------------- */
 .entity-focus {

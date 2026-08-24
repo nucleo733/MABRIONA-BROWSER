@@ -368,6 +368,74 @@ if (placesInfo.tabs.includes('Lugares')) {
   skip('MABRIONA Places', 'Brave no devolvió locations para esta búsqueda en esta corrida — no siempre es determinístico')
 }
 
+// Herramientas — filtro real de frescura (Etapa 5): verificado por fuera que freshness=pd cambia
+// de verdad el orden de los resultados para una búsqueda de actualidad — acá se confirma que la UI
+// lo dispara correctamente (no que Brave reordene igual, eso puede variar corrida a corrida).
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'noticias'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(3000)
+const toolsInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    hasSelect: !!document.querySelector('.freshness-select'),
+    firstUrlBefore: document.querySelector('.result-list .card .result-title, .card .result-title')?.getAttribute('href') || null,
+  })`)
+})
+if (toolsInfo.hasSelect) {
+  ok('MABRIONA Search: el filtro real de frescura está disponible en Spectrum')
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`
+      const select = document.querySelector('.freshness-select');
+      select.value = 'pd';
+      select.dispatchEvent(new Event('change'));
+    `)
+  })
+  await win.waitForTimeout(3000)
+  const afterFreshness = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      url: location.href,
+      selectValue: document.querySelector('.freshness-select')?.value || null,
+    })`)
+  })
+  if (afterFreshness.url.includes('fresh=pd') && afterFreshness.selectValue === 'pd') {
+    ok('MABRIONA Search: elegir "Último día" vuelve a buscar de verdad con freshness=pd y lo refleja en la URL')
+  } else {
+    bad('filtro de frescura', JSON.stringify(afterFreshness))
+  }
+} else {
+  bad('filtro de frescura', 'no se encontró el <select> de frescura con resultados presentes')
+}
+
+// Estado de error real — una búsqueda con una query más larga de lo que Brave permite produce un
+// 422 real (verificado por fuera, sin tocar la API key real ni el resto del estado de la app) — la
+// UI debe mostrar un error distinguible, no "no encontré nada".
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    `document.querySelector('input[name=q]').value = 'a'.repeat(500); document.querySelector('form').submit();`,
+  )
+})
+await win.waitForTimeout(3000)
+const errorInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    hasErrorCard: !!document.querySelector('.search-error'),
+    errorText: document.querySelector('.search-error-title')?.textContent || null,
+    hasRetry: !!document.querySelector('.search-error-retry'),
+  })`)
+})
+if (errorInfo.hasErrorCard && errorInfo.errorText && errorInfo.hasRetry) {
+  ok(`MABRIONA Search: un error real de la API muestra un mensaje distinguible, no "sin resultados" (${errorInfo.errorText})`)
+} else {
+  bad('estado de error', JSON.stringify(errorInfo))
+}
+
 // Nueva pestaña real
 await win.locator('#btn-new-tab').click()
 await win.waitForTimeout(500)
