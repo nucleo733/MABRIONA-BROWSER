@@ -35,6 +35,10 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   clearPrivacyData: () => ipcRenderer.invoke('privacy:clear-data'),
 
+  findInPage: (id, text, opts) => ipcRenderer.invoke('find:start', { id, text, ...opts }),
+  stopFind: (id) => ipcRenderer.invoke('find:stop', id),
+  onFindResult: (cb) => ipcRenderer.on('find:result', (_e, result) => cb(result)),
+
   onPermissionRequest: (cb) => ipcRenderer.on('permissions:request', (_e, req) => cb(req)),
   respondPermission: (requestId, allow) => ipcRenderer.invoke('permissions:respond', { requestId, allow }),
   listPermissions: () => ipcRenderer.invoke('permissions:list'),

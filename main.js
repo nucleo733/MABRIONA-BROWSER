@@ -92,6 +92,9 @@ function createTab(initialUrl) {
   wc.on('did-navigate', (_e, url) => { tab.url = url; broadcastTabs() })
   wc.on('did-navigate-in-page', (_e, url) => { tab.url = url; broadcastTabs() })
   wc.on('page-title-updated', (_e, title) => { tab.title = title; broadcastTabs() })
+  wc.on('found-in-page', (_e, result) => {
+    sendToRenderer('find:result', { tabId: tab.id, activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
+  })
 
   wc.setWindowOpenHandler(({ url }) => {
     createAndSwitchTab(url)
@@ -254,6 +257,16 @@ ipcMain.handle('tabs:back', (_e, id) => tabs.get(id)?.view.webContents.goBack())
 ipcMain.handle('tabs:forward', (_e, id) => tabs.get(id)?.view.webContents.goForward())
 ipcMain.handle('tabs:reload', (_e, id) => tabs.get(id)?.view.webContents.reload())
 ipcMain.handle('tabs:stop', (_e, id) => tabs.get(id)?.view.webContents.stop())
+
+// Find in Page — capacidad real de Chromium (webContents.findInPage), no una simulación sobre el
+// DOM: funciona contra cualquier página real, con el mismo contador de coincidencias que usa
+// Chrome/Safari.
+ipcMain.handle('find:start', (_e, { id, text, forward = true, findNext = false }) => {
+  const tab = tabs.get(id)
+  if (!tab || !text) return
+  tab.view.webContents.findInPage(text, { forward, findNext, matchCase: false })
+})
+ipcMain.handle('find:stop', (_e, id) => tabs.get(id)?.view.webContents.stopFindInPage('clearSelection'))
 ipcMain.handle('tabs:get-state', () => Array.from(tabs.values()).map(serializeTab))
 
 ipcMain.handle('history:list', () => store.getState().history)

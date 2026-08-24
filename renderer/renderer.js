@@ -28,9 +28,12 @@ function displayAddress(url) {
   return url
 }
 
+let lastActiveTabId = null
 function render(tabsState) {
   currentTabs = tabsState
   activeTab = tabsState.find((t) => t.isActive) || null
+  if (activeTab && activeTab.id !== lastActiveTabId && lastActiveTabId !== null) closeFindbar()
+  lastActiveTabId = activeTab ? activeTab.id : null
 
   tabstrip.querySelectorAll('.tab').forEach((el) => el.remove())
   for (const tab of tabsState) {
@@ -221,4 +224,46 @@ document.getElementById('permission-deny').addEventListener('click', () => resol
 mabrionaBrowser.onPermissionRequest((req) => {
   permissionQueue.push(req)
   showNextPermissionRequest()
+})
+
+// Find in Page — capacidad real de Chromium (webContents.findInPage), funciona contra el
+// contenido real de cualquier pestaña, con el mismo contador que Chrome/Safari.
+const findbar = document.getElementById('findbar')
+const findInput = document.getElementById('find-input')
+const findCount = document.getElementById('find-count')
+
+function openFindbar() {
+  if (!activeTab) return
+  findbar.classList.remove('hidden')
+  findInput.focus()
+  findInput.select()
+}
+function closeFindbar() {
+  findbar.classList.add('hidden')
+  findCount.textContent = '0/0'
+  if (activeTab) mabrionaBrowser.stopFind(activeTab.id)
+}
+function runFind(forward, findNext) {
+  if (!activeTab || !findInput.value) return
+  mabrionaBrowser.findInPage(activeTab.id, findInput.value, { forward, findNext })
+}
+
+findInput.addEventListener('input', () => runFind(true, false))
+findInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') runFind(!e.shiftKey, true)
+  else if (e.key === 'Escape') closeFindbar()
+})
+document.getElementById('find-next').addEventListener('click', () => runFind(true, true))
+document.getElementById('find-prev').addEventListener('click', () => runFind(false, true))
+document.getElementById('find-close').addEventListener('click', closeFindbar)
+
+window.addEventListener('keydown', (e) => {
+  const cmdOrCtrl = e.metaKey || e.ctrlKey
+  if (cmdOrCtrl && e.key.toLowerCase() === 'f') { e.preventDefault(); openFindbar() }
+  else if (e.key === 'Escape' && !findbar.classList.contains('hidden')) closeFindbar()
+})
+
+mabrionaBrowser.onFindResult(({ tabId, activeMatchOrdinal, matches }) => {
+  if (!activeTab || tabId !== activeTab.id) return
+  findCount.textContent = `${matches === 0 ? 0 : activeMatchOrdinal}/${matches}`
 })

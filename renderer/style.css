@@ -231,6 +231,46 @@ body {
 }
 .panel-list .item-delete:hover { color: var(--volt); background: rgba(212, 255, 0, 0.12); }
 
+#findbar {
+  position: absolute;
+  top: 124px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--bg-raised-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+  z-index: 55;
+}
+#findbar.hidden { display: none; }
+#find-input {
+  width: 180px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  padding: 0 12px;
+  font-size: 12px;
+  outline: none;
+}
+#find-input:focus { border-color: var(--volt); }
+#find-count { color: var(--text-dim); font-size: 11px; min-width: 40px; text-align: center; }
+#findbar button {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 999px;
+  width: 26px;
+  height: 26px;
+  cursor: pointer;
+  font-size: 11px;
+}
+#findbar button:hover { border-color: var(--volt); color: var(--volt); }
+
 #permission-banner {
   position: absolute;
   top: 124px;
