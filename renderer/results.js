@@ -7,10 +7,11 @@
  * desde el proceso principal — la key nunca llega a esta página. La
  * misma respuesta ya trae, de verdad (no simulado): resultados web,
  * a veces un panel de entidad (Entity Focus, cuando Brave reconoce a
- * quién/qué se busca — persona, lugar, cosa) y a veces videos. Se
- * arma todo con el diseño propio de MABRIONA (Spectrum + Entity
- * Focus) — nada de esto es HTML de Brave, es JSON que MABRIONA
- * renderiza con su propia identidad visual.
+ * quién/qué se busca — persona, lugar, cosa), a veces videos y a
+ * veces preguntas frecuentes reales (MABRIONA FAQ) — todo en la misma
+ * llamada, sin pedir nada extra. Se arma todo con el diseño propio de
+ * MABRIONA (Spectrum + Entity Focus + FAQ) — nada de esto es HTML de
+ * Brave, es JSON que MABRIONA renderiza con su propia identidad visual.
  *
  * Categorías que Google tiene y esta API no trae hoy (Imágenes,
  * Noticias, Mapas, Compras, Música como categoría propia, MABRIONA
@@ -55,14 +56,36 @@ function renderEmpty(query, container) {
 
 // ---------------- Entity Focus ----------------
 
+/** Traducción del `category` real que manda Brave (persona/empresa/lugar/app/...) al lenguaje
+ * propio de MABRIONA. Solo formatea la etiqueta — nunca inventa una categoría que no vino en el
+ * dato: si Brave manda un valor que no está en este mapa, se muestra el valor real tal cual. */
+const CATEGORY_LABELS = {
+  person: 'Persona',
+  company: 'Empresa',
+  place: 'Lugar',
+  application: 'Aplicación',
+  programming: 'Tecnología',
+}
+
+function friendlyCategory(category) {
+  if (!category) return null
+  return CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)
+}
+
 function renderEntityFocus(box) {
   const card = el('div', 'entity-focus')
-  if (box.category) card.appendChild(el('span', 'entity-category', box.category))
+
+  // Identidad
+  const category = friendlyCategory(box.category)
+  if (category) card.appendChild(el('span', 'entity-category', category))
   card.appendChild(el('h2', null, box.title))
   const desc = box.longDescription || box.description
   if (desc) card.appendChild(el('p', 'entity-desc', stripHtml(desc).slice(0, 400)))
 
+  // Atributos — solo los que de verdad tienen un valor (ver normalizeInfobox: las filas
+  // separadoras de sección de la tabla original ya vienen descartadas).
   if (box.attributes.length > 0) {
+    card.appendChild(el('p', 'section-heading', 'Atributos'))
     const grid = el('div', 'entity-attrs')
     for (const attr of box.attributes.slice(0, 8)) {
       const item = el('div', 'entity-attr')
@@ -73,7 +96,9 @@ function renderEntityFocus(box) {
     card.appendChild(grid)
   }
 
+  // Presencia web — perfiles/sitios reales que Brave asoció a esta entidad.
   if (box.profiles.length > 0) {
+    card.appendChild(el('p', 'section-heading', 'Presencia web'))
     const row = el('div', 'entity-profiles')
     for (const profile of box.profiles) {
       const link = el('a', 'entity-profile')
@@ -89,6 +114,17 @@ function renderEntityFocus(box) {
     }
     card.appendChild(row)
   }
+
+  // Fuente — de dónde viene realmente esta información (nunca se le atribuye a MABRIONA).
+  if (box.sourceUrl) {
+    let host = box.sourceUrl
+    try { host = new URL(box.sourceUrl).hostname } catch { /* URL rara, mostrar tal cual */ }
+    const source = el('a', 'entity-source')
+    source.href = box.sourceUrl
+    source.textContent = `Fuente: ${host} →`
+    card.appendChild(source)
+  }
+
   return card
 }
 
@@ -132,6 +168,47 @@ function renderVideoGrid(videos, container, limit) {
   container.appendChild(grid)
 }
 
+// ---------------- MABRIONA FAQ ----------------
+
+/** Acordeón real (expandir/contraer, sin librería) sobre preguntas reales que Brave trae en la
+ * misma respuesta — cuando no vienen (la mayoría de búsquedas de una sola palabra, por ejemplo),
+ * esta función nunca se llama: no existe una FAQ genérica de respaldo. */
+function renderFaq(items, container) {
+  const section = el('div', 'mabriona-faq')
+  section.appendChild(el('p', 'section-heading', 'Preguntas frecuentes'))
+  const list = el('div', 'faq-list')
+  for (const item of items) {
+    const row = el('div', 'faq-item')
+    const button = el('button', 'faq-question')
+    button.type = 'button'
+    button.setAttribute('aria-expanded', 'false')
+    button.appendChild(el('span', 'faq-question-text', stripHtml(item.question)))
+    button.appendChild(el('span', 'faq-caret', '▾'))
+
+    const answerBox = el('div', 'faq-answer')
+    answerBox.hidden = true
+    answerBox.appendChild(el('p', null, stripHtml(item.answer)))
+    if (item.sourceUrl) {
+      const link = el('a', 'faq-source')
+      link.href = item.sourceUrl
+      link.textContent = `Fuente: ${item.sourceHost || item.sourceTitle || 'ver más'} →`
+      answerBox.appendChild(link)
+    }
+
+    button.addEventListener('click', () => {
+      const expanded = button.getAttribute('aria-expanded') === 'true'
+      button.setAttribute('aria-expanded', String(!expanded))
+      answerBox.hidden = expanded
+    })
+
+    row.appendChild(button)
+    row.appendChild(answerBox)
+    list.appendChild(row)
+  }
+  section.appendChild(list)
+  container.appendChild(section)
+}
+
 // ---------------- Spectrum (pestañas propias) ----------------
 
 function buildSpectrum(data) {
@@ -151,8 +228,10 @@ function renderSpectrumView(tabId, data, container) {
     renderVideoGrid(data.videos, container)
     return
   }
-  // "Todo" — composición con jerarquía: entidad primero, después una muestra de video, después web.
+  // "Todo" — composición con jerarquía: entidad primero, después FAQ (si existe), después una
+  // muestra de video, después web. Cada sección se omite por completo si no hay dato real.
   if (data.infobox) container.appendChild(renderEntityFocus(data.infobox))
+  if (data.faq && data.faq.length > 0) renderFaq(data.faq, container)
   if (data.videos.length > 0) {
     container.appendChild(el('p', 'section-heading', 'Video'))
     renderVideoGrid(data.videos, container, 4)
@@ -265,7 +344,7 @@ async function search(query) {
     try {
       const response = await window.mabrionaSearch.query(query)
       if (response.configured) {
-        const hasAnything = response.infobox || response.web.length > 0 || response.videos.length > 0
+        const hasAnything = response.infobox || response.web.length > 0 || response.videos.length > 0 || (response.faq && response.faq.length > 0)
         if (hasAnything) mountSpectrum(response, container)
         else { container.replaceChildren(); renderEmpty(query, container) }
         return

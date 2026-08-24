@@ -56,9 +56,13 @@ function normalizeInfobox(data) {
     description: typeof box.description === 'string' ? box.description : '',
     longDescription: typeof box.long_desc === 'string' ? box.long_desc : '',
     sourceUrl: typeof box.url === 'string' ? box.url : null,
+    // Brave (vía Wikipedia) intercala filas separadoras de sección dentro de `attributes` — llegan
+    // con `value: null` (ej. ["<span><strong>Height</strong></span>", null]). No son un dato, son
+    // maquetación de la tabla original: si se dejaban pasar, `String(null)` los mostraba como un
+    // atributo real de valor literal "null". Se descartan, nunca se inventa un valor para ellas.
     attributes: Array.isArray(box.attributes)
       ? box.attributes
-          .filter((a) => Array.isArray(a) && a.length === 2)
+          .filter((a) => Array.isArray(a) && a.length === 2 && a[0] != null && a[1] != null && String(a[1]).trim() !== '')
           .map(([label, value]) => ({ label: String(label), value: String(value) }))
       : [],
     profiles: Array.isArray(box.profiles)
@@ -67,6 +71,26 @@ function normalizeInfobox(data) {
           .map((p) => ({ name: String(p.name), url: String(p.url), icon: typeof p.img === 'string' ? p.img : null }))
       : [],
   }
+}
+
+/**
+ * FAQ real — Brave ya trae, para algunas búsquedas (no todas), preguntas frecuentes sacadas de
+ * fuentes reales con su propia URL. Si `data.faq` no viene (ej. "apple inc" no trae FAQ), se
+ * devuelve `[]` y MABRIONA Search simplemente no muestra la sección — nunca se redacta una
+ * pregunta propia para rellenar el espacio.
+ */
+function normalizeFaq(data) {
+  const results = data?.faq?.results
+  if (!Array.isArray(results)) return []
+  return results
+    .filter((f) => f && f.question && f.answer)
+    .map((f) => ({
+      question: String(f.question),
+      answer: String(f.answer),
+      sourceTitle: typeof f.title === 'string' ? f.title : null,
+      sourceUrl: typeof f.url === 'string' ? f.url : null,
+      sourceHost: typeof f?.meta_url?.hostname === 'string' ? f.meta_url.hostname : null,
+    }))
 }
 
 /** Videos reales (mayormente YouTube) que Brave ya trae en la misma respuesta — sin API aparte. */
@@ -84,4 +108,4 @@ function normalizeVideos(data) {
     }))
 }
 
-module.exports = { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, BRAVE_ENDPOINT }
+module.exports = { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, normalizeFaq, BRAVE_ENDPOINT }

@@ -143,17 +143,46 @@ const spectrumInfo = await app.evaluate(({ BrowserWindow }) => {
     tabs: Array.from(document.querySelectorAll('.spectrum-tab')).map((b) => b.textContent),
     hasEntityFocus: !!document.querySelector('.entity-focus'),
     entityTitle: document.querySelector('.entity-focus h2')?.textContent || null,
+    entitySourceHref: document.querySelector('.entity-source')?.getAttribute('href') || null,
     hasVideoGrid: !!document.querySelector('.video-grid'),
+    faqQuestionCount: document.querySelectorAll('.faq-item').length,
     bodyText: document.body.innerText.slice(0, 400),
   })`)
 })
-console.log('Spectrum:', JSON.stringify(spectrumInfo.tabs), '| Entity Focus:', spectrumInfo.hasEntityFocus, spectrumInfo.entityTitle)
+console.log('Spectrum:', JSON.stringify(spectrumInfo.tabs), '| Entity Focus:', spectrumInfo.hasEntityFocus, spectrumInfo.entityTitle, '| FAQ:', spectrumInfo.faqQuestionCount)
 if (spectrumInfo.tabs.includes('Todo')) ok(`MABRIONA Search: Spectrum muestra pestañas reales (${spectrumInfo.tabs.join(', ')})`)
 else bad('Spectrum', JSON.stringify(spectrumInfo))
 if (spectrumInfo.hasEntityFocus && spectrumInfo.entityTitle) ok(`MABRIONA Search: Entity Focus real para una entidad reconocida (${spectrumInfo.entityTitle})`)
 else skip('Entity Focus', 'Brave no devolvió infobox para esta búsqueda en esta corrida — no siempre es determinístico, no es un bug si el resto de Spectrum funciona')
+if (spectrumInfo.hasEntityFocus) {
+  if (spectrumInfo.entitySourceHref && spectrumInfo.entitySourceHref.startsWith('http')) ok(`MABRIONA Search: Entity Focus conserva el enlace real a su fuente (${spectrumInfo.entitySourceHref})`)
+  else bad('Entity Focus — fuente', 'no hay enlace de fuente aunque hay Entity Focus')
+}
 if (spectrumInfo.tabs.includes('Video') ? spectrumInfo.hasVideoGrid : true) ok('MABRIONA Search: la pestaña Video (si aparece) trae una grilla real')
 else bad('Video grid', 'la pestaña Video está pero no hay grilla')
+if (spectrumInfo.faqQuestionCount > 0) {
+  ok(`MABRIONA Search: MABRIONA FAQ real integrada (${spectrumInfo.faqQuestionCount} preguntas)`)
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript("document.querySelector('.faq-question').click();")
+  })
+  await win.waitForTimeout(200)
+  const faqExpanded = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      expanded: document.querySelector('.faq-question').getAttribute('aria-expanded'),
+      answerVisible: !document.querySelector('.faq-answer').hidden,
+      answerText: document.querySelector('.faq-answer p')?.textContent.slice(0, 60) || '',
+    })`)
+  })
+  if (faqExpanded.expanded === 'true' && faqExpanded.answerVisible && faqExpanded.answerText.length > 0) {
+    ok(`MABRIONA FAQ: expandir una pregunta muestra la respuesta real (${faqExpanded.answerText}...)`)
+  } else {
+    bad('MABRIONA FAQ — expandir', JSON.stringify(faqExpanded))
+  }
+} else {
+  skip('MABRIONA FAQ', 'Brave no devolvió faq para esta búsqueda en esta corrida — no siempre es determinístico, no es un bug si el resto de Spectrum funciona')
+}
 
 // Cambiar de pestaña Spectrum (Web) tiene que mostrar la lista completa, sin Entity Focus ni video.
 if (spectrumInfo.tabs.includes('Web')) {
@@ -168,10 +197,11 @@ if (spectrumInfo.tabs.includes('Web')) {
     const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
     return view.webContents.executeJavaScript(`({
       hasEntityFocus: !!document.querySelector('.entity-focus'),
+      hasFaq: !!document.querySelector('.mabriona-faq'),
       resultCount: document.querySelectorAll('.result-list .card').length,
     })`)
   })
-  if (!webTabInfo.hasEntityFocus && webTabInfo.resultCount > 0) {
+  if (!webTabInfo.hasEntityFocus && !webTabInfo.hasFaq && webTabInfo.resultCount > 0) {
     ok(`MABRIONA Search: la pestaña Web muestra solo resultados web reales (${webTabInfo.resultCount})`)
   } else {
     bad('pestaña Web', JSON.stringify(webTabInfo))

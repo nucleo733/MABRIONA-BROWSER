@@ -2,7 +2,7 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, BRAVE_ENDPOINT } = require('../search/braveSearch')
+const { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, normalizeFaq, BRAVE_ENDPOINT } = require('../search/braveSearch')
 
 test('buildRequest arma la URL con la query codificada', () => {
   const { url } = buildRequest('bachata dominicana', 'fake-key')
@@ -104,4 +104,62 @@ test('normalizeVideos extrae título/url/miniatura/duración/fuente de una respu
 test('normalizeVideos descarta resultados sin título o sin url, y no rompe sin datos', () => {
   assert.deepEqual(normalizeVideos({}), [])
   assert.deepEqual(normalizeVideos({ videos: { results: [{ title: 'sin url' }] } }), [])
+})
+
+test('normalizeInfobox descarta filas separadoras de sección (value null) — regresión de un bug real', () => {
+  // Forma real observada consultando la API de Brave con "eiffel tower" / "tesla model 3": la
+  // tabla de Wikipedia trae encabezados de sub-sección como par [label, null]. Antes se convertían
+  // en un atributo falso de valor literal "null" (String(null)).
+  const data = {
+    infobox: {
+      results: [
+        {
+          title: 'Eiffel Tower',
+          attributes: [
+            ['<span><strong>General information</strong></span>', null],
+            ['Location', 'Paris, France'],
+            ['Height', ''],
+          ],
+        },
+      ],
+    },
+  }
+  const box = normalizeInfobox(data)
+  assert.deepEqual(box.attributes, [{ label: 'Location', value: 'Paris, France' }])
+})
+
+test('normalizeFaq extrae pregunta/respuesta/fuente de una respuesta real', () => {
+  const data = {
+    faq: {
+      results: [
+        {
+          question: '¿Quién es Romeo Santos?',
+          answer: '<p>Cantante de bachata.</p>',
+          title: 'Romeo Santos - Biografía',
+          url: 'https://es.wikipedia.org/wiki/Romeo_Santos',
+          meta_url: { hostname: 'es.wikipedia.org' },
+        },
+      ],
+    },
+  }
+  assert.deepEqual(normalizeFaq(data), [
+    {
+      question: '¿Quién es Romeo Santos?',
+      answer: '<p>Cantante de bachata.</p>',
+      sourceTitle: 'Romeo Santos - Biografía',
+      sourceUrl: 'https://es.wikipedia.org/wiki/Romeo_Santos',
+      sourceHost: 'es.wikipedia.org',
+    },
+  ])
+})
+
+test('normalizeFaq devuelve [] cuando Brave no manda FAQ para esa búsqueda (nunca inventa una pregunta)', () => {
+  assert.deepEqual(normalizeFaq({}), [])
+  assert.deepEqual(normalizeFaq({ faq: {} }), [])
+  assert.deepEqual(normalizeFaq(null), [])
+})
+
+test('normalizeFaq descarta entradas sin pregunta o sin respuesta, y no rompe con forma rara', () => {
+  const data = { faq: { results: [{ question: 'sin respuesta' }, { answer: 'sin pregunta' }, 'no-es-objeto'] } }
+  assert.deepEqual(normalizeFaq(data), [])
 })
