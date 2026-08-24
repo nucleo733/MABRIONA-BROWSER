@@ -63,19 +63,37 @@ const tabUrls = await app.evaluate(({ BrowserWindow }) =>
 if (tabUrls.some((u) => u.endsWith('/renderer/newtab.html'))) ok(`la pestaña inicial cargó de verdad la página propia de MABRIONA (${tabUrls[0]})`)
 else bad('URL real de la pestaña inicial', JSON.stringify(tabUrls))
 
-// Buscar desde esa página (form real, sin JS) tiene que llevar de verdad a DuckDuckGo — se
-// completa el form vía CDP (executeJavaScript no está sujeto al CSP de la página, mismo mecanismo
-// que usaría un usuario tipeando, no una inyección que la CSP debería bloquear).
+// Buscar desde esa página (form real, sin JS) tiene que llevar a la página de RESULTADOS PROPIA
+// de MABRIONA (no a duckduckgo.com) — se completa el form vía CDP (executeJavaScript no está
+// sujeto al CSP de la página, mismo mecanismo que usaría un usuario tipeando).
 await app.evaluate(({ BrowserWindow }) => {
   const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
   return view.webContents.executeJavaScript(
-    "document.querySelector('input[name=q]').value = 'mabriona'; document.querySelector('form').submit();",
+    "document.querySelector('input[name=q]').value = 'python'; document.querySelector('form').submit();",
   )
 })
-await win.waitForTimeout(2500)
+await win.waitForTimeout(1000)
 const addressAfterSearch = await win.locator('#address').inputValue()
-if (addressAfterSearch.includes('duckduckgo.com')) ok(`buscar desde la página de inicio de MABRIONA navega de verdad a DuckDuckGo (${addressAfterSearch})`)
-else bad('búsqueda desde la página de inicio', `encontré "${addressAfterSearch}"`)
+if (addressAfterSearch.includes('/renderer/results.html') && addressAfterSearch.includes('q=python')) {
+  ok(`buscar desde la página de inicio navega a la página de resultados propia de MABRIONA (${addressAfterSearch})`)
+} else {
+  bad('búsqueda desde la página de inicio', `encontré "${addressAfterSearch}"`)
+}
+
+// La página de resultados tiene que traer contenido real (API oficial de Respuestas Instantáneas)
+// y no mostrar la marca de DuckDuckGo en ningún lado — solo el link honesto de "ver resultados
+// reales" cuando no hay respuesta directa, que si aparece, es intencional y transparente.
+await win.waitForTimeout(2000) // tiempo real para el fetch a la API
+const resultsPageText = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript('document.body.innerText')
+})
+console.log('texto de la página de resultados:', resultsPageText.slice(0, 300).replace(/\n+/g, ' | '))
+if (!resultsPageText.includes('Buscando…')) ok('la página de resultados terminó de cargar (no se quedó en "Buscando…")')
+else bad('carga de resultados', 'se quedó mostrando "Buscando…" — puede ser falta de red hacia api.duckduckgo.com en este entorno')
+const mentionsDuckDuckGoOutsideFallback = resultsPageText.includes('DuckDuckGo') && !resultsPageText.includes('Ver resultados reales en DuckDuckGo')
+if (!mentionsDuckDuckGoOutsideFallback) ok('la página de resultados no muestra la marca de DuckDuckGo (salvo el link honesto de fallback, si aparece)')
+else bad('marca de DuckDuckGo en resultados propios', resultsPageText.slice(0, 200))
 
 // Nueva pestaña real
 await win.locator('#btn-new-tab').click()

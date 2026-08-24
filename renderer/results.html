@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src https://api.duckduckgo.com; img-src 'self' https:; form-action https://duckduckgo.com;" />
+  <title>Resultados</title>
+  <link rel="stylesheet" href="results.css" />
+</head>
+<body>
+  <header>
+    <span class="logo"><span class="mabriona">MABRIONA</span> <span class="browser">Browser</span></span>
+    <form id="search-form" action="results.html" method="get">
+      <input id="q" type="text" name="q" placeholder="Buscar de forma privada…" />
+    </form>
+  </header>
+  <main id="results">
+    <p class="loading">Buscando…</p>
+  </main>
+  <script src="results.js"></script>
+</body>
+</html>
