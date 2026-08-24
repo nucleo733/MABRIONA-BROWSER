@@ -16,9 +16,25 @@
  */
 
 const BRAVE_ENDPOINT = 'https://api.search.brave.com/res/v1/web/search'
+// Imágenes NO viene en la respuesta del endpoint de arriba (se probó `result_filter=images` contra
+// la cuenta real y la API lo rechaza: "Invalid filter value(s): images" — el enum válido de
+// result_filter es discussions/faq/infobox/news/query/videos/web/summarizer/locations/rich). Brave
+// expone imágenes solo por un endpoint aparte, confirmado real (200, JSON) contra esta cuenta.
+const IMAGES_ENDPOINT = 'https://api.search.brave.com/res/v1/images/search'
 
 function buildRequest(query, apiKey) {
   const url = `${BRAVE_ENDPOINT}?q=${encodeURIComponent(query)}`
+  return {
+    url,
+    headers: {
+      Accept: 'application/json',
+      'X-Subscription-Token': apiKey,
+    },
+  }
+}
+
+function buildImagesRequest(query, apiKey) {
+  const url = `${IMAGES_ENDPOINT}?q=${encodeURIComponent(query)}`
   return {
     url,
     headers: {
@@ -109,10 +125,10 @@ function normalizeVideos(data) {
 }
 
 /**
- * Noticias reales — Brave las trae solo quando la consulta es de actualidad ("taylor swift",
- * "breaking news today"), no en la mayoría de búsquedas. No se usa para armar una sección/pestaña
- * de Noticias (esa función sigue PENDIENTE — ver Etapa 3): acá solo se normaliza el dato real para
- * que Context Orbit pueda usarlo como nodo cuando corresponda.
+ * Noticias reales — Brave las trae solo cuando la consulta es de actualidad ("taylor swift",
+ * "breaking news today"), no en la mayoría de búsquedas. Viene en la MISMA respuesta que ya se pide
+ * para Web/Entity Focus/FAQ/Video — sin llamada de red aparte. Desde Etapa 4 es también una
+ * categoría propia de Spectrum (antes solo alimentaba Context Orbit).
  */
 function normalizeNews(data) {
   const results = data?.news?.results
@@ -122,7 +138,60 @@ function normalizeNews(data) {
     .map((n) => ({
       title: String(n.title),
       url: String(n.url),
+      description: typeof n.description === 'string' ? n.description : '',
+      age: typeof n.age === 'string' ? n.age : null,
       source: typeof n?.meta_url?.hostname === 'string' ? n.meta_url.hostname : null,
+      thumbnail: n.thumbnail && typeof n.thumbnail.src === 'string' ? n.thumbnail.src : null,
+    }))
+}
+
+/**
+ * Lugares reales (negocios locales: "starbucks madrid", "museo del prado horario") — vienen en la
+ * MISMA respuesta unificada, sin llamada aparte. Auditoría de Etapa 3/4: nunca coexiste con
+ * `infobox` en esta API (son mutuamente excluyentes: una consulta es "entidad de conocimiento" o
+ * "negocio local"), así que esto es una categoría propia de Spectrum, no un dato que se cuelgue de
+ * Entity Focus. No incluye mapa (no hay proveedor de mapas contratado) — solo los datos reales que
+ * Brave devuelve por lugar.
+ */
+function normalizeLocations(data) {
+  const results = data?.locations?.results
+  if (!Array.isArray(results)) return []
+  return results
+    .filter((l) => l && l.url && l.title)
+    .map((l) => {
+      const today = l?.opening_hours?.current_day?.[0]
+      return {
+        title: String(l.title),
+        url: String(l.url),
+        address: typeof l?.postal_address?.displayAddress === 'string' ? l.postal_address.displayAddress : null,
+        phone: typeof l?.contact?.telephone === 'string' ? l.contact.telephone : null,
+        rating: typeof l?.rating?.ratingValue === 'number' ? l.rating.ratingValue : null,
+        ratingCount: typeof l?.rating?.reviewCount === 'number' ? l.rating.reviewCount : null,
+        todayHours: today && today.opens && today.closes ? `${today.opens} – ${today.closes}` : null,
+        thumbnail: l.thumbnail && typeof l.thumbnail.src === 'string' ? l.thumbnail.src : null,
+      }
+    })
+}
+
+/**
+ * Imágenes reales — a diferencia de News/Locations, Brave NO las incluye en la respuesta unificada
+ * (ver nota de `IMAGES_ENDPOINT` arriba): esta función normaliza la respuesta de ese endpoint
+ * aparte, pedida solo cuando el usuario abre la pestaña Imágenes (ver `main.js` — `search:images`).
+ * Nota: el nivel superior de este endpoint es distinto al de `web/search` — los resultados están en
+ * `data.results`, no en `data.web.results`.
+ */
+function normalizeImages(data) {
+  const results = data?.results
+  if (!Array.isArray(results)) return []
+  return results
+    .filter((img) => img && img.url && img.title && img?.thumbnail?.src)
+    .map((img) => ({
+      title: String(img.title),
+      url: String(img.url),
+      source: typeof img.source === 'string' ? img.source : null,
+      thumbnail: String(img.thumbnail.src),
+      width: typeof img?.properties?.width === 'number' ? img.properties.width : null,
+      height: typeof img?.properties?.height === 'number' ? img.properties.height : null,
     }))
 }
 
@@ -143,11 +212,15 @@ function normalizeDiscussions(data) {
 
 module.exports = {
   buildRequest,
+  buildImagesRequest,
   normalizeResults,
   normalizeInfobox,
   normalizeVideos,
   normalizeFaq,
   normalizeNews,
   normalizeDiscussions,
+  normalizeLocations,
+  normalizeImages,
   BRAVE_ENDPOINT,
+  IMAGES_ENDPOINT,
 }

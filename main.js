@@ -8,12 +8,15 @@ const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
 const {
   buildRequest,
+  buildImagesRequest,
   normalizeResults,
   normalizeInfobox,
   normalizeVideos,
   normalizeFaq,
   normalizeNews,
   normalizeDiscussions,
+  normalizeLocations,
+  normalizeImages,
 } = require('./search/braveSearch')
 const { buildContextGraph } = require('./search/contextGraph')
 
@@ -346,35 +349,55 @@ ipcMain.handle('settings:choose-downloads-dir', async () => {
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
 // diseño de MABRIONA) — la key vive solo acá, nunca llega a la página. Si todavía no hay key
 // configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
+const SEARCH_EMPTY = { configured: false, web: [], infobox: null, videos: [], faq: [], news: [], locations: [], contextGraph: null }
+
 ipcMain.handle('search:query', async (_e, text) => {
   const apiKey = store.getBraveApiKey()
-  if (!apiKey) return { configured: false, web: [], infobox: null, videos: [], faq: [], contextGraph: null }
+  if (!apiKey) return SEARCH_EMPTY
   try {
     const { url, headers } = buildRequest(text, apiKey)
     const res = await fetch(url, { headers })
-    if (!res.ok) {
-      return { configured: true, error: `error ${res.status}`, web: [], infobox: null, videos: [], faq: [], contextGraph: null }
-    }
+    if (!res.ok) return { ...SEARCH_EMPTY, configured: true, error: `error ${res.status}` }
     const data = await res.json()
     // Todo sale de esta misma respuesta — Brave ya la trae completa, no se hace ninguna llamada
-    // extra para FAQ ni para Context Orbit (misma regla desde Etapa 1: sin red extra para "llenar"
-    // la UI). news/discussions se normalizan acá solo para alimentar el grafo — no se exponen como
-    // secciones propias todavía (esas siguen PENDIENTES, ver Etapa 3).
+    // extra para FAQ, News, Locations ni Context Orbit (misma regla desde Etapa 1: sin red extra
+    // para "llenar" la UI). Imágenes es la única excepción real: Brave no la incluye acá (ver
+    // `search:images` — confirmado contra la cuenta real que necesita su propio endpoint).
     const infobox = normalizeInfobox(data)
     const faq = normalizeFaq(data)
     const videos = normalizeVideos(data)
     const news = normalizeNews(data)
     const discussions = normalizeDiscussions(data)
+    const locations = normalizeLocations(data)
     return {
       configured: true,
       web: normalizeResults(data),
       infobox,
       videos,
       faq,
+      news,
+      locations,
       contextGraph: buildContextGraph({ infobox, faq, videos, news, discussions }),
     }
   } catch (err) {
-    return { configured: true, error: String(err), web: [], infobox: null, videos: [], faq: [], contextGraph: null }
+    return { ...SEARCH_EMPTY, configured: true, error: String(err) }
+  }
+})
+
+// Imágenes reales — llamada perezosa y aparte, solo cuando el usuario abre la pestaña Imágenes
+// (ver renderer/results.js). No se pide en cada búsqueda: la mayoría de búsquedas nunca abren esa
+// pestaña, así que pedirla siempre sería gastar cupo de la cuenta sin necesidad.
+ipcMain.handle('search:images', async (_e, text) => {
+  const apiKey = store.getBraveApiKey()
+  if (!apiKey) return { configured: false, images: [] }
+  try {
+    const { url, headers } = buildImagesRequest(text, apiKey)
+    const res = await fetch(url, { headers })
+    if (!res.ok) return { configured: true, error: `error ${res.status}`, images: [] }
+    const data = await res.json()
+    return { configured: true, images: normalizeImages(data) }
+  } catch (err) {
+    return { configured: true, error: String(err), images: [] }
   }
 })
 

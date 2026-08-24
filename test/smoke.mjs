@@ -241,6 +241,133 @@ if (spectrumInfo.tabs.includes('Web')) {
   }
 }
 
+// Imágenes — pestaña perezosa (Etapa 4): pedida solo al abrirla, sobre "romeo santos" (la
+// auditoría real mostró 50 resultados reales para esta búsqueda vía el endpoint dedicado).
+if (spectrumInfo.tabs.includes('Imágenes')) {
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('.spectrum-tab')).find((b) => b.textContent === 'Imágenes').click();",
+    )
+  })
+  let imagesInfo = null
+  for (let i = 0; i < 20; i++) {
+    await win.waitForTimeout(300)
+    imagesInfo = await app.evaluate(({ BrowserWindow }) => {
+      const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+      return view.webContents.executeJavaScript(`({
+        loading: !!document.querySelector('.loading'),
+        imageCount: document.querySelectorAll('.image-card').length,
+        firstHref: document.querySelector('.image-card')?.getAttribute('href') || null,
+        firstThumbSrc: document.querySelector('.image-card img')?.getAttribute('src') || null,
+        stillOnImagesTab: document.querySelector('.spectrum-tab.active')?.textContent === 'Imágenes',
+      })`)
+    })
+    if (!imagesInfo.loading) break
+  }
+  if (imagesInfo.imageCount > 0) {
+    ok(`MABRIONA Search: pestaña Imágenes carga resultados reales al abrirla (${imagesInfo.imageCount} imágenes)`)
+    if (imagesInfo.firstThumbSrc && imagesInfo.firstThumbSrc.startsWith('https://imgs.search.brave.com/')) {
+      ok('MABRIONA Search: las miniaturas de Imágenes vienen del proxy real de Brave, ya cubierto por la CSP')
+    } else {
+      bad('Imágenes — miniatura', String(imagesInfo.firstThumbSrc))
+    }
+    if (imagesInfo.firstHref && imagesInfo.firstHref.startsWith('http')) {
+      ok(`MABRIONA Search: cada imagen enlaza a su página fuente real (${imagesInfo.firstHref})`)
+    } else {
+      bad('Imágenes — enlace', String(imagesInfo.firstHref))
+    }
+  } else if (imagesInfo.stillOnImagesTab === false) {
+    ok('MABRIONA Search: esta búsqueda no trajo imágenes reales — la pestaña se retiró sola en vez de mostrarse vacía')
+  } else {
+    bad('pestaña Imágenes', JSON.stringify(imagesInfo))
+  }
+}
+
+// Noticias + Lugares — buscar algo de actualidad real ("taylor swift" trae infobox+faq+news+
+// discussions en la misma llamada, según la auditoría de Etapa 4) para probar la pestaña Noticias.
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'taylor swift'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(3000)
+const newsInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    tabs: Array.from(document.querySelectorAll('.spectrum-tab')).map((b) => b.textContent),
+    todoHasNewsTeaser: Array.from(document.querySelectorAll('.section-heading')).some((h) => h.textContent === 'Noticias'),
+  })`)
+})
+console.log('taylor swift — Spectrum:', JSON.stringify(newsInfo.tabs))
+if (newsInfo.tabs.includes('Noticias')) {
+  ok(`MABRIONA Search: pestaña Noticias real aparece cuando hay datos (${newsInfo.tabs.join(', ')})`)
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('.spectrum-tab')).find((b) => b.textContent === 'Noticias').click();",
+    )
+  })
+  await win.waitForTimeout(300)
+  const newsTabInfo = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      count: document.querySelectorAll('.news-card').length,
+      firstHref: document.querySelector('.news-card')?.getAttribute('href') || null,
+    })`)
+  })
+  if (newsTabInfo.count > 0 && newsTabInfo.firstHref && newsTabInfo.firstHref.startsWith('http')) {
+    ok(`MABRIONA News: tarjetas reales con enlace real a la fuente (${newsTabInfo.count})`)
+  } else {
+    bad('pestaña Noticias', JSON.stringify(newsTabInfo))
+  }
+} else {
+  skip('MABRIONA News', 'Brave no devolvió news para esta búsqueda en esta corrida — no siempre es determinístico')
+}
+
+// Lugares — búsqueda de un negocio local real (mutuamente excluyente con infobox, según la
+// auditoría de Etapa 3/4: nunca coexisten en la misma respuesta).
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'starbucks madrid'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(3000)
+const placesInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    tabs: Array.from(document.querySelectorAll('.spectrum-tab')).map((b) => b.textContent),
+  })`)
+})
+console.log('starbucks madrid — Spectrum:', JSON.stringify(placesInfo.tabs))
+if (placesInfo.tabs.includes('Lugares')) {
+  ok(`MABRIONA Search: pestaña Lugares real aparece para un negocio local (${placesInfo.tabs.join(', ')})`)
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('.spectrum-tab')).find((b) => b.textContent === 'Lugares').click();",
+    )
+  })
+  await win.waitForTimeout(300)
+  const placesTabInfo = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      count: document.querySelectorAll('.place-card').length,
+      firstHref: document.querySelector('.place-card')?.getAttribute('href') || null,
+      firstAddress: document.querySelector('.place-address')?.textContent || null,
+    })`)
+  })
+  if (placesTabInfo.count > 0 && placesTabInfo.firstHref && placesTabInfo.firstAddress) {
+    ok(`MABRIONA Places: tarjetas reales con dirección real (${placesTabInfo.firstAddress})`)
+  } else {
+    bad('pestaña Lugares', JSON.stringify(placesTabInfo))
+  }
+} else {
+  skip('MABRIONA Places', 'Brave no devolvió locations para esta búsqueda en esta corrida — no siempre es determinístico')
+}
+
 // Nueva pestaña real
 await win.locator('#btn-new-tab').click()
 await win.waitForTimeout(500)

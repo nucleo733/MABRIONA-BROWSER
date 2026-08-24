@@ -18,10 +18,13 @@
  * Orbit) — nada de esto es HTML de Brave, es JSON que MABRIONA renderiza
  * con su propia identidad visual.
  *
- * Categorías que Google tiene y esta API no trae hoy (Imágenes,
- * Noticias, Mapas, Compras, Música como categoría propia, MABRIONA
- * AI): a propósito NO se simulan acá — Spectrum solo muestra pestañas
- * para lo que realmente hay datos.
+ * Desde Etapa 4: Noticias y Lugares vienen en la misma respuesta de
+ * arriba (sin llamada aparte). Imágenes es la única categoría que
+ * necesita su propio pedido a Brave — se hace perezoso, solo si el
+ * usuario abre esa pestaña (ver `search:images` en preload/main.js).
+ * Categorías sin evidencia real en esta API (Compras, Música como
+ * categoría propia, People más allá del infobox, MABRIONA AI): a
+ * propósito NO se simulan — ver docs/FASE-MABRIONA-SEARCH-ETAPA-4-FUENTES.md.
  *
  * Fuente de respaldo (sin key configurada todavía): la API oficial de
  * Respuestas Instantáneas de DuckDuckGo (gratis, sin key) — solo
@@ -173,6 +176,91 @@ function renderVideoGrid(videos, container, limit) {
   container.appendChild(grid)
 }
 
+// ---------------- Noticias ----------------
+
+function renderNewsList(items, container, limit) {
+  const list = el('div', 'news-list')
+  for (const n of items.slice(0, limit || items.length)) {
+    const card = el('a', 'news-card')
+    card.href = n.url
+    if (n.thumbnail) {
+      const thumb = el('div', 'news-thumb')
+      const img = document.createElement('img')
+      img.src = n.thumbnail
+      img.alt = ''
+      thumb.appendChild(img)
+      card.appendChild(thumb)
+    }
+    const body = el('div', 'news-body')
+    body.appendChild(el('div', 'news-title', stripHtml(n.title)))
+    if (n.description) body.appendChild(el('p', 'news-desc', stripHtml(n.description).slice(0, 160)))
+    const meta = el('div', 'news-meta')
+    if (n.source) meta.appendChild(el('span', 'news-source', n.source))
+    if (n.age) meta.appendChild(el('span', 'news-age', n.age))
+    if (meta.childNodes.length > 0) body.appendChild(meta)
+    card.appendChild(body)
+    list.appendChild(card)
+  }
+  container.appendChild(list)
+}
+
+// ---------------- Lugares ----------------
+
+function renderLocationsList(items, container, limit) {
+  const list = el('div', 'places-list')
+  for (const p of items.slice(0, limit || items.length)) {
+    const card = el('a', 'place-card')
+    card.href = p.url
+    if (p.thumbnail) {
+      const thumb = el('div', 'place-thumb')
+      const img = document.createElement('img')
+      img.src = p.thumbnail
+      img.alt = ''
+      thumb.appendChild(img)
+      card.appendChild(thumb)
+    }
+    const body = el('div', 'place-body')
+    body.appendChild(el('div', 'place-title', p.title))
+    if (p.address) body.appendChild(el('p', 'place-address', p.address))
+    const meta = el('div', 'place-meta')
+    if (p.rating != null) {
+      const label = p.ratingCount ? `★ ${p.rating.toFixed(1)} (${p.ratingCount})` : `★ ${p.rating.toFixed(1)}`
+      meta.appendChild(el('span', 'place-rating', label))
+    }
+    if (p.todayHours) meta.appendChild(el('span', 'place-hours', `Hoy: ${p.todayHours}`))
+    if (meta.childNodes.length > 0) body.appendChild(meta)
+    card.appendChild(body)
+    list.appendChild(card)
+  }
+  container.appendChild(list)
+}
+
+// ---------------- Imágenes ----------------
+
+/** A diferencia de Web/Video/News/Places, MABRIONA no sabe si hay imágenes reales para esta
+ * búsqueda hasta pedirlas (ver `mountSpectrum` — llamada perezosa vía `search:images`, solo cuando
+ * el usuario abre esta pestaña). Los thumbnails vienen proxeados por Brave desde
+ * imgs.search.brave.com (mismo dominio ya permitido por la CSP desde Etapa 1) — nunca se carga una
+ * imagen de un dominio de terceros directamente. */
+function renderImagesGrid(images, container) {
+  const grid = el('div', 'images-grid')
+  for (const img of images) {
+    const card = el('a', 'image-card')
+    card.href = img.url
+    const thumb = document.createElement('img')
+    thumb.src = img.thumbnail
+    thumb.alt = ''
+    thumb.loading = 'lazy'
+    card.appendChild(thumb)
+    const caption = el('div', 'image-caption')
+    caption.appendChild(el('span', 'image-title', stripHtml(img.title)))
+    if (img.source) caption.appendChild(el('span', 'image-source', img.source))
+    card.appendChild(caption)
+    grid.appendChild(card)
+  }
+  container.appendChild(grid)
+}
+
 // ---------------- MABRIONA FAQ ----------------
 
 /** Acordeón real (expandir/contraer, sin librería) sobre preguntas reales que Brave trae en la
@@ -275,6 +363,13 @@ function buildSpectrum(data) {
   const tabs = [{ id: 'todo', label: 'Todo' }]
   if (data.web.length > 0) tabs.push({ id: 'web', label: 'Web' })
   if (data.videos.length > 0) tabs.push({ id: 'video', label: 'Video' })
+  if (data.news.length > 0) tabs.push({ id: 'news', label: 'Noticias' })
+  if (data.locations.length > 0) tabs.push({ id: 'places', label: 'Lugares' })
+  // Imágenes es la única categoría que MABRIONA no puede confirmar sin pedirla — Brave no la
+  // incluye en la misma respuesta (auditoría Etapa 4). Se ofrece la pestaña porque en la práctica
+  // casi toda búsqueda real trae imágenes, pero si al abrirla no hay ninguna, la pestaña se retira
+  // sola (ver `mountSpectrum`) — nunca se deja mostrando una categoría vacía.
+  tabs.push({ id: 'images', label: 'Imágenes' })
   return tabs
 }
 
@@ -288,12 +383,28 @@ function renderSpectrumView(tabId, data, container) {
     renderVideoGrid(data.videos, container)
     return
   }
-  // "Todo" — composición con jerarquía: entidad primero, después Context Orbit (exploración de
-  // relaciones reales, si existen), después FAQ, después una muestra de video, después web. Cada
-  // sección se omite por completo si no hay dato real.
+  if (tabId === 'news') {
+    renderNewsList(data.news, container)
+    return
+  }
+  if (tabId === 'places') {
+    renderLocationsList(data.locations, container)
+    return
+  }
+  // "Todo" — composición con jerarquía: entidad primero, Context Orbit (relaciones reales, si
+  // existen), lugares (cuando la búsqueda es de un negocio local), FAQ, una muestra de noticias, una
+  // muestra de video, y web al final. Cada sección se omite por completo si no hay dato real.
   if (data.infobox) container.appendChild(renderEntityFocus(data.infobox))
   if (data.contextGraph) renderContextOrbit(data.contextGraph, container)
+  if (data.locations.length > 0) {
+    container.appendChild(el('p', 'section-heading', 'Lugares'))
+    renderLocationsList(data.locations, container, 3)
+  }
   if (data.faq && data.faq.length > 0) renderFaq(data.faq, container)
+  if (data.news.length > 0) {
+    container.appendChild(el('p', 'section-heading', 'Noticias'))
+    renderNewsList(data.news, container, 3)
+  }
   if (data.videos.length > 0) {
     container.appendChild(el('p', 'section-heading', 'Video'))
     renderVideoGrid(data.videos, container, 4)
@@ -310,12 +421,46 @@ function mountSpectrum(data, container) {
   spectrumEl.replaceChildren()
   spectrumEl.classList.remove('hidden')
   let active = 'todo'
-  function draw() {
+  let imagesCache = null
+
+  async function draw() {
     spectrumEl.querySelectorAll('.spectrum-tab').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.tab === active)
     })
-    renderSpectrumView(active, data, container)
+
+    if (active !== 'images') {
+      renderSpectrumView(active, data, container)
+      return
+    }
+
+    if (imagesCache !== null) {
+      if (imagesCache.length === 0) { active = 'todo'; draw(); return }
+      container.replaceChildren()
+      renderImagesGrid(imagesCache, container)
+      return
+    }
+
+    container.replaceChildren(el('p', 'loading', 'Buscando imágenes…'))
+    let images = []
+    try {
+      const response = window.mabrionaSearch ? await window.mabrionaSearch.images(qs('q')) : { images: [] }
+      images = response.images || []
+    } catch {
+      images = []
+    }
+    imagesCache = images
+    if (active !== 'images') return // el usuario cambió de pestaña mientras cargaba
+    if (images.length === 0) {
+      const btn = spectrumEl.querySelector('[data-tab="images"]')
+      if (btn) btn.remove()
+      active = 'todo'
+      draw()
+      return
+    }
+    container.replaceChildren()
+    renderImagesGrid(images, container)
   }
+
   for (const tab of tabs) {
     const btn = el('button', 'spectrum-tab', tab.label)
     btn.type = 'button'
@@ -406,7 +551,13 @@ async function search(query) {
     try {
       const response = await window.mabrionaSearch.query(query)
       if (response.configured) {
-        const hasAnything = response.infobox || response.web.length > 0 || response.videos.length > 0 || (response.faq && response.faq.length > 0)
+        const hasAnything =
+          response.infobox ||
+          response.web.length > 0 ||
+          response.videos.length > 0 ||
+          (response.faq && response.faq.length > 0) ||
+          (response.news && response.news.length > 0) ||
+          (response.locations && response.locations.length > 0)
         if (hasAnything) mountSpectrum(response, container)
         else { container.replaceChildren(); renderEmpty(query, container) }
         return

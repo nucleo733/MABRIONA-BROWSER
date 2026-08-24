@@ -12,4 +12,8 @@ const { contextBridge, ipcRenderer } = require('electron')
  */
 contextBridge.exposeInMainWorld('mabrionaSearch', {
   query: (text) => ipcRenderer.invoke('search:query', text),
+  // Perezoso a propósito: solo se llama cuando el usuario abre la pestaña Imágenes (ver
+  // renderer/results.js) — Brave no incluye imágenes en la respuesta de `query`, así que pedirlas
+  // siempre en cada búsqueda gastaría cupo de la cuenta sin necesidad.
+  images: (text) => ipcRenderer.invoke('search:images', text),
 })

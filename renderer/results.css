@@ -337,6 +337,85 @@ main { max-width: 880px; margin: 0 auto; padding: 28px 32px 72px; }
 .video-source { font-size: 11px; color: var(--text-faint); }
 .video-card:hover .video-title { color: var(--volt); }
 
+/* ---------------- Noticias ---------------- */
+.news-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 32px; }
+.news-card {
+  display: flex;
+  gap: 16px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--border-soft);
+  text-decoration: none;
+  color: var(--text);
+}
+.news-thumb {
+  flex-shrink: 0;
+  width: 96px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+}
+.news-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.news-body { min-width: 0; }
+.news-title { font-size: 14.5px; font-weight: 700; line-height: 1.4; margin-bottom: 4px; }
+.news-card:hover .news-title { color: var(--volt); }
+.news-desc { margin: 0 0 6px; font-size: 12.5px; line-height: 1.5; color: var(--text-dim); }
+.news-meta { display: flex; gap: 10px; font-size: 11px; color: var(--text-faint); font-weight: 600; }
+
+/* ---------------- Lugares ---------------- */
+.places-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 32px; }
+.place-card {
+  display: flex;
+  gap: 16px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--border-soft);
+  text-decoration: none;
+  color: var(--text);
+}
+.place-thumb {
+  flex-shrink: 0;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-soft);
+}
+.place-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.place-body { min-width: 0; }
+.place-title { font-size: 14.5px; font-weight: 700; margin-bottom: 3px; }
+.place-card:hover .place-title { color: var(--volt); }
+.place-address { margin: 0 0 6px; font-size: 12.5px; color: var(--text-dim); }
+.place-meta { display: flex; gap: 12px; font-size: 11.5px; color: var(--text-faint); font-weight: 600; }
+
+/* ---------------- Imágenes ---------------- */
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+}
+.image-card {
+  display: block;
+  text-decoration: none;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+}
+.image-card img { width: 100%; aspect-ratio: 4/3; object-fit: cover; display: block; }
+.image-caption { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; }
+.image-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.image-card:hover .image-title { color: var(--volt); }
+.image-source { font-size: 10px; color: var(--text-faint); }
+
 /* ---------------- Instant Answer (respaldo sin key) — mismo lenguaje visual ---------------- */
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 18px 22px; margin-bottom: 16px; }
 .card h2 { margin: 0 0 8px; font-size: 17px; color: var(--text); }

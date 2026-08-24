@@ -2,7 +2,19 @@
 
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { buildRequest, normalizeResults, normalizeInfobox, normalizeVideos, normalizeFaq, BRAVE_ENDPOINT } = require('../search/braveSearch')
+const {
+  buildRequest,
+  buildImagesRequest,
+  normalizeResults,
+  normalizeInfobox,
+  normalizeVideos,
+  normalizeFaq,
+  normalizeNews,
+  normalizeLocations,
+  normalizeImages,
+  BRAVE_ENDPOINT,
+  IMAGES_ENDPOINT,
+} = require('../search/braveSearch')
 
 test('buildRequest arma la URL con la query codificada', () => {
   const { url } = buildRequest('bachata dominicana', 'fake-key')
@@ -162,4 +174,110 @@ test('normalizeFaq devuelve [] cuando Brave no manda FAQ para esa búsqueda (nun
 test('normalizeFaq descarta entradas sin pregunta o sin respuesta, y no rompe con forma rara', () => {
   const data = { faq: { results: [{ question: 'sin respuesta' }, { answer: 'sin pregunta' }, 'no-es-objeto'] } }
   assert.deepEqual(normalizeFaq(data), [])
+})
+
+test('buildImagesRequest arma la URL del endpoint dedicado de imágenes con la key como header', () => {
+  const { url, headers } = buildImagesRequest('bachata', 'MI-KEY')
+  assert.equal(url, `${IMAGES_ENDPOINT}?q=${encodeURIComponent('bachata')}`)
+  assert.ok(!url.includes('MI-KEY'))
+  assert.equal(headers['X-Subscription-Token'], 'MI-KEY')
+})
+
+test('normalizeNews extrae título/url/descripción/fecha/fuente de una respuesta real (embebida, misma llamada)', () => {
+  const data = {
+    news: {
+      results: [
+        {
+          title: 'Noticia real',
+          url: 'https://people.com/n',
+          description: 'Texto <strong>real</strong>',
+          age: '3 hours ago',
+          meta_url: { hostname: 'people.com' },
+          thumbnail: { src: 'https://imgs.search.brave.com/thumb.jpg' },
+        },
+      ],
+    },
+  }
+  assert.deepEqual(normalizeNews(data), [
+    {
+      title: 'Noticia real',
+      url: 'https://people.com/n',
+      description: 'Texto <strong>real</strong>',
+      age: '3 hours ago',
+      source: 'people.com',
+      thumbnail: 'https://imgs.search.brave.com/thumb.jpg',
+    },
+  ])
+})
+
+test('normalizeNews no rompe sin datos y descarta entradas sin título/url', () => {
+  assert.deepEqual(normalizeNews({}), [])
+  assert.deepEqual(normalizeNews({ news: { results: [{ title: 'sin url' }] } }), [])
+})
+
+test('normalizeLocations extrae un lugar real (forma real de "starbucks nueva york")', () => {
+  const data = {
+    locations: {
+      results: [
+        {
+          title: 'Starbucks',
+          url: 'https://starbucks.com/store-locator/store/18526',
+          postal_address: { displayAddress: '291 Broadway, New York, NY 10007' },
+          contact: { telephone: '+12124065315' },
+          rating: { ratingValue: 3.9, reviewCount: 74 },
+          opening_hours: { current_day: [{ opens: '06:00', closes: '18:00' }] },
+          thumbnail: { src: 'https://imgs.search.brave.com/thumb.jpg' },
+        },
+      ],
+    },
+  }
+  assert.deepEqual(normalizeLocations(data), [
+    {
+      title: 'Starbucks',
+      url: 'https://starbucks.com/store-locator/store/18526',
+      address: '291 Broadway, New York, NY 10007',
+      phone: '+12124065315',
+      rating: 3.9,
+      ratingCount: 74,
+      todayHours: '06:00 – 18:00',
+      thumbnail: 'https://imgs.search.brave.com/thumb.jpg',
+    },
+  ])
+})
+
+test('normalizeLocations no rompe sin datos ni con horario/rating ausente', () => {
+  assert.deepEqual(normalizeLocations({}), [])
+  const data = { locations: { results: [{ title: 'Lugar sin más datos', url: 'https://x.com' }] } }
+  assert.deepEqual(normalizeLocations(data), [
+    { title: 'Lugar sin más datos', url: 'https://x.com', address: null, phone: null, rating: null, ratingCount: null, todayHours: null, thumbnail: null },
+  ])
+})
+
+test('normalizeImages extrae título/url/fuente/miniatura/dimensiones del endpoint dedicado real', () => {
+  const data = {
+    results: [
+      {
+        title: 'Romeo Santos en concierto',
+        url: 'https://www.gettyimages.com/photos/romeo-santos-photos',
+        source: 'gettyimages.com',
+        thumbnail: { src: 'https://imgs.search.brave.com/thumb.jpg' },
+        properties: { width: 500, height: 599 },
+      },
+    ],
+  }
+  assert.deepEqual(normalizeImages(data), [
+    {
+      title: 'Romeo Santos en concierto',
+      url: 'https://www.gettyimages.com/photos/romeo-santos-photos',
+      source: 'gettyimages.com',
+      thumbnail: 'https://imgs.search.brave.com/thumb.jpg',
+      width: 500,
+      height: 599,
+    },
+  ])
+})
+
+test('normalizeImages descarta resultados sin thumbnail real (nunca muestra una imagen rota) y no rompe sin datos', () => {
+  assert.deepEqual(normalizeImages({}), [])
+  assert.deepEqual(normalizeImages({ results: [{ title: 'X', url: 'https://x.com' }] }), [])
 })
