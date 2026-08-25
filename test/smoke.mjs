@@ -11,6 +11,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const appRoot = path.join(__dirname, '..')
 fs.mkdirSync(path.join(appRoot, 'screenshots'), { recursive: true })
 
+// La recuperación de sesión real (ver main.js) reabre en cada arranque las URLs reales que
+// quedaron abiertas la última vez — correcto para el uso real, pero rompería este test si quedó
+// una sesión de una exploración manual anterior (el test asume que arranca con una pestaña en
+// blanco). Se limpia solo esa clave del store real antes de lanzar, sin tocar historial/favoritos.
+const storeFile = path.join(process.env.HOME, 'Library', 'Application Support', 'MABRIONA Browser', 'mabriona-browser-data.json')
+try {
+  const data = JSON.parse(fs.readFileSync(storeFile, 'utf-8'))
+  data.lastSession = []
+  fs.writeFileSync(storeFile, JSON.stringify(data, null, 2))
+} catch { /* no existe todavía — primera corrida, nada que limpiar */ }
+
 const results = { pass: [], fail: [], skip: [] }
 const ok = (label) => { results.pass.push(label); console.log('PASS -', label) }
 const bad = (label, detail) => { results.fail.push(label); console.log('FAIL -', label, detail ? `— ${detail}` : '') }
@@ -613,6 +624,117 @@ const addressAfterNav = await win.locator('#address').inputValue()
 if (addressAfterNav.includes('wikipedia.org')) ok(`navegación real a un sitio funciona (${addressAfterNav})`)
 else bad('navegación a wikipedia.org', `encontré "${addressAfterNav}"`)
 await win.screenshot({ path: path.join(appRoot, 'screenshots', 'smoke-01-wikipedia.png') })
+
+// Zoom real — Electron nativo (setZoomFactor), verificado tanto en la UI (texto del %) como en el
+// webContents real de la pestaña activa.
+await win.locator('#btn-menu').click()
+await win.waitForTimeout(200)
+const zoomBefore = await win.locator('#zoom-level').textContent()
+await win.locator('#zoom-in').click()
+await win.locator('#zoom-in').click()
+await win.waitForTimeout(200)
+const zoomAfter = await win.locator('#zoom-level').textContent()
+const realZoomFactor = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBrowserViews()[0].webContents.getZoomFactor())
+if (zoomAfter !== zoomBefore && Math.abs(realZoomFactor - 1.2) < 0.01) {
+  ok(`MABRIONA Browser: Zoom real cambia el webContents de verdad (${zoomBefore} → ${zoomAfter}, factor real ${realZoomFactor})`)
+} else {
+  bad('Zoom', `antes=${zoomBefore} despues=${zoomAfter} factorReal=${realZoomFactor}`)
+}
+await win.locator('#zoom-reset').click()
+await win.waitForTimeout(200)
+const zoomReset = await win.locator('#zoom-level').textContent()
+if (zoomReset === '100%') ok('MABRIONA Browser: Restablecer zoom vuelve a 100% real')
+else bad('Zoom — reset', zoomReset)
+await win.locator('[data-close="menu"]').click()
+
+// Duplicar pestaña real — misma URL, pestaña nueva de verdad.
+const tabCountBeforeDup = await win.locator('.tab').count()
+await win.locator('.tab.active .tab-duplicate').click()
+await win.waitForTimeout(600)
+const tabCountAfterDup = await win.locator('.tab').count()
+if (tabCountAfterDup === tabCountBeforeDup + 1) {
+  ok(`MABRIONA Browser: duplicar pestaña real funciona (${tabCountBeforeDup} → ${tabCountAfterDup})`)
+  // cerrar la duplicada para no arrastrar pestañas de más al resto de la suite
+  await win.locator('.tab').last().locator('.tab-close').click()
+  await win.waitForTimeout(300)
+} else {
+  bad('duplicar pestaña', `esperaba ${tabCountBeforeDup + 1}, encontré ${tabCountAfterDup}`)
+}
+
+// Modo Privado real — sesión en memoria (ver main.js), marcada visualmente distinta.
+await win.locator('#btn-menu').click()
+await win.waitForTimeout(200)
+await win.locator('#menu-new-private').click()
+await win.waitForTimeout(600)
+const privateTabInfo = await win.evaluate(() => ({
+  hasPrivateTab: !!document.querySelector('.tab.private'),
+  bodyIsPrivate: document.body.classList.contains('private-mode'),
+}))
+if (privateTabInfo.hasPrivateTab && privateTabInfo.bodyIsPrivate) {
+  ok('MABRIONA Browser: Modo Privado real — pestaña marcada y tinte del chrome activo')
+} else {
+  bad('Modo Privado', JSON.stringify(privateTabInfo))
+}
+await win.locator('.tab.private .tab-close').click()
+await win.waitForTimeout(300)
+
+// Nueva ventana real — una BrowserWindow de Electron de verdad, independiente.
+const windowIdsBefore = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.id))
+await win.locator('#btn-menu').click()
+await win.waitForTimeout(200)
+await win.locator('#menu-new-window').click()
+await win.waitForTimeout(800)
+const windowIdsAfter = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.id))
+const newWindowId = windowIdsAfter.find((id) => !windowIdsBefore.includes(id))
+if (newWindowId != null) {
+  ok(`MABRIONA Browser: Nueva ventana real abre una BrowserWindow independiente (id ${newWindowId})`)
+} else {
+  bad('Nueva ventana', `antes=${JSON.stringify(windowIdsBefore)} despues=${JSON.stringify(windowIdsAfter)}`)
+}
+// cerrar específicamente la ventana nueva por su id real — nunca "la última", el orden de
+// BrowserWindow.getAllWindows() no está garantizado y podría cerrar la ventana principal.
+if (newWindowId != null) {
+  await app.evaluate(({ BrowserWindow }, id) => { BrowserWindow.fromId(id)?.close() }, newWindowId)
+}
+await win.waitForTimeout(300)
+
+// Filtro real de Historial (client-side, sobre datos reales ya cargados).
+await win.locator('#btn-history').click()
+await win.waitForTimeout(200)
+const historyCountBefore = await win.locator('#history-list li').count()
+await win.locator('#history-search').fill('wikipedia')
+await win.waitForTimeout(200)
+const historyFilteredTexts = await win.locator('#history-list li .item-url').allTextContents()
+const historyCountFiltered = await win.locator('#history-list li').count()
+const allMatch = historyFilteredTexts.every((t) => t.toLowerCase().includes('wikipedia'))
+if (historyCountFiltered > 0 && historyCountFiltered <= historyCountBefore && allMatch) {
+  ok(`MABRIONA Browser: filtro real de Historial (${historyCountBefore} → ${historyCountFiltered} con "wikipedia")`)
+} else {
+  bad('filtro de historial', `antes=${historyCountBefore} filtrado=${historyCountFiltered} match=${allMatch}`)
+}
+await win.locator('[data-close="history"]').click()
+
+// Barra responsive — a ventana angosta, los botones secundarios se agrupan en "Más" en vez de
+// superponerse o desaparecer sin alternativa.
+await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700))
+await win.waitForTimeout(300)
+const responsiveInfo = await win.evaluate(() => ({
+  moreVisible: getComputedStyle(document.getElementById('btn-more')).display !== 'none',
+  screenshotHidden: getComputedStyle(document.getElementById('btn-screenshot')).display === 'none',
+}))
+if (responsiveInfo.moreVisible && responsiveInfo.screenshotHidden) {
+  ok('MABRIONA Browser: en ventana angosta, los botones secundarios se agrupan en "Más" real')
+  await win.locator('#btn-more').click()
+  await win.waitForTimeout(200)
+  const morePanelVisible = await win.evaluate(() => !document.getElementById('panel-more').classList.contains('hidden'))
+  if (morePanelVisible) ok('MABRIONA Browser: el panel "Más" real se abre con las mismas acciones')
+  else bad('panel Más', 'no se abrió')
+  await win.locator('[data-close="more"]').click()
+} else {
+  bad('barra responsive', JSON.stringify(responsiveInfo))
+}
+await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1400, 900))
+await win.waitForTimeout(300)
 
 // Permisos por sitio: un sitio REAL (wikipedia.org, ya cargado) pide cámara+micrófono de verdad
 // (getUserMedia) — tiene que aparecer el banner en el chrome, no resolverse solo. Se hace clic en

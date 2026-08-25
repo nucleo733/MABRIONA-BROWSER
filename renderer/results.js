@@ -195,14 +195,31 @@ function renderEntityFocus(box) {
 
 // ---------------- Web ----------------
 
-function renderWebList(results, container, limit) {
+function hostnameOf(url) {
+  try { return new URL(url).hostname.replace(/^www\./, '') } catch { return null }
+}
+
+/**
+ * Fuente oficial en Web — nunca una heurística inventada: solo se marca "oficial" un resultado
+ * cuando su dominio coincide exactamente con `website_url`, el campo que la propia Brave ya
+ * identificó como sitio oficial de la entidad (ver Entity Focus). Si no hay `officialHostname` (la
+ * mayoría de búsquedas, sin entidad reconocida o sin sitio oficial real), esto no hace nada.
+ */
+function renderWebList(results, container, limit, officialHostname) {
+  let ordered = results
+  if (officialHostname) {
+    const officialIndex = results.findIndex((r) => hostnameOf(r.url) === officialHostname)
+    if (officialIndex > 0) ordered = [results[officialIndex], ...results.slice(0, officialIndex), ...results.slice(officialIndex + 1)]
+  }
   const list = el('div', 'result-list')
-  for (const r of results.slice(0, limit || results.length)) {
-    const card = el('div', 'card')
+  for (const r of ordered.slice(0, limit || ordered.length)) {
+    const isOfficial = officialHostname && hostnameOf(r.url) === officialHostname
+    const card = el('div', isOfficial ? 'card card-official' : 'card')
     const link = el('a', 'result-title')
     link.href = r.url
     link.textContent = stripHtml(r.title)
     card.appendChild(link)
+    if (isOfficial) card.appendChild(el('span', 'result-official-badge', 'Fuente oficial'))
     card.appendChild(el('p', 'result-url', r.url))
     if (r.description) card.appendChild(el('p', 'result-desc', stripHtml(r.description)))
     list.appendChild(card)
@@ -489,9 +506,10 @@ function renderSpectrumView(tabId, data, container) {
   container.replaceChildren()
   const shortVideos = data.videos.filter((v) => v.isShortForm)
   const longVideos = data.videos.filter((v) => !v.isShortForm)
+  const officialHostname = data.infobox && data.infobox.websiteUrl ? hostnameOf(data.infobox.websiteUrl) : null
 
   if (tabId === 'web') {
-    renderWebList(data.web, container)
+    renderWebList(data.web, container, null, officialHostname)
     return
   }
   if (tabId === 'video') {
@@ -539,7 +557,7 @@ function renderSpectrumView(tabId, data, container) {
   }
   if (data.web.length > 0) {
     container.appendChild(el('p', 'section-heading', 'Web'))
-    renderWebList(data.web, container, 8)
+    renderWebList(data.web, container, 8, officialHostname)
   }
 }
 

@@ -79,11 +79,20 @@ body {
   max-width: 140px;
 }
 
-.tab .tab-close {
+.tab .tab-close, .tab .tab-duplicate {
   opacity: 0.6;
   font-size: 11px;
 }
-.tab .tab-close:hover { opacity: 1; color: var(--volt); }
+.tab .tab-close:hover, .tab .tab-duplicate:hover { opacity: 1; color: var(--volt); }
+
+/* ---------------- Modo Privado real — sesión en memoria, ver main.js ---------------- */
+.tab.private { border-color: rgba(180, 140, 255, 0.35); }
+.tab.private.active { background: rgba(180, 140, 255, 0.14); border-color: rgba(180, 140, 255, 0.5); box-shadow: 0 0 14px rgba(180, 140, 255, 0.18); }
+.tab-private-mark { font-size: 11px; }
+body.private-mode #chrome {
+  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(180, 140, 255, 0.28) 0%, rgba(180, 140, 255, 0.1) 28%, rgba(16, 12, 24, 0.65) 50%, var(--bg) 78%);
+}
+body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-shadow: 0 0 0 1px rgba(180, 140, 255, 0.35), 0 0 20px rgba(180, 140, 255, 0.2); }
 
 #btn-new-tab {
   background: none;
@@ -221,6 +230,37 @@ body {
 .settings-btn:hover { border-color: var(--volt); color: var(--volt); }
 .settings-btn:disabled { opacity: 0.6; cursor: default; }
 #settings-permissions-list { max-height: 160px; padding: 0; }
+
+.panel-search { padding: 8px 10px 0; }
+#history-search {
+  width: 100%;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  padding: 0 12px;
+  font-size: 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+#history-search:focus { border-color: var(--volt); }
+
+.panel-menu-list { display: flex; flex-direction: column; gap: 8px; }
+.panel-menu-list .settings-btn { text-align: left; }
+.zoom-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.zoom-row .nav-btn { width: 28px; height: 28px; font-size: 13px; }
+#zoom-level { font-size: 12px; color: var(--text); min-width: 42px; text-align: center; }
+
+/* ---------------- Responsive — la barra se reorganiza en vez de romperse ---------------- */
+#btn-more { display: none; }
+@media (max-width: 880px) {
+  #btn-screenshot, #btn-shields, #btn-history, #btn-downloads, #btn-favorites { display: none; }
+  #btn-more { display: flex; }
+}
+@media (max-width: 520px) {
+  #logo-browser { display: none; }
+}
 
 .panel-list {
   list-style: none;

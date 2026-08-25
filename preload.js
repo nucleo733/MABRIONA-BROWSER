@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('mabrionaBrowser', {
   createTab: (url) => ipcRenderer.invoke('tabs:create', url),
+  createPrivateTab: () => ipcRenderer.invoke('tabs:new-private'),
+  duplicateTab: (id) => ipcRenderer.invoke('tabs:duplicate', id),
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
   switchTab: (id) => ipcRenderer.invoke('tabs:switch', id),
   navigate: (id, input) => ipcRenderer.invoke('tabs:navigate', { id, input }),
@@ -47,4 +49,9 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   getDownloadsDir: () => ipcRenderer.invoke('settings:get-downloads-dir'),
   chooseDownloadsDir: () => ipcRenderer.invoke('settings:choose-downloads-dir'),
+
+  getZoom: (id) => ipcRenderer.invoke('zoom:get', id),
+  setZoom: (id, factor) => ipcRenderer.invoke('zoom:set', { id, factor }),
+
+  newWindow: () => ipcRenderer.invoke('windows:new'),
 })

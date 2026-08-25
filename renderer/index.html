@@ -27,7 +27,9 @@
       <button id="btn-history" class="nav-btn" title="Historial" aria-label="Historial">🕘</button>
       <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
       <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
+      <button id="btn-more" class="nav-btn" title="Más opciones" aria-label="Más opciones">⋯</button>
       <button id="btn-settings" class="nav-btn" title="Configuración" aria-label="Configuración">⚙️</button>
+      <button id="btn-menu" class="nav-btn" title="Ventanas, privado y zoom" aria-label="Ventanas, privado y zoom">☰</button>
     </div>
   </div>
 
@@ -51,7 +53,42 @@
       <button class="panel-clear" data-clear="history">Vaciar</button>
       <button class="panel-close" data-close="history">✕</button>
     </div>
+    <div class="panel-search">
+      <input id="history-search" type="text" placeholder="Buscar en el historial…" aria-label="Buscar en el historial" />
+    </div>
     <ul id="history-list" class="panel-list"></ul>
+  </div>
+
+  <div id="panel-more" class="panel hidden" role="dialog" aria-label="Más opciones">
+    <div class="panel-header">
+      <span>Más opciones</span>
+      <button class="panel-close" data-close="more">✕</button>
+    </div>
+    <div class="panel-body panel-menu-list">
+      <button id="more-screenshot" type="button" class="settings-btn">📷 Capturar pantalla</button>
+      <button id="more-shields" type="button" class="settings-btn">🛡️ MABRIONA SHIELDS</button>
+      <button id="more-history" type="button" class="settings-btn">🕘 Historial</button>
+      <button id="more-downloads" type="button" class="settings-btn">⬇︎ Descargas</button>
+      <button id="more-favorites" type="button" class="settings-btn">★ Favoritos</button>
+    </div>
+  </div>
+
+  <div id="panel-menu" class="panel hidden" role="dialog" aria-label="Ventanas, privado y zoom">
+    <div class="panel-header">
+      <span>Ventanas y zoom</span>
+      <button class="panel-close" data-close="menu">✕</button>
+    </div>
+    <div class="panel-body panel-menu-list">
+      <button id="menu-new-window" type="button" class="settings-btn">🪟 Nueva ventana</button>
+      <button id="menu-new-private" type="button" class="settings-btn">🕶️ Nueva pestaña privada</button>
+      <p class="settings-note" id="private-note">Modo Privado real: esa pestaña no guarda historial ni cookies en disco — se olvida al cerrar la app. No te vuelve anónimo frente a tu proveedor de internet ni frente a los sitios que visitás.</p>
+      <div class="zoom-row">
+        <button id="zoom-out" type="button" class="nav-btn" aria-label="Alejar">−</button>
+        <span id="zoom-level">100%</span>
+        <button id="zoom-in" type="button" class="nav-btn" aria-label="Acercar">+</button>
+        <button id="zoom-reset" type="button" class="settings-btn">Restablecer</button>
+      </div>
+    </div>
   </div>
 
   <div id="panel-favorites" class="panel hidden" role="dialog" aria-label="Favoritos">

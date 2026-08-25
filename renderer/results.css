@@ -408,6 +408,29 @@ main#results.state-centered .search-error { text-align: left; }
 .result-url { color: var(--text-faint); font-size: 12px; margin-bottom: 5px; word-break: break-all; }
 .result-desc { color: var(--text-dim); font-size: 13.5px; line-height: 1.55; }
 
+/* Fuente oficial — solo cuando el dominio coincide de verdad con website_url de la entidad
+   (ver hostnameOf() en results.js), nunca por adivinar. */
+.result-list .card-official {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  margin-bottom: 10px;
+}
+.result-official-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(212, 255, 0, 0.14);
+  color: var(--volt);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 /* ---------------- Video grid ---------------- */
 .video-grid {
   display: grid;

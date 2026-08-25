@@ -14,9 +14,9 @@ function createStore(filePath) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null, ...parsed }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null, lastSession: [], ...parsed }
     } catch {
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null }
+      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null, lastSession: [] }
     }
   }
 
@@ -113,6 +113,15 @@ function createStore(filePath) {
       data.downloadsDir = dir || null
       writeAll(data)
       return data.downloadsDir
+    },
+
+    // Recuperación de sesión real — URLs reales de la última vez que se cerró la app (nunca de
+    // pestañas privadas, esas no dejan rastro a propósito).
+    getLastSession: () => data.lastSession || [],
+    setLastSession(urls) {
+      data.lastSession = Array.isArray(urls) ? urls : []
+      writeAll(data)
+      return data.lastSession
     },
   }
 }

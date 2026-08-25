@@ -38,16 +38,23 @@ function render(tabsState) {
   tabstrip.querySelectorAll('.tab').forEach((el) => el.remove())
   for (const tab of tabsState) {
     const el = document.createElement('div')
-    el.className = 'tab' + (tab.isActive ? ' active' : '')
+    el.className = 'tab' + (tab.isActive ? ' active' : '') + (tab.isPrivate ? ' private' : '')
     el.setAttribute('role', 'tab')
     el.setAttribute('aria-selected', String(tab.isActive))
-    el.innerHTML = `<span class="tab-title">${escapeHtml(tab.title)}</span><span class="tab-close" data-close-tab="${tab.id}">✕</span>`
+    const privateMark = tab.isPrivate ? '<span class="tab-private-mark" title="Pestaña privada">🕶️</span>' : ''
+    el.innerHTML = `${privateMark}<span class="tab-title">${escapeHtml(tab.title)}</span><span class="tab-duplicate" data-duplicate-tab="${tab.id}" title="Duplicar pestaña">⧉</span><span class="tab-close" data-close-tab="${tab.id}">✕</span>`
     el.addEventListener('click', (e) => {
-      if (e.target.dataset.closeTab) return
+      if (e.target.dataset.closeTab || e.target.dataset.duplicateTab) return
       mabrionaBrowser.switchTab(tab.id)
     })
     tabstrip.insertBefore(el, newTabBtn)
   }
+  tabstrip.querySelectorAll('[data-duplicate-tab]').forEach((el) => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation()
+      mabrionaBrowser.duplicateTab(Number(e.target.dataset.duplicateTab))
+    })
+  })
   tabstrip.querySelectorAll('[data-close-tab]').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.stopPropagation()
@@ -62,6 +69,8 @@ function render(tabsState) {
   btnForward.disabled = !activeTab?.canGoForward
   btnReload.textContent = activeTab?.loading ? '✕' : '⟳'
   shieldsCount.textContent = String(activeTab?.blockedCount ?? 0)
+  document.body.classList.toggle('private-mode', !!activeTab?.isPrivate)
+  if (!document.getElementById('panel-menu').classList.contains('hidden')) refreshZoomLevel()
 
   if (activeTab) {
     mabrionaBrowser.isFavorite(activeTab.url).then((isFav) => {
@@ -107,7 +116,7 @@ btnScreenshot.addEventListener('click', async () => {
 
 // ---------------- Paneles (historial / favoritos / descargas / shields) ----------------
 
-const panels = ['history', 'favorites', 'downloads', 'shields', 'settings']
+const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'menu']
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')
 }
@@ -123,9 +132,49 @@ document.getElementById('btn-favorites').addEventListener('click', () => { toggl
 document.getElementById('btn-downloads').addEventListener('click', () => { togglePanel('downloads'); refreshDownloadsPanel() })
 document.getElementById('btn-shields').addEventListener('click', () => { togglePanel('shields'); refreshShieldsPanel() })
 document.getElementById('btn-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
+document.getElementById('btn-more').addEventListener('click', () => togglePanel('more'))
+document.getElementById('btn-menu').addEventListener('click', () => { togglePanel('menu'); refreshZoomLevel() })
 document.querySelectorAll('.panel-close').forEach((btn) => btn.addEventListener('click', (e) => {
   document.getElementById(`panel-${e.target.dataset.close}`).classList.add('hidden')
 }))
+
+// Panel "Más" (responsive — solo visible en ventanas angostas, ver style.css): son las mismas
+// acciones reales de siempre, no una copia — cada botón dispara el botón real correspondiente.
+document.getElementById('more-screenshot').addEventListener('click', () => { togglePanel('more'); btnScreenshot.click() })
+document.getElementById('more-shields').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-shields').click() })
+document.getElementById('more-history').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-history').click() })
+document.getElementById('more-downloads').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-downloads').click() })
+document.getElementById('more-favorites').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-favorites').click() })
+
+// Ventanas reales (Electron nativo) y pestaña privada real (sesión en memoria, ver main.js).
+document.getElementById('menu-new-window').addEventListener('click', () => mabrionaBrowser.newWindow())
+document.getElementById('menu-new-private').addEventListener('click', () => { mabrionaBrowser.createPrivateTab(); togglePanel('menu') })
+
+// Zoom real — Electron nativo (setZoomFactor), no un transform de CSS.
+const ZOOM_STEP = 0.1
+const ZOOM_MIN = 0.5
+const ZOOM_MAX = 3
+async function refreshZoomLevel() {
+  if (!activeTab) return
+  const factor = await mabrionaBrowser.getZoom(activeTab.id)
+  document.getElementById('zoom-level').textContent = `${Math.round(factor * 100)}%`
+}
+async function applyZoom(factor) {
+  if (!activeTab) return
+  const applied = await mabrionaBrowser.setZoom(activeTab.id, factor)
+  document.getElementById('zoom-level').textContent = `${Math.round(applied * 100)}%`
+}
+document.getElementById('zoom-in').addEventListener('click', async () => {
+  if (!activeTab) return
+  const current = await mabrionaBrowser.getZoom(activeTab.id)
+  applyZoom(Math.min(ZOOM_MAX, current + ZOOM_STEP))
+})
+document.getElementById('zoom-out').addEventListener('click', async () => {
+  if (!activeTab) return
+  const current = await mabrionaBrowser.getZoom(activeTab.id)
+  applyZoom(Math.max(ZOOM_MIN, current - ZOOM_STEP))
+})
+document.getElementById('zoom-reset').addEventListener('click', () => applyZoom(1))
 document.querySelector('[data-clear="history"]').addEventListener('click', async () => {
   await mabrionaBrowser.clearHistory()
   refreshHistoryPanel()
@@ -158,16 +207,26 @@ function renderList(ulId, items, emptyLabel, onClick, onDelete) {
   }
 }
 
+let historyCache = []
 async function refreshHistoryPanel() {
-  const history = await mabrionaBrowser.listHistory()
+  historyCache = await mabrionaBrowser.listHistory()
+  document.getElementById('history-search').value = ''
+  renderHistoryList(historyCache)
+}
+function renderHistoryList(items) {
   renderList(
     'history-list',
-    history,
+    items,
     'Sin historial todavía',
     (item) => { if (activeTab) mabrionaBrowser.navigate(activeTab.id, item.url) },
     async (item) => { await mabrionaBrowser.removeHistoryEntry(item.url); refreshHistoryPanel() },
   )
 }
+document.getElementById('history-search').addEventListener('input', (e) => {
+  const q = e.target.value.trim().toLowerCase()
+  if (!q) { renderHistoryList(historyCache); return }
+  renderHistoryList(historyCache.filter((h) => (h.title || '').toLowerCase().includes(q) || h.url.toLowerCase().includes(q)))
+})
 async function refreshFavoritesPanel() {
   const favorites = await mabrionaBrowser.listFavorites()
   renderList('favorites-list', favorites, 'Sin favoritos todavía', (item) => {
@@ -212,7 +271,7 @@ async function refreshSettingsPermissions() {
     ul.appendChild(li)
     return
   }
-  const kindLabel = { camera: 'Cámara', microphone: 'Micrófono' }
+  const kindLabel = { camera: 'Cámara', microphone: 'Micrófono', location: 'Ubicación', notifications: 'Notificaciones' }
   for (const row of rows) {
     const li = document.createElement('li')
     li.innerHTML = `<span class="item-title">${escapeHtml(row.origin)} — ${kindLabel[row.kind] || row.kind}</span><span class="item-url">${row.decision === 'allow' ? 'Permitido' : 'Bloqueado'}</span>`
@@ -252,7 +311,7 @@ mabrionaBrowser.getTabsState().then(render)
 
 // Permisos por sitio (cámara/micrófono) — pedido real de un sitio real, el usuario decide de
 // verdad; nunca se asume "permitir" ni "bloquear" sin que la persona lo haya tocado.
-const KIND_LABEL = { camera: 'la cámara', microphone: 'el micrófono' }
+const KIND_LABEL = { camera: 'la cámara', microphone: 'el micrófono', location: 'tu ubicación', notifications: 'mostrarte notificaciones' }
 const permissionQueue = []
 let permissionShowing = null
 const permissionBanner = document.getElementById('permission-banner')
@@ -315,8 +374,16 @@ document.getElementById('find-close').addEventListener('click', closeFindbar)
 
 window.addEventListener('keydown', (e) => {
   const cmdOrCtrl = e.metaKey || e.ctrlKey
-  if (cmdOrCtrl && e.key.toLowerCase() === 'f') { e.preventDefault(); openFindbar() }
+  const key = e.key.toLowerCase()
+  if (cmdOrCtrl && key === 'f') { e.preventDefault(); openFindbar() }
   else if (e.key === 'Escape' && !findbar.classList.contains('hidden')) closeFindbar()
+  else if (cmdOrCtrl && e.shiftKey && key === 'n') { e.preventDefault(); mabrionaBrowser.createPrivateTab() }
+  else if (cmdOrCtrl && key === 'n') { e.preventDefault(); mabrionaBrowser.newWindow() }
+  else if (cmdOrCtrl && key === 't') { e.preventDefault(); mabrionaBrowser.createTab() }
+  else if (cmdOrCtrl && key === 'w' && activeTab) { e.preventDefault(); mabrionaBrowser.closeTab(activeTab.id) }
+  else if (cmdOrCtrl && (key === '=' || key === '+')) { e.preventDefault(); document.getElementById('zoom-in').click() }
+  else if (cmdOrCtrl && key === '-') { e.preventDefault(); document.getElementById('zoom-out').click() }
+  else if (cmdOrCtrl && key === '0') { e.preventDefault(); document.getElementById('zoom-reset').click() }
 })
 
 mabrionaBrowser.onFindResult(({ tabId, activeMatchOrdinal, matches }) => {

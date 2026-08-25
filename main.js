@@ -23,6 +23,7 @@ const { detectTool } = require('./search/tools')
 const { resolveSpectrum } = require('./search/spectrumResolver')
 
 const TOOLBAR_HEIGHT = 118
+const PRIVATE_PARTITION = 'mabriona-private' // sin "persist:" → en memoria, Electron la descarta al cerrar la app
 
 const store = createStore(path.join(app.getPath('userData'), 'mabriona-browser-data.json'))
 
@@ -32,23 +33,31 @@ process.on('uncaughtException', (err) => {
   console.error('[MABRIONA Browser] error no manejado:', err)
 })
 
-/** @type {BrowserWindow | null} */
-let mainWindow = null
-/** @type {Map<number, { view: BrowserView, id: number, title: string, url: string, blockedCount: number }>} */
+/** @type {Map<number, { window: BrowserWindow, activeTabId: number | null }>} */
+const windows = new Map()
+let nextWindowId = 1
+/** @type {Map<number, { view: BrowserView, id: number, windowId: number, title: string, url: string, blockedCount: number, isPrivate: boolean }>} */
 const tabs = new Map()
-let activeTabId = null
 let nextTabId = 1
 
-function sendToRenderer(channel, payload) {
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload)
+function windowIdForSender(event) {
+  const win = BrowserWindow.fromWebContents(event.sender)
+  if (!win) return null
+  for (const [id, state] of windows) if (state.window === win) return id
+  return null
 }
 
-function serializeTab(tab) {
+function sendToWindow(windowId, channel, payload) {
+  const state = windows.get(windowId)
+  if (state && !state.window.isDestroyed()) state.window.webContents.send(channel, payload)
+}
+
+function serializeTab(tab, activeTabId) {
   const wc = tab.view && tab.view.webContents
   // El webContents puede no estar listo todavía (arranque) o ya estar destruido (pestaña
   // cerrándose justo en este instante) — nunca crashear la app entera por una foto de estado.
   if (!wc || wc.isDestroyed()) {
-    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId }
+    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId, isPrivate: tab.isPrivate }
   }
   return {
     id: tab.id,
@@ -59,28 +68,53 @@ function serializeTab(tab) {
     canGoForward: wc.canGoForward(),
     blockedCount: tab.blockedCount,
     isActive: tab.id === activeTabId,
+    isPrivate: tab.isPrivate,
   }
 }
 
-function broadcastTabs() {
-  sendToRenderer('tabs:state', Array.from(tabs.values()).map(serializeTab))
+function broadcastTabs(windowId) {
+  const state = windows.get(windowId)
+  if (!state) return
+  const windowTabs = Array.from(tabs.values()).filter((t) => t.windowId === windowId)
+  sendToWindow(windowId, 'tabs:state', windowTabs.map((t) => serializeTab(t, state.activeTabId)))
 }
 
-function layoutActiveView() {
-  if (!mainWindow) return
-  const active = activeTabId != null ? tabs.get(activeTabId) : null
+function layoutActiveView(windowId) {
+  const state = windows.get(windowId)
+  if (!state) return
+  const active = state.activeTabId != null ? tabs.get(state.activeTabId) : null
   if (!active) return
-  const [w, h] = mainWindow.getContentSize()
+  const [w, h] = state.window.getContentSize()
   active.view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: w, height: Math.max(0, h - TOOLBAR_HEIGHT) })
 }
 
-function createTab(initialUrl) {
+// Recuperación de sesión real: se guarda (con un pequeño debounce, para no escribir en disco en
+// cada tecla) la lista de URLs reales abiertas — nunca pestañas privadas, esas no dejan rastro a
+// propósito — y se reabren la próxima vez que arranca la app.
+let saveSessionTimer = null
+function saveSessionSoon() {
+  clearTimeout(saveSessionTimer)
+  saveSessionTimer = setTimeout(() => {
+    const urls = Array.from(tabs.values())
+      .filter((t) => !t.isPrivate && t.url && t.url !== HOME_URL && t.url !== 'about:blank')
+      .map((t) => t.url)
+    store.setLastSession(urls)
+  }, 800)
+}
+
+function createTab(initialUrl, windowId, options = {}) {
+  const isPrivate = !!options.private
+  if (isPrivate) ensurePrivateSession()
   const view = new BrowserView({
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
-      partition: 'persist:mabriona-browser',
+      // Modo Privado real: partición sin "persist:" = sesión en memoria. Electron la descarta
+      // entera al cerrar la app — no queda un archivo en disco con cookies/almacenamiento de esa
+      // sesión. No es anonimato frente a la red (tu proveedor de internet y los sitios que
+      // visitás igual te ven) — solo separa lo que el navegador guarda localmente.
+      partition: isPrivate ? PRIVATE_PARTITION : 'persist:mabriona-browser',
       // Solo expone `window.mabrionaSearch.query(...)` (ver search-preload.js) — la página de
       // resultados propia lo usa para pedir resultados sin tocar ninguna API key directamente.
       // Inofensivo en cualquier otro sitio: contextBridge no le da nada a la página, la key nunca
@@ -89,29 +123,41 @@ function createTab(initialUrl) {
     },
   })
   const id = nextTabId++
-  const tab = { view, id, title: 'Nueva pestaña', url: initialUrl, blockedCount: 0 }
+  const tab = { view, id, windowId, title: 'Nueva pestaña', url: initialUrl, blockedCount: 0, isPrivate }
   tabs.set(id, tab)
 
   const wc = view.webContents
-  wc.on('did-start-loading', broadcastTabs)
+  wc.on('did-start-loading', () => broadcastTabs(windowId))
   wc.on('did-stop-loading', () => {
-    broadcastTabs()
-    if (tab.id === activeTabId) {
+    broadcastTabs(windowId)
+    const state = windows.get(windowId)
+    if (state && tab.id === state.activeTabId) {
       const url = wc.getURL()
-      if (url && url !== 'about:blank' && url !== HOME_URL) {
+      if (url && url !== 'about:blank' && url !== HOME_URL && !tab.isPrivate) {
         store.addHistoryEntry({ url, title: tab.title, visitedAt: Date.now() })
       }
     }
+    saveSessionSoon()
   })
-  wc.on('did-navigate', (_e, url) => { tab.url = url; broadcastTabs() })
-  wc.on('did-navigate-in-page', (_e, url) => { tab.url = url; broadcastTabs() })
-  wc.on('page-title-updated', (_e, title) => { tab.title = title; broadcastTabs() })
+  wc.on('did-navigate', (_e, url) => { tab.url = url; broadcastTabs(windowId); saveSessionSoon() })
+  wc.on('did-navigate-in-page', (_e, url) => { tab.url = url; broadcastTabs(windowId) })
+  wc.on('page-title-updated', (_e, title) => { tab.title = title; broadcastTabs(windowId) })
   wc.on('found-in-page', (_e, result) => {
-    sendToRenderer('find:result', { tabId: tab.id, activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
+    sendToWindow(windowId, 'find:result', { tabId: tab.id, activeMatchOrdinal: result.activeMatchOrdinal, matches: result.matches })
+  })
+  // El renderer de una pestaña puede morir sin tumbar la app entera (memoria, un crash real de
+  // Chromium en un sitio) — se avisa en el chrome real (título visible) y se intenta recargar la
+  // misma URL, en vez de dejar la pestaña congelada mostrando la última imagen para siempre.
+  wc.on('render-process-gone', (_e, details) => {
+    if (details.reason === 'clean-exit') return
+    console.error(`[MABRIONA Browser] la pestaña ${tab.id} se cayó (${details.reason}) — recargando`)
+    tab.title = 'Página no disponible — recargando…'
+    broadcastTabs(windowId)
+    if (!wc.isDestroyed()) wc.loadURL(tab.url).catch(() => {})
   })
 
   wc.setWindowOpenHandler(({ url }) => {
-    createAndSwitchTab(url)
+    createAndSwitchTab(url, windowId, { private: isPrivate })
     return { action: 'deny' }
   })
 
@@ -121,17 +167,19 @@ function createTab(initialUrl) {
 
 function switchToTab(id) {
   const tab = tabs.get(id)
-  if (!tab || !mainWindow) return
-  const current = activeTabId != null ? tabs.get(activeTabId) : null
-  if (current) mainWindow.removeBrowserView(current.view)
-  activeTabId = id
-  mainWindow.addBrowserView(tab.view)
-  layoutActiveView()
-  broadcastTabs()
+  if (!tab) return
+  const state = windows.get(tab.windowId)
+  if (!state) return
+  const current = state.activeTabId != null ? tabs.get(state.activeTabId) : null
+  if (current) state.window.removeBrowserView(current.view)
+  state.activeTabId = id
+  state.window.addBrowserView(tab.view)
+  layoutActiveView(tab.windowId)
+  broadcastTabs(tab.windowId)
 }
 
-function createAndSwitchTab(url) {
-  const tab = createTab(url || HOME_URL)
+function createAndSwitchTab(url, windowId, options = {}) {
+  const tab = createTab(url || HOME_URL, windowId, options)
   switchToTab(tab.id)
   return tab.id
 }
@@ -139,20 +187,31 @@ function createAndSwitchTab(url) {
 function closeTab(id) {
   const tab = tabs.get(id)
   if (!tab) return
-  const wasActive = id === activeTabId
-  if (mainWindow) mainWindow.removeBrowserView(tab.view)
+  const windowId = tab.windowId
+  const state = windows.get(windowId)
+  const wasActive = !!state && id === state.activeTabId
+  if (state) state.window.removeBrowserView(tab.view)
   if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
   tabs.delete(id)
+  saveSessionSoon()
+  if (!state) return
   if (wasActive) {
-    const remaining = Array.from(tabs.keys())
-    if (remaining.length > 0) switchToTab(remaining[remaining.length - 1])
-    else { activeTabId = null; createAndSwitchTab(HOME_URL) }
+    const remaining = Array.from(tabs.values()).filter((t) => t.windowId === windowId)
+    if (remaining.length > 0) {
+      switchToTab(remaining[remaining.length - 1].id)
+      return
+    }
+    state.activeTabId = null
+    // Una ventana secundaria sin pestañas se cierra sola (comportamiento estándar de navegador);
+    // la ventana principal siempre queda con al menos una pestaña real.
+    if (windows.size > 1) { state.window.close(); return }
+    createAndSwitchTab(HOME_URL, windowId)
+    return
   }
-  broadcastTabs()
+  broadcastTabs(windowId)
 }
 
-function installShields() {
-  const sess = session.fromPartition('persist:mabriona-browser')
+function installShieldsFor(sess) {
   sess.webRequest.onBeforeRequest((details, callback) => {
     if (!store.getShieldsEnabled()) { callback({ cancel: false }); return }
     let hostname = null
@@ -160,7 +219,7 @@ function installShields() {
     const blocked = isBlockedHost(hostname)
     if (blocked) {
       const owner = Array.from(tabs.values()).find((t) => t.view.webContents.id === details.webContentsId)
-      if (owner) { owner.blockedCount += 1; broadcastTabs() }
+      if (owner) { owner.blockedCount += 1; broadcastTabs(owner.windowId) }
     }
     callback({ cancel: blocked })
   })
@@ -171,67 +230,96 @@ function currentDownloadsDir() {
   return store.getDownloadsDir() || app.getPath('downloads')
 }
 
-function installDownloads() {
-  const sess = session.fromPartition('persist:mabriona-browser')
+function installDownloadsFor(sess) {
   sess.on('will-download', (_event, item) => {
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const savePath = path.join(currentDownloadsDir(), item.getFilename())
     item.setSavePath(savePath)
     store.addDownload({ id, filename: item.getFilename(), path: savePath, url: item.getURL(), state: 'progressing', startedAt: Date.now() })
-    sendToRenderer('downloads:state', store.listDownloads())
+    broadcastDownloads()
 
     item.on('updated', (_e, state) => {
       store.updateDownload(id, { state })
-      sendToRenderer('downloads:state', store.listDownloads())
+      broadcastDownloads()
     })
     item.once('done', (_e, state) => {
       store.updateDownload(id, { state, finishedAt: Date.now() })
-      sendToRenderer('downloads:state', store.listDownloads())
+      broadcastDownloads()
     })
   })
+}
+
+function broadcastDownloads() {
+  for (const windowId of windows.keys()) sendToWindow(windowId, 'downloads:state', store.listDownloads())
 }
 
 /** Callbacks pendientes de permiso, esperando la decisión real del usuario desde el chrome. */
 const pendingPermissionRequests = new Map()
 let nextPermissionRequestId = 1
+/** Decisiones de pestañas privadas — a propósito NUNCA tocan el store persistente en disco. */
+const inMemoryPrivatePermissions = new Map()
 
 /**
- * Permisos por sitio (cámara/micrófono) — arquitectura real:
- * sitio pide getUserMedia → Electron dispara este handler → si ya hay
- * una decisión guardada para ese origen se resuelve solo; si no, se le
- * pregunta al usuario desde el chrome (permissions:request) y se
- * persiste la respuesta para la próxima vez. Todo lo que no sea
- * cámara/micrófono se deniega por defecto (seguro, sin excepciones
- * todavía en esta fase).
+ * Permisos por sitio — arquitectura real: el sitio pide algo (cámara/mic, ubicación,
+ * notificaciones) → Electron dispara este handler → si ya hay una decisión guardada para ese
+ * origen se resuelve solo; si no, se le pregunta al usuario desde el chrome
+ * (permissions:request) y se persiste la respuesta para la próxima vez. Todo lo que no sea uno de
+ * estos tres tipos se deniega por defecto. `persistent=false` (pestañas privadas) guarda la
+ * decisión solo en memoria, nunca en el store en disco.
  */
-function installPermissions() {
-  const sess = session.fromPartition('persist:mabriona-browser')
-  sess.setPermissionRequestHandler((_webContents, permission, callback, details) => {
-    if (permission !== 'media') { callback(false); return }
-    const mediaTypes = details.mediaTypes || []
-    const kinds = []
-    if (mediaTypes.includes('video')) kinds.push('camera')
-    if (mediaTypes.includes('audio')) kinds.push('microphone')
+function installPermissionsFor(sess, persistent) {
+  sess.setPermissionRequestHandler((webContents, permission, callback, details) => {
+    let kinds = []
+    if (permission === 'media') {
+      const mediaTypes = details.mediaTypes || []
+      if (mediaTypes.includes('video')) kinds.push('camera')
+      if (mediaTypes.includes('audio')) kinds.push('microphone')
+    } else if (permission === 'geolocation') {
+      kinds = ['location']
+    } else if (permission === 'notifications') {
+      kinds = ['notifications']
+    }
     if (kinds.length === 0) { callback(false); return }
 
     let origin
-    try { origin = new URL(details.requestingUrl).origin } catch { callback(false); return }
+    try { origin = new URL(details.requestingUrl || webContents.getURL()).origin } catch { callback(false); return }
 
-    const stored = kinds.map((k) => store.getPermission(origin, k))
+    const getDecision = (o, k) => (persistent ? store.getPermission(o, k) : inMemoryPrivatePermissions.get(o)?.[k] || null)
+    const setDecision = (o, k, d) => {
+      if (persistent) { store.setPermission(o, k, d); return }
+      inMemoryPrivatePermissions.set(o, { ...inMemoryPrivatePermissions.get(o), [k]: d })
+    }
+
+    const stored = kinds.map((k) => getDecision(origin, k))
     if (stored.every((d) => d === 'allow')) { callback(true); return }
     if (stored.some((d) => d === 'deny')) { callback(false); return }
 
+    const owner = Array.from(tabs.values()).find((t) => t.view.webContents.id === webContents.id)
+    const windowId = owner ? owner.windowId : Array.from(windows.keys())[0]
+
     // Ninguna decisión guardada todavía — preguntarle al usuario de verdad, no asumir.
     const requestId = nextPermissionRequestId++
-    pendingPermissionRequests.set(requestId, { callback, origin, kinds })
-    sendToRenderer('permissions:request', { requestId, origin, kinds })
+    pendingPermissionRequests.set(requestId, { callback, origin, kinds, setDecision })
+    sendToWindow(windowId, 'permissions:request', { requestId, origin, kinds })
   })
 }
 
-function createWindow() {
-  mainWindow = new BrowserWindow({
+let privateSessionReady = false
+function ensurePrivateSession() {
+  if (privateSessionReady) return
+  privateSessionReady = true
+  const sess = session.fromPartition(PRIVATE_PARTITION)
+  installShieldsFor(sess)
+  installPermissionsFor(sess, false)
+  installDownloadsFor(sess) // los archivos descargados SÍ quedan en disco aunque la pestaña sea privada — igual que en cualquier navegador real
+}
+
+function createWindow(options = {}) {
+  const win = new BrowserWindow({
     width: 1400,
     height: 900,
+    minWidth: 760,
+    minHeight: 480,
     title: 'MABRIONA Browser',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -240,21 +328,36 @@ function createWindow() {
       nodeIntegration: false,
     },
   })
-  mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'))
-  mainWindow.on('resize', layoutActiveView)
-  mainWindow.on('closed', () => { mainWindow = null })
+  const windowId = nextWindowId++
+  windows.set(windowId, { window: win, activeTabId: null })
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
+  win.on('resize', () => layoutActiveView(windowId))
+  win.on('closed', () => {
+    for (const tab of Array.from(tabs.values())) {
+      if (tab.windowId !== windowId) continue
+      if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
+      tabs.delete(tab.id)
+    }
+    windows.delete(windowId)
+  })
 
-  createAndSwitchTab(HOME_URL)
+  const restoreUrls = options.restoreSession ? store.getLastSession() : []
+  if (restoreUrls.length > 0) {
+    for (const url of restoreUrls) createAndSwitchTab(url, windowId)
+  } else {
+    createAndSwitchTab(HOME_URL, windowId)
+  }
+  return windowId
 }
 
 app.whenReady().then(() => {
-  installShields()
-  installDownloads()
-  installPermissions()
-  createWindow()
+  installShieldsFor(session.fromPartition('persist:mabriona-browser'))
+  installDownloadsFor(session.fromPartition('persist:mabriona-browser'))
+  installPermissionsFor(session.fromPartition('persist:mabriona-browser'), true)
+  createWindow({ restoreSession: true })
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (windows.size === 0) createWindow({ restoreSession: true })
   })
 })
 
@@ -264,7 +367,13 @@ app.on('window-all-closed', () => {
 
 // ===================== IPC =====================
 
-ipcMain.handle('tabs:create', (_e, url) => createAndSwitchTab(url))
+ipcMain.handle('tabs:create', (e, url) => createAndSwitchTab(url, windowIdForSender(e)))
+ipcMain.handle('tabs:new-private', (e) => createAndSwitchTab(HOME_URL, windowIdForSender(e), { private: true }))
+ipcMain.handle('tabs:duplicate', (_e, id) => {
+  const tab = tabs.get(id)
+  if (!tab) return null
+  return createAndSwitchTab(tab.url, tab.windowId, { private: tab.isPrivate })
+})
 ipcMain.handle('tabs:close', (_e, id) => closeTab(id))
 ipcMain.handle('tabs:switch', (_e, id) => switchToTab(id))
 ipcMain.handle('tabs:navigate', (_e, { id, input }) => {
@@ -286,7 +395,26 @@ ipcMain.handle('find:start', (_e, { id, text, forward = true, findNext = false }
   tab.view.webContents.findInPage(text, { forward, findNext, matchCase: false })
 })
 ipcMain.handle('find:stop', (_e, id) => tabs.get(id)?.view.webContents.stopFindInPage('clearSelection'))
-ipcMain.handle('tabs:get-state', () => Array.from(tabs.values()).map(serializeTab))
+ipcMain.handle('tabs:get-state', (e) => {
+  const windowId = windowIdForSender(e)
+  const state = windows.get(windowId)
+  if (!state) return []
+  return Array.from(tabs.values()).filter((t) => t.windowId === windowId).map((t) => serializeTab(t, state.activeTabId))
+})
+
+// Zoom real — Electron nativo (webContents.setZoomFactor), no un transform de CSS: reescala el
+// layout de verdad, igual que Cmd+/Cmd-/Cmd0 en cualquier navegador real.
+ipcMain.handle('zoom:get', (_e, id) => tabs.get(id)?.view.webContents.getZoomFactor() ?? 1)
+ipcMain.handle('zoom:set', (_e, { id, factor }) => {
+  const tab = tabs.get(id)
+  if (!tab || tab.view.webContents.isDestroyed()) return 1
+  const clamped = Math.max(0.5, Math.min(3, factor))
+  tab.view.webContents.setZoomFactor(clamped)
+  return clamped
+})
+
+// Ventanas reales — Electron nativo (nueva BrowserWindow independiente), no una simulación.
+ipcMain.handle('windows:new', () => { createWindow(); return true })
 
 ipcMain.handle('history:list', () => store.getState().history)
 ipcMain.handle('history:clear', () => store.clearHistory())
@@ -315,7 +443,7 @@ ipcMain.handle('tabs:screenshot', async (_e, id) => {
     const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const now = Date.now()
     store.addDownload({ id: entryId, filename, path: savePath, url: tab.url, state: 'completed', startedAt: now, finishedAt: now })
-    sendToRenderer('downloads:state', store.listDownloads())
+    broadcastDownloads()
     return { ok: true, path: savePath }
   } catch (err) {
     return { ok: false, error: String(err) }
@@ -325,13 +453,14 @@ ipcMain.handle('tabs:screenshot', async (_e, id) => {
 ipcMain.handle('shields:get-enabled', () => store.getShieldsEnabled())
 ipcMain.handle('shields:set-enabled', (_e, enabled) => store.setShieldsEnabled(enabled))
 
-// El usuario ya decidió (Allow/Deny) sobre un pedido de cámara/micrófono real, mostrado en el
-// chrome — se persiste por origen y se resuelve el callback que Electron estaba esperando.
+// El usuario ya decidió (Allow/Deny) sobre un pedido real (cámara/mic, ubicación, notificaciones),
+// mostrado en el chrome — se persiste (o se guarda solo en memoria, en pestañas privadas) y se
+// resuelve el callback que Electron estaba esperando.
 ipcMain.handle('permissions:respond', (_e, { requestId, allow }) => {
   const pending = pendingPermissionRequests.get(requestId)
   if (!pending) return false
   pendingPermissionRequests.delete(requestId)
-  for (const kind of pending.kinds) store.setPermission(pending.origin, kind, allow ? 'allow' : 'deny')
+  for (const kind of pending.kinds) pending.setDecision(pending.origin, kind, allow ? 'allow' : 'deny')
   pending.callback(allow)
   return true
 })
@@ -341,8 +470,9 @@ ipcMain.handle('permissions:clear', (_e, { origin, kind }) => store.clearPermiss
 
 // Settings — Descargas: diálogo real de macOS (dialog.showOpenDialog), no un input de texto libre.
 ipcMain.handle('settings:get-downloads-dir', () => currentDownloadsDir())
-ipcMain.handle('settings:choose-downloads-dir', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, { properties: ['openDirectory', 'createDirectory'] })
+ipcMain.handle('settings:choose-downloads-dir', async (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
   if (result.canceled || result.filePaths.length === 0) return currentDownloadsDir()
   store.setDownloadsDir(result.filePaths[0])
   return currentDownloadsDir()
