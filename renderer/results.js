@@ -707,8 +707,10 @@ async function searchInstantAnswer(query, container) {
     const data = await res.json()
     const any = renderInstantAnswer(data, query, container)
     if (!any) renderEmpty(query, container)
+    return any
   } catch {
     renderEmpty(query, container)
+    return false
   }
 }
 
@@ -717,6 +719,10 @@ async function searchInstantAnswer(query, container) {
 async function search(query, freshness) {
   const container = document.getElementById('results')
   document.getElementById('spectrum').classList.add('hidden')
+  // Cargando/vacío/error son estados sin contenido de verdad — se centran en toda la pantalla
+  // (ver .state-centered en results.css) para que nunca se vean como una tarjeta chica flotando
+  // arriba con el resto de la página negra y vacía.
+  container.classList.add('state-centered')
   container.replaceChildren(el('p', 'loading', 'Buscando…'))
   if (!query) {
     container.replaceChildren(el('p', 'empty', 'Escribe algo para buscar.'))
@@ -740,8 +746,13 @@ async function search(query, freshness) {
           (response.news && response.news.length > 0) ||
           (response.locations && response.locations.length > 0) ||
           response.tool
-        if (hasAnything) mountSpectrum(response, container, query, freshness)
-        else { container.replaceChildren(); renderEmpty(query, container) }
+        if (hasAnything) {
+          container.classList.remove('state-centered')
+          mountSpectrum(response, container, query, freshness)
+        } else {
+          container.replaceChildren()
+          renderEmpty(query, container)
+        }
         return
       }
     } catch {
@@ -750,7 +761,8 @@ async function search(query, freshness) {
   }
 
   container.replaceChildren()
-  await searchInstantAnswer(query, container)
+  const any = await searchInstantAnswer(query, container)
+  if (any) container.classList.remove('state-centered')
 }
 
 const initialQuery = qs('q')

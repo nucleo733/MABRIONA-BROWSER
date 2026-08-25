@@ -712,8 +712,15 @@ if (downloadsPathText.includes('Carpeta actual:') && downloadsPathText.length > 
 }
 
 await win.locator('#settings-clear-data').click()
-await win.waitForTimeout(300)
-const clearDataBtnText = await win.locator('#settings-clear-data').textContent()
+// session.clearStorageData()/clearCache() son operaciones reales — su duración depende de cuánto
+// haya acumulado el perfil (hoy, con tantas búsquedas reales, puede tardar más que un timeout fijo
+// corto), así que se sondea en vez de asumir un tiempo fijo, como el resto de la suite.
+let clearDataBtnText = ''
+for (let i = 0; i < 20; i++) {
+  clearDataBtnText = await win.locator('#settings-clear-data').textContent()
+  if (clearDataBtnText.includes('Listo')) break
+  await win.waitForTimeout(300)
+}
 if (clearDataBtnText.includes('Listo')) ok('settings: "Borrar datos de navegación" ejecuta la limpieza real (session.clearStorageData)')
 else bad('settings — borrar datos', clearDataBtnText)
 
