@@ -3,7 +3,8 @@
 const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
-const { createStore } = require('./store')
+const { createStore, createMemoryStore } = require('./store')
+const { createProfileRegistry } = require('./profiles')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
 const {
@@ -23,7 +24,19 @@ const { resolveSpectrum } = require('./search/spectrumResolver')
 const TOOLBAR_HEIGHT = 118
 const PRIVATE_PARTITION = 'mabriona-private' // sin "persist:" → en memoria, Electron la descarta al cerrar la app
 
-const store = createStore(path.join(app.getPath('userData'), 'mabriona-browser-data.json'))
+const legacyDataFile = path.join(app.getPath('userData'), 'mabriona-browser-data.json')
+const registry = createProfileRegistry(path.join(app.getPath('userData'), 'mabriona-browser-profiles.json'), legacyDataFile)
+
+// Un store real por perfil (historial/favoritos/descargas/shields/permisos/config — ver store.js),
+// creado la primera vez que ese perfil se usa y reutilizado después. El perfil 'default' apunta al
+// mismo archivo de siempre — nada se migra ni se copia.
+const storesByProfile = new Map()
+function storeFor(profileId) {
+  if (!storesByProfile.has(profileId)) {
+    storesByProfile.set(profileId, createStore(registry.dataFilePathFor(app.getPath('userData'), profileId)))
+  }
+  return storesByProfile.get(profileId)
+}
 
 // Red de seguridad: un error inesperado en un solo callback (ej. una pestaña cerrándose en un
 // mal momento) no debe tumbar toda la ventana del navegador — se registra y sigue.
@@ -31,12 +44,29 @@ process.on('uncaughtException', (err) => {
   console.error('[MABRIONA Browser] error no manejado:', err)
 })
 
-/** @type {Map<number, { window: BrowserWindow, activeTabId: number | null }>} */
+/** @type {Map<number, { window: BrowserWindow, activeTabId: number | null, profileId: string, isGuest: boolean }>} */
 const windows = new Map()
 let nextWindowId = 1
 /** @type {Map<number, { view: BrowserView, id: number, windowId: number, title: string, url: string, blockedCount: number, isPrivate: boolean }>} */
 const tabs = new Map()
 let nextTabId = 1
+
+// Una ventana de Modo Invitado por ventana (no compartido entre varias ventanas invitadas
+// abiertas a la vez) — se crea al abrir la ventana, se descarta solo al cerrarla.
+const guestStoresByWindow = new Map()
+
+function storeForWindow(windowId) {
+  const state = windows.get(windowId)
+  if (state && state.isGuest) {
+    if (!guestStoresByWindow.has(windowId)) guestStoresByWindow.set(windowId, createMemoryStore())
+    return guestStoresByWindow.get(windowId)
+  }
+  return storeFor(state ? state.profileId : 'default')
+}
+function storeForTab(tabId) {
+  const tab = tabs.get(tabId)
+  return tab ? storeForWindow(tab.windowId) : storeFor('default')
+}
 
 function windowIdForSender(event) {
   const win = BrowserWindow.fromWebContents(event.sender)
@@ -90,19 +120,31 @@ function layoutActiveView(windowId) {
 // cada tecla) la lista de URLs reales abiertas — nunca pestañas privadas, esas no dejan rastro a
 // propósito — y se reabren la próxima vez que arranca la app.
 let saveSessionTimer = null
-function saveSessionSoon() {
+function saveSessionSoon(windowId) {
   clearTimeout(saveSessionTimer)
   saveSessionTimer = setTimeout(() => {
-    const urls = Array.from(tabs.values())
-      .filter((t) => !t.isPrivate && t.url && t.url !== HOME_URL && t.url !== 'about:blank')
-      .map((t) => t.url)
-    store.setLastSession(urls)
+    // Por ventana: cada perfil guarda su propia sesión — abrir la ventana del Perfil B no debe
+    // pisar la sesión guardada del Perfil A.
+    const byWindow = new Map()
+    for (const t of tabs.values()) {
+      if (t.isPrivate || !t.url || t.url === HOME_URL || t.url === 'about:blank') continue
+      if (!byWindow.has(t.windowId)) byWindow.set(t.windowId, [])
+      byWindow.get(t.windowId).push(t.url)
+    }
+    for (const [wId, urls] of byWindow) storeForWindow(wId).setLastSession(urls)
+    // Una ventana que se quedó sin pestañas reales (todas privadas o ninguna) limpia su sesión
+    // guardada — si no, la próxima vez reabriría URLs viejas que el usuario ya cerró.
+    if (windowId != null && !byWindow.has(windowId)) storeForWindow(windowId).setLastSession([])
   }, 800)
 }
 
 function createTab(initialUrl, windowId, options = {}) {
-  const isPrivate = !!options.private
+  const winState = windows.get(windowId)
+  const isGuestWindow = !!(winState && winState.isGuest)
+  const isPrivate = !!options.private || isGuestWindow
+  const partition = isPrivate ? PRIVATE_PARTITION : registry.partitionFor(winState ? winState.profileId : 'default')
   if (isPrivate) ensurePrivateSession()
+  else ensureProfileSession(winState ? winState.profileId : 'default')
   const view = new BrowserView({
     webPreferences: {
       contextIsolation: true,
@@ -111,8 +153,9 @@ function createTab(initialUrl, windowId, options = {}) {
       // Modo Privado real: partición sin "persist:" = sesión en memoria. Electron la descarta
       // entera al cerrar la app — no queda un archivo en disco con cookies/almacenamiento de esa
       // sesión. No es anonimato frente a la red (tu proveedor de internet y los sitios que
-      // visitás igual te ven) — solo separa lo que el navegador guarda localmente.
-      partition: isPrivate ? PRIVATE_PARTITION : 'persist:mabriona-browser',
+      // visitás igual te ven) — solo separa lo que el navegador guarda localmente. Modo Invitado
+      // reutiliza exactamente este mismo mecanismo, para toda pestaña de esa ventana.
+      partition,
       // Solo expone `window.mabrionaSearch.query(...)` (ver search-preload.js) — la página de
       // resultados propia lo usa para pedir resultados sin tocar ninguna API key directamente.
       // Inofensivo en cualquier otro sitio: contextBridge no le da nada a la página, la key nunca
@@ -132,12 +175,12 @@ function createTab(initialUrl, windowId, options = {}) {
     if (state && tab.id === state.activeTabId) {
       const url = wc.getURL()
       if (url && url !== 'about:blank' && url !== HOME_URL && !tab.isPrivate) {
-        store.addHistoryEntry({ url, title: tab.title, visitedAt: Date.now() })
+        storeForWindow(windowId).addHistoryEntry({ url, title: tab.title, visitedAt: Date.now() })
       }
     }
-    saveSessionSoon()
+    saveSessionSoon(windowId)
   })
-  wc.on('did-navigate', (_e, url) => { tab.url = url; broadcastTabs(windowId); saveSessionSoon() })
+  wc.on('did-navigate', (_e, url) => { tab.url = url; broadcastTabs(windowId); saveSessionSoon(windowId) })
   wc.on('did-navigate-in-page', (_e, url) => { tab.url = url; broadcastTabs(windowId) })
   wc.on('page-title-updated', (_e, title) => { tab.title = title; broadcastTabs(windowId) })
   wc.on('found-in-page', (_e, result) => {
@@ -191,7 +234,7 @@ function closeTab(id) {
   if (state) state.window.removeBrowserView(tab.view)
   if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
   tabs.delete(id)
-  saveSessionSoon()
+  saveSessionSoon(windowId)
   if (!state) return
   if (wasActive) {
     const remaining = Array.from(tabs.values()).filter((t) => t.windowId === windowId)
@@ -209,46 +252,57 @@ function closeTab(id) {
   broadcastTabs(windowId)
 }
 
+// Resuelto por pestaña (no fijo por partición): una pestaña privada puede estar abierta en la
+// ventana de cualquier perfil, y el toggle de Shields que ve esa persona en Configuración es el
+// de SU perfil activo — tiene que ser el mismo que de verdad filtra esa pestaña.
 function installShieldsFor(sess) {
   sess.webRequest.onBeforeRequest((details, callback) => {
-    if (!store.getShieldsEnabled()) { callback({ cancel: false }); return }
+    const owner = Array.from(tabs.values()).find((t) => t.view.webContents.id === details.webContentsId)
+    const profileStore = storeForWindow(owner ? owner.windowId : null)
+    if (!profileStore.getShieldsEnabled()) { callback({ cancel: false }); return }
     let hostname = null
     try { hostname = new URL(details.url).hostname } catch { /* URL rara — dejar pasar */ }
     const blocked = isBlockedHost(hostname)
-    if (blocked) {
-      const owner = Array.from(tabs.values()).find((t) => t.view.webContents.id === details.webContentsId)
-      if (owner) { owner.blockedCount += 1; broadcastTabs(owner.windowId) }
-    }
+    if (blocked && owner) { owner.blockedCount += 1; broadcastTabs(owner.windowId) }
     callback({ cancel: blocked })
   })
 }
 
-/** Carpeta real de descargas — la que eligió el usuario en Settings, o el Downloads del sistema si no eligió ninguna. */
-function currentDownloadsDir() {
-  return store.getDownloadsDir() || app.getPath('downloads')
+/** Carpeta real de descargas — la que eligió el usuario en Settings (por perfil), o el Downloads del sistema si no eligió ninguna. */
+function currentDownloadsDir(profileStore) {
+  return profileStore.getDownloadsDir() || app.getPath('downloads')
 }
 
-function installDownloadsFor(sess) {
-  sess.on('will-download', (_event, item) => {
+// La partición privada (Modo Privado + Modo Invitado) es una sola, compartida — a diferencia de
+// las particiones de perfil (una por perfil, un store fijo), acá el store real se resuelve pestaña
+// por pestaña según quién disparó la descarga, para que quede anotada en el perfil correcto.
+function installDownloadsFor(sess, fixedStore) {
+  sess.on('will-download', (_event, item, webContents) => {
+    const owner = webContents ? Array.from(tabs.values()).find((t) => t.view.webContents.id === webContents.id) : null
+    const profileStore = fixedStore || storeForWindow(owner ? owner.windowId : null)
     const id = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const savePath = path.join(currentDownloadsDir(), item.getFilename())
+    const savePath = path.join(currentDownloadsDir(profileStore), item.getFilename())
     item.setSavePath(savePath)
-    store.addDownload({ id, filename: item.getFilename(), path: savePath, url: item.getURL(), state: 'progressing', startedAt: Date.now() })
-    broadcastDownloads()
+    profileStore.addDownload({ id, filename: item.getFilename(), path: savePath, url: item.getURL(), state: 'progressing', startedAt: Date.now() })
+    broadcastDownloadsForStore(profileStore)
 
     item.on('updated', (_e, state) => {
-      store.updateDownload(id, { state })
-      broadcastDownloads()
+      profileStore.updateDownload(id, { state })
+      broadcastDownloadsForStore(profileStore)
     })
     item.once('done', (_e, state) => {
-      store.updateDownload(id, { state, finishedAt: Date.now() })
-      broadcastDownloads()
+      profileStore.updateDownload(id, { state, finishedAt: Date.now() })
+      broadcastDownloadsForStore(profileStore)
     })
   })
 }
 
-function broadcastDownloads() {
-  for (const windowId of windows.keys()) sendToWindow(windowId, 'downloads:state', store.listDownloads())
+/** Solo se avisa a las ventanas que realmente son de ese perfil — las descargas de un perfil no deben aparecer en el panel de otro. */
+function broadcastDownloadsForStore(profileStore) {
+  for (const windowId of windows.keys()) {
+    if (storeForWindow(windowId) !== profileStore) continue
+    sendToWindow(windowId, 'downloads:state', profileStore.listDownloads())
+  }
 }
 
 /** Callbacks pendientes de permiso, esperando la decisión real del usuario desde el chrome. */
@@ -265,7 +319,7 @@ const inMemoryPrivatePermissions = new Map()
  * estos tres tipos se deniega por defecto. `persistent=false` (pestañas privadas) guarda la
  * decisión solo en memoria, nunca en el store en disco.
  */
-function installPermissionsFor(sess, persistent) {
+function installPermissionsFor(sess, persistent, profileStore) {
   sess.setPermissionRequestHandler((webContents, permission, callback, details) => {
     let kinds = []
     if (permission === 'media') {
@@ -282,9 +336,9 @@ function installPermissionsFor(sess, persistent) {
     let origin
     try { origin = new URL(details.requestingUrl || webContents.getURL()).origin } catch { callback(false); return }
 
-    const getDecision = (o, k) => (persistent ? store.getPermission(o, k) : inMemoryPrivatePermissions.get(o)?.[k] || null)
+    const getDecision = (o, k) => (persistent ? profileStore.getPermission(o, k) : inMemoryPrivatePermissions.get(o)?.[k] || null)
     const setDecision = (o, k, d) => {
-      if (persistent) { store.setPermission(o, k, d); return }
+      if (persistent) { profileStore.setPermission(o, k, d); return }
       inMemoryPrivatePermissions.set(o, { ...inMemoryPrivatePermissions.get(o), [k]: d })
     }
 
@@ -309,10 +363,30 @@ function ensurePrivateSession() {
   const sess = session.fromPartition(PRIVATE_PARTITION)
   installShieldsFor(sess)
   installPermissionsFor(sess, false)
-  installDownloadsFor(sess) // los archivos descargados SÍ quedan en disco aunque la pestaña sea privada — igual que en cualquier navegador real
+  installDownloadsFor(sess) // los archivos descargados SÍ quedan en disco aunque la pestaña sea privada — igual que en cualquier navegador real; el store se resuelve por pestaña (ver installDownloadsFor)
+}
+
+// Cada perfil real tiene su propia partición persistente de Chromium (cookies/localStorage/
+// IndexedDB/caché) — aislamiento real, no simulado, el mismo mecanismo nativo que ya usaba Modo
+// Privado, solo que con `persist:` para que sí quede guardado en disco entre arranques.
+const profileSessionsReady = new Set()
+function ensureProfileSession(profileId) {
+  if (profileSessionsReady.has(profileId)) return
+  profileSessionsReady.add(profileId)
+  const profileStore = storeFor(profileId)
+  const sess = session.fromPartition(registry.partitionFor(profileId))
+  installShieldsFor(sess)
+  installDownloadsFor(sess, profileStore)
+  installPermissionsFor(sess, true, profileStore)
 }
 
 function createWindow(options = {}) {
+  const isGuest = !!options.guest
+  const profileId = isGuest ? 'guest' : (options.profileId || registry.getLastActiveProfileId())
+  if (!isGuest) {
+    ensureProfileSession(profileId)
+    registry.setLastActiveProfileId(profileId)
+  }
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -327,7 +401,7 @@ function createWindow(options = {}) {
     },
   })
   const windowId = nextWindowId++
-  windows.set(windowId, { window: win, activeTabId: null })
+  windows.set(windowId, { window: win, activeTabId: null, profileId, isGuest })
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
   win.on('resize', () => layoutActiveView(windowId))
   win.on('closed', () => {
@@ -337,21 +411,30 @@ function createWindow(options = {}) {
       tabs.delete(tab.id)
     }
     windows.delete(windowId)
+    guestStoresByWindow.delete(windowId)
   })
 
-  const restoreUrls = options.restoreSession ? store.getLastSession() : []
+  // Modo Invitado nunca restaura ni guarda sesión — no deja rastro, a propósito (mismo criterio
+  // que Modo Privado).
+  const profileStore = storeFor(profileId)
+  const restoreUrls = (!isGuest && options.restoreSession && profileStore.getRestoreSessionOnStartup())
+    ? profileStore.getLastSession()
+    : []
   if (restoreUrls.length > 0) {
     for (const url of restoreUrls) createAndSwitchTab(url, windowId)
   } else {
-    createAndSwitchTab(HOME_URL, windowId)
+    createAndSwitchTab(HOME_URL, windowId, { private: isGuest })
   }
   return windowId
 }
 
+/** Ventana ya abierta con este perfil, si hay una — para no abrir dos ventanas del mismo perfil sin necesidad al "cambiar" desde el panel. */
+function findWindowForProfile(profileId) {
+  for (const [windowId, state] of windows) if (!state.isGuest && state.profileId === profileId) return windowId
+  return null
+}
+
 app.whenReady().then(() => {
-  installShieldsFor(session.fromPartition('persist:mabriona-browser'))
-  installDownloadsFor(session.fromPartition('persist:mabriona-browser'))
-  installPermissionsFor(session.fromPartition('persist:mabriona-browser'), true)
   createWindow({ restoreSession: true })
 
   app.on('activate', () => {
@@ -377,7 +460,7 @@ ipcMain.handle('tabs:switch', (_e, id) => switchToTab(id))
 ipcMain.handle('tabs:navigate', (_e, { id, input }) => {
   const tab = tabs.get(id)
   if (!tab) return
-  tab.view.webContents.loadURL(resolveAddressInput(input))
+  tab.view.webContents.loadURL(resolveAddressInput(input, storeForTab(id).getSearchEngine()))
 })
 ipcMain.handle('tabs:back', (_e, id) => tabs.get(id)?.view.webContents.goBack())
 ipcMain.handle('tabs:forward', (_e, id) => tabs.get(id)?.view.webContents.goForward())
@@ -412,18 +495,27 @@ ipcMain.handle('zoom:set', (_e, { id, factor }) => {
 })
 
 // Ventanas reales — Electron nativo (nueva BrowserWindow independiente), no una simulación.
-ipcMain.handle('windows:new', () => { createWindow(); return true })
+// Hereda el perfil de la ventana desde la que se pidió — Cmd+N abre otra ventana del mismo
+// perfil, no cambia a "el último usado" por sorpresa.
+ipcMain.handle('windows:new', (e) => {
+  const cur = windows.get(windowIdForSender(e))
+  createWindow({ profileId: cur ? cur.profileId : undefined })
+  return true
+})
+// Modo Invitado real — ventana nueva, sesión en memoria compartida con Modo Privado (nunca toca
+// disco), sin restaurar ni guardar sesión.
+ipcMain.handle('windows:new-guest', () => { createWindow({ guest: true }); return true })
 
-ipcMain.handle('history:list', () => store.getState().history)
-ipcMain.handle('history:clear', () => store.clearHistory())
-ipcMain.handle('history:remove', (_e, url) => store.removeHistoryEntry(url))
+ipcMain.handle('history:list', (e) => storeForWindow(windowIdForSender(e)).getState().history)
+ipcMain.handle('history:clear', (e) => storeForWindow(windowIdForSender(e)).clearHistory())
+ipcMain.handle('history:remove', (e, url) => storeForWindow(windowIdForSender(e)).removeHistoryEntry(url))
 
-ipcMain.handle('favorites:list', () => store.listFavorites())
-ipcMain.handle('favorites:add', (_e, fav) => store.addFavorite(fav))
-ipcMain.handle('favorites:remove', (_e, url) => store.removeFavorite(url))
-ipcMain.handle('favorites:is', (_e, url) => store.isFavorite(url))
+ipcMain.handle('favorites:list', (e) => storeForWindow(windowIdForSender(e)).listFavorites())
+ipcMain.handle('favorites:add', (e, fav) => storeForWindow(windowIdForSender(e)).addFavorite(fav))
+ipcMain.handle('favorites:remove', (e, url) => storeForWindow(windowIdForSender(e)).removeFavorite(url))
+ipcMain.handle('favorites:is', (e, url) => storeForWindow(windowIdForSender(e)).isFavorite(url))
 
-ipcMain.handle('downloads:list', () => store.listDownloads())
+ipcMain.handle('downloads:list', (e) => storeForWindow(windowIdForSender(e)).listDownloads())
 ipcMain.handle('downloads:open', (_e, filePath) => shell.openPath(filePath))
 ipcMain.handle('downloads:show', (_e, filePath) => shell.showItemInFolder(filePath))
 
@@ -433,23 +525,24 @@ ipcMain.handle('downloads:show', (_e, filePath) => shell.showItemInFolder(filePa
 ipcMain.handle('tabs:screenshot', async (_e, id) => {
   const tab = tabs.get(id)
   if (!tab || tab.view.webContents.isDestroyed()) return { ok: false, error: 'la pestaña ya no existe' }
+  const profileStore = storeForWindow(tab.windowId)
   try {
     const image = await tab.view.webContents.capturePage()
     const filename = `mabriona-browser-captura-${Date.now()}.png`
-    const savePath = path.join(currentDownloadsDir(), filename)
+    const savePath = path.join(currentDownloadsDir(profileStore), filename)
     fs.writeFileSync(savePath, image.toPNG())
     const entryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     const now = Date.now()
-    store.addDownload({ id: entryId, filename, path: savePath, url: tab.url, state: 'completed', startedAt: now, finishedAt: now })
-    broadcastDownloads()
+    profileStore.addDownload({ id: entryId, filename, path: savePath, url: tab.url, state: 'completed', startedAt: now, finishedAt: now })
+    broadcastDownloadsForStore(profileStore)
     return { ok: true, path: savePath }
   } catch (err) {
     return { ok: false, error: String(err) }
   }
 })
 
-ipcMain.handle('shields:get-enabled', () => store.getShieldsEnabled())
-ipcMain.handle('shields:set-enabled', (_e, enabled) => store.setShieldsEnabled(enabled))
+ipcMain.handle('shields:get-enabled', (e) => storeForWindow(windowIdForSender(e)).getShieldsEnabled())
+ipcMain.handle('shields:set-enabled', (e, enabled) => storeForWindow(windowIdForSender(e)).setShieldsEnabled(enabled))
 
 // El usuario ya decidió (Allow/Deny) sobre un pedido real (cámara/mic, ubicación, notificaciones),
 // mostrado en el chrome — se persiste (o se guarda solo en memoria, en pestañas privadas) y se
@@ -462,18 +555,59 @@ ipcMain.handle('permissions:respond', (_e, { requestId, allow }) => {
   pending.callback(allow)
   return true
 })
-ipcMain.handle('permissions:list', () => store.listPermissions())
-ipcMain.handle('permissions:set', (_e, { origin, kind, decision }) => store.setPermission(origin, kind, decision))
-ipcMain.handle('permissions:clear', (_e, { origin, kind }) => store.clearPermission(origin, kind))
+ipcMain.handle('permissions:list', (e) => storeForWindow(windowIdForSender(e)).listPermissions())
+ipcMain.handle('permissions:set', (e, { origin, kind, decision }) => storeForWindow(windowIdForSender(e)).setPermission(origin, kind, decision))
+ipcMain.handle('permissions:clear', (e, { origin, kind }) => storeForWindow(windowIdForSender(e)).clearPermission(origin, kind))
 
 // Settings — Descargas: diálogo real de macOS (dialog.showOpenDialog), no un input de texto libre.
-ipcMain.handle('settings:get-downloads-dir', () => currentDownloadsDir())
+ipcMain.handle('settings:get-downloads-dir', (e) => currentDownloadsDir(storeForWindow(windowIdForSender(e))))
 ipcMain.handle('settings:choose-downloads-dir', async (e) => {
   const win = BrowserWindow.fromWebContents(e.sender)
+  const profileStore = storeForWindow(windowIdForSender(e))
   const result = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] })
-  if (result.canceled || result.filePaths.length === 0) return currentDownloadsDir()
-  store.setDownloadsDir(result.filePaths[0])
-  return currentDownloadsDir()
+  if (result.canceled || result.filePaths.length === 0) return currentDownloadsDir(profileStore)
+  profileStore.setDownloadsDir(result.filePaths[0])
+  return currentDownloadsDir(profileStore)
+})
+
+// Settings — General/Búsqueda, por perfil (cada perfil real tiene su propia elección, igual que
+// su propia carpeta de descargas o sus propios permisos).
+ipcMain.handle('settings:get-search-engine', (e) => storeForWindow(windowIdForSender(e)).getSearchEngine())
+ipcMain.handle('settings:set-search-engine', (e, engine) => storeForWindow(windowIdForSender(e)).setSearchEngine(engine))
+ipcMain.handle('settings:get-restore-session', (e) => storeForWindow(windowIdForSender(e)).getRestoreSessionOnStartup())
+ipcMain.handle('settings:set-restore-session', (e, enabled) => storeForWindow(windowIdForSender(e)).setRestoreSessionOnStartup(enabled))
+
+// ===================== Perfiles =====================
+
+ipcMain.handle('profiles:list', () => registry.list())
+ipcMain.handle('profiles:get-active', (e) => {
+  const state = windows.get(windowIdForSender(e))
+  if (!state) return null
+  if (state.isGuest) return { id: 'guest', name: 'Invitado', emoji: '🕶️', isGuest: true }
+  return { ...registry.get(state.profileId), isGuest: false }
+})
+ipcMain.handle('profiles:create', (_e, { name, emoji }) => registry.create(name, emoji))
+ipcMain.handle('profiles:rename', (_e, { id, name }) => registry.rename(id, name))
+ipcMain.handle('profiles:can-delete', (_e, id) => registry.canDelete(id))
+ipcMain.handle('profiles:delete', (_e, id) => {
+  if (!registry.canDelete(id)) return { ok: false, reason: 'no se puede borrar este perfil' }
+  if (findWindowForProfile(id) != null) return { ok: false, reason: 'ese perfil está abierto en una ventana ahora mismo — cerrala primero' }
+  const removed = registry.remove(id)
+  if (!removed) return { ok: false, reason: 'no se pudo borrar' }
+  // Borrado real de datos: el archivo de ese perfil y todo lo que Chromium guardó en su partición
+  // (cookies/localStorage/IndexedDB/caché) — no queda ni rastro en disco, no solo se lo saca de la lista.
+  storesByProfile.delete(id)
+  try { fs.unlinkSync(registry.dataFilePathFor(app.getPath('userData'), id)) } catch { /* ya no existía */ }
+  session.fromPartition(registry.partitionFor(id)).clearStorageData().catch(() => {})
+  profileSessionsReady.delete(id)
+  return { ok: true }
+})
+// Cambiar de perfil: si ya hay una ventana abierta con ese perfil, se enfoca esa (no se abren dos
+// ventanas del mismo perfil sin que la persona lo pida con Cmd+N); si no, se abre una nueva.
+ipcMain.handle('profiles:switch-to', (_e, profileId) => {
+  const existing = findWindowForProfile(profileId)
+  if (existing != null) { windows.get(existing).window.focus(); return existing }
+  return createWindow({ profileId, restoreSession: true })
 })
 
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
@@ -496,7 +630,7 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
   // de unidades, hora/fecha del sistema). Se evalúa siempre, incluso si Brave falla después: una
   // herramienta que funciona no debe quedar bloqueada por un problema de la búsqueda web.
   const tool = detectTool(text)
-  const apiKey = store.getBraveApiKey()
+  const apiKey = registry.getBraveApiKey()
   if (!apiKey) return { ...SEARCH_EMPTY, tool }
   try {
     const { url, headers } = buildRequest(text, apiKey, { freshness })
@@ -540,7 +674,7 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
 // (ver renderer/results.js). No se pide en cada búsqueda: la mayoría de búsquedas nunca abren esa
 // pestaña, así que pedirla siempre sería gastar cupo de la cuenta sin necesidad.
 ipcMain.handle('search:images', async (_e, text) => {
-  const apiKey = store.getBraveApiKey()
+  const apiKey = registry.getBraveApiKey()
   if (!apiKey) return { configured: false, images: [] }
   try {
     const { url, headers } = buildImagesRequest(text, apiKey)
@@ -553,8 +687,10 @@ ipcMain.handle('search:images', async (_e, text) => {
   }
 })
 
-ipcMain.handle('privacy:clear-data', async () => {
-  const sess = session.fromPartition('persist:mabriona-browser')
+ipcMain.handle('privacy:clear-data', async (e) => {
+  const state = windows.get(windowIdForSender(e))
+  const partition = state ? registry.partitionFor(state.profileId) : 'persist:mabriona-browser'
+  const sess = session.fromPartition(partition)
   await sess.clearStorageData()
   await sess.clearCache()
   return true

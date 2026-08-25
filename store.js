@@ -9,14 +9,36 @@ const path = require('node:path')
  * liviano que el resto del ecosistema MABRIONA (localStorage en la web,
  * JSON acá porque no hay localStorage en el proceso principal).
  */
+// braveApiKey queda acá por compatibilidad hacia atrás (versiones previas al sistema de perfiles
+// la guardaban en el store del perfil "Principal") — desde profiles.js pasó a ser global, este
+// campo ya no se lee en main.js, pero no se borra: eliminar un campo de un archivo real del
+// usuario sin necesidad es un riesgo de datos que no vale la pena correr.
+// Función, no un objeto — un objeto compartido acá sería un bug real: `{...DEFAULTS}` solo copia
+// superficial, así que campos anidados (`history`, `permissions`, etc.) quedarían con la MISMA
+// referencia en todos los perfiles cuyo archivo todavía no existe, y mutar uno mutaría a todos.
+function freshDefaults() {
+  return {
+    history: [],
+    favorites: [],
+    downloads: [],
+    shieldsEnabled: true,
+    braveApiKey: null,
+    permissions: {},
+    downloadsDir: null,
+    lastSession: [],
+    searchEngine: 'mabriona', // 'mabriona' | 'google' | 'bing' | 'duckduckgo' | 'brave'
+    restoreSessionOnStartup: true,
+  }
+}
+
 function createStore(filePath) {
   function readAll() {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null, lastSession: [], ...parsed }
+      return { ...freshDefaults(), ...parsed }
     } catch {
-      return { history: [], favorites: [], downloads: [], shieldsEnabled: true, braveApiKey: null, permissions: {}, downloadsDir: null, lastSession: [] }
+      return freshDefaults()
     }
   }
 
@@ -25,6 +47,20 @@ function createStore(filePath) {
     fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
   }
 
+  return buildStore(readAll, writeAll)
+}
+
+/**
+ * Store real en memoria — misma forma e interfaz que `createStore`, pero `writeAll` nunca toca
+ * disco. Es lo que usa cada ventana de Modo Invitado: cuando se cierra la ventana, este objeto se
+ * descarta entero y no queda ni un archivo con lo que pasó en esa sesión (mismo criterio que la
+ * partición en memoria de Modo Privado, ver main.js).
+ */
+function createMemoryStore() {
+  return buildStore(() => freshDefaults(), () => {})
+}
+
+function buildStore(readAll, writeAll) {
   let data = readAll()
 
   return {
@@ -123,7 +159,24 @@ function createStore(filePath) {
       writeAll(data)
       return data.lastSession
     },
+
+    // Motor de búsqueda de este perfil — real, cambia a dónde va la barra de direcciones (ver
+    // address-resolver.js). MABRIONA es el default (igual que Chrome arranca en Google, Safari en
+    // Google/lo que elija el sistema) pero nunca la única opción real.
+    getSearchEngine: () => data.searchEngine || 'mabriona',
+    setSearchEngine(engine) {
+      data.searchEngine = engine
+      writeAll(data)
+      return data.searchEngine
+    },
+
+    getRestoreSessionOnStartup: () => data.restoreSessionOnStartup !== false,
+    setRestoreSessionOnStartup(enabled) {
+      data.restoreSessionOnStartup = !!enabled
+      writeAll(data)
+      return data.restoreSessionOnStartup
+    },
   }
 }
 
-module.exports = { createStore }
+module.exports = { createStore, createMemoryStore }

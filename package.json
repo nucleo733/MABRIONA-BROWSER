@@ -26,6 +26,7 @@
       "preload.js",
       "search-preload.js",
       "store.js",
+      "profiles.js",
       "address-resolver.js",
       "renderer/**/*",
       "shields/**/*",

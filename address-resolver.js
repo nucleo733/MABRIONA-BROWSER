@@ -13,18 +13,33 @@ const HOME_URL = pathToFileURL(path.join(__dirname, 'renderer', 'newtab.html')).
 // limitaciones reales (no es un buscador general).
 const RESULTS_URL = pathToFileURL(path.join(__dirname, 'renderer', 'results.html')).toString()
 
+// Motores externos reales — Configuración → Búsqueda deja elegir cualquiera de estos como
+// default del perfil. MABRIONA nunca es la única opción ni se fuerza: es un default razonable
+// (como cualquier navegador arranca con algún motor propio), el resto son URLs reales de cada
+// buscador, sin intermediarios ni redirecciones propias.
+const EXTERNAL_ENGINES = {
+  google: (q) => `https://www.google.com/search?q=${q}`,
+  bing: (q) => `https://www.bing.com/search?q=${q}`,
+  duckduckgo: (q) => `https://duckduckgo.com/?q=${q}`,
+  brave: (q) => `https://search.brave.com/search?q=${q}`,
+}
+
 /**
  * Resuelve lo que el usuario escribió en la barra de direcciones: URL
- * real (si ya tiene esquema, o parece un dominio) o la página de
- * resultados propia de MABRIONA.
+ * real (si ya tiene esquema, o parece un dominio) o una búsqueda — en la
+ * página propia de MABRIONA o en el motor externo real que haya elegido
+ * el perfil activo (ver store.js#getSearchEngine).
  */
-function resolveAddressInput(input) {
+function resolveAddressInput(input, engine = 'mabriona') {
   const trimmed = (input || '').trim()
   if (!trimmed) return HOME_URL
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed)) return trimmed
   const looksLikeDomain = /^[^\s]+\.[a-z]{2,}(\/.*)?$/i.test(trimmed) && !trimmed.includes(' ')
   if (looksLikeDomain) return `https://${trimmed}`
-  return `${RESULTS_URL}?q=${encodeURIComponent(trimmed)}`
+  const q = encodeURIComponent(trimmed)
+  const external = EXTERNAL_ENGINES[engine]
+  if (external) return external(q)
+  return `${RESULTS_URL}?q=${q}`
 }
 
-module.exports = { resolveAddressInput, HOME_URL, RESULTS_URL }
+module.exports = { resolveAddressInput, HOME_URL, RESULTS_URL, EXTERNAL_ENGINES }

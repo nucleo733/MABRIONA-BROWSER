@@ -116,7 +116,7 @@ btnScreenshot.addEventListener('click', async () => {
 
 // ---------------- Paneles (historial / favoritos / descargas / shields) ----------------
 
-const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'menu']
+const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'menu', 'profile']
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')
 }
@@ -133,6 +133,8 @@ document.getElementById('btn-downloads').addEventListener('click', () => { toggl
 document.getElementById('btn-shields').addEventListener('click', () => { togglePanel('shields'); refreshShieldsPanel() })
 document.getElementById('btn-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
 document.getElementById('btn-more').addEventListener('click', () => togglePanel('more'))
+document.getElementById('btn-profile').addEventListener('click', () => { togglePanel('profile'); refreshProfilePanel() })
+document.getElementById('more-profile').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-profile').click() })
 document.getElementById('btn-menu').addEventListener('click', () => { togglePanel('menu'); refreshZoomLevel() })
 document.querySelectorAll('.panel-close').forEach((btn) => btn.addEventListener('click', (e) => {
   document.getElementById(`panel-${e.target.dataset.close}`).classList.add('hidden')
@@ -248,13 +250,81 @@ document.getElementById('shields-toggle-input').addEventListener('change', (e) =
   mabrionaBrowser.setShieldsEnabled(e.target.checked)
 })
 
+// ---------------- Perfiles — cambiar de perfil abre/enfoca una ventana real de ese perfil ----------------
+
+async function refreshProfileButton() {
+  const p = await mabrionaBrowser.getActiveProfile()
+  document.getElementById('profile-emoji').textContent = p ? p.emoji : '👤'
+}
+
+async function refreshProfilePanel() {
+  const [profiles, active] = await Promise.all([mabrionaBrowser.listProfiles(), mabrionaBrowser.getActiveProfile()])
+  document.getElementById('profile-active-note').textContent = active
+    ? `Perfil activo en esta ventana: ${active.emoji} ${active.name}${active.isGuest ? ' — nada de esto se guarda' : ''}`
+    : ''
+
+  const ul = document.getElementById('profile-list')
+  ul.innerHTML = ''
+  for (const p of profiles) {
+    const li = document.createElement('li')
+    const isActive = active && !active.isGuest && p.id === active.id
+    li.innerHTML = `<span class="item-title">${p.emoji} ${escapeHtml(p.name)}</span><span class="item-url">${isActive ? 'Activo en esta ventana' : 'Cambiar →'}</span>`
+    if (!isActive) {
+      li.addEventListener('click', async () => {
+        await mabrionaBrowser.switchToProfile(p.id)
+        togglePanel('profile')
+      })
+    }
+    const canDelete = await mabrionaBrowser.canDeleteProfile(p.id)
+    if (canDelete) {
+      const del = document.createElement('button')
+      del.className = 'item-delete'
+      del.type = 'button'
+      del.title = 'Borrar este perfil (borra sus datos de verdad, no se puede deshacer)'
+      del.textContent = '✕'
+      del.addEventListener('click', async (e) => {
+        e.stopPropagation()
+        if (!confirm(`¿Borrar el perfil "${p.name}"? Se borra su historial, favoritos, cookies y todo lo demás. No se puede deshacer.`)) return
+        const result = await mabrionaBrowser.deleteProfile(p.id)
+        if (!result.ok) { alert(result.reason); return }
+        refreshProfilePanel()
+      })
+      li.appendChild(del)
+    }
+    ul.appendChild(li)
+  }
+}
+
+document.getElementById('profile-guest').addEventListener('click', () => { mabrionaBrowser.newGuestWindow(); togglePanel('profile') })
+document.getElementById('profile-create').addEventListener('click', async () => {
+  const input = document.getElementById('profile-new-name')
+  const errorEl = document.getElementById('profile-create-error')
+  const name = input.value.trim()
+  errorEl.classList.add('hidden')
+  if (!name) { errorEl.textContent = 'Ponele un nombre al perfil.'; errorEl.classList.remove('hidden'); return }
+  const profile = await mabrionaBrowser.createProfile(name)
+  input.value = ''
+  await mabrionaBrowser.switchToProfile(profile.id)
+  togglePanel('profile')
+})
+
 // ---------------- Settings — solo capacidades reales, nada de switches decorativos ----------------
 
 async function refreshSettingsPanel() {
   const dir = await mabrionaBrowser.getDownloadsDir()
   document.getElementById('settings-downloads-path').textContent = `Carpeta actual: ${dir}`
+  const active = await mabrionaBrowser.getActiveProfile()
+  document.getElementById('settings-active-profile').textContent = active ? `Perfil: ${active.emoji} ${active.name}` : ''
+  document.getElementById('settings-restore-session').checked = await mabrionaBrowser.getRestoreSession()
+  document.getElementById('settings-search-engine').value = await mabrionaBrowser.getSearchEngine()
   await refreshSettingsPermissions()
 }
+document.getElementById('settings-restore-session').addEventListener('change', (e) => {
+  mabrionaBrowser.setRestoreSession(e.target.checked)
+})
+document.getElementById('settings-search-engine').addEventListener('change', (e) => {
+  mabrionaBrowser.setSearchEngine(e.target.value)
+})
 
 async function refreshSettingsPermissions() {
   const all = await mabrionaBrowser.listPermissions()
@@ -308,6 +378,7 @@ mabrionaBrowser.onDownloadsState(() => {
   if (!document.getElementById('panel-downloads').classList.contains('hidden')) refreshDownloadsPanel()
 })
 mabrionaBrowser.getTabsState().then(render)
+refreshProfileButton()
 
 // Permisos por sitio (cámara/micrófono) — pedido real de un sitio real, el usuario decide de
 // verdad; nunca se asume "permitir" ni "bloquear" sin que la persona lo haya tocado.

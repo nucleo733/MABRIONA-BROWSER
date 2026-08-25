@@ -54,4 +54,18 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   setZoom: (id, factor) => ipcRenderer.invoke('zoom:set', { id, factor }),
 
   newWindow: () => ipcRenderer.invoke('windows:new'),
+  newGuestWindow: () => ipcRenderer.invoke('windows:new-guest'),
+
+  getSearchEngine: () => ipcRenderer.invoke('settings:get-search-engine'),
+  setSearchEngine: (engine) => ipcRenderer.invoke('settings:set-search-engine', engine),
+  getRestoreSession: () => ipcRenderer.invoke('settings:get-restore-session'),
+  setRestoreSession: (enabled) => ipcRenderer.invoke('settings:set-restore-session', enabled),
+
+  listProfiles: () => ipcRenderer.invoke('profiles:list'),
+  getActiveProfile: () => ipcRenderer.invoke('profiles:get-active'),
+  createProfile: (name, emoji) => ipcRenderer.invoke('profiles:create', { name, emoji }),
+  renameProfile: (id, name) => ipcRenderer.invoke('profiles:rename', { id, name }),
+  canDeleteProfile: (id) => ipcRenderer.invoke('profiles:can-delete', id),
+  deleteProfile: (id) => ipcRenderer.invoke('profiles:delete', id),
+  switchToProfile: (id) => ipcRenderer.invoke('profiles:switch-to', id),
 })

@@ -28,6 +28,9 @@
       <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
       <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
       <button id="btn-more" class="nav-btn" title="Más opciones" aria-label="Más opciones">⋯</button>
+      <button id="btn-profile" class="nav-btn" title="Perfil" aria-label="Perfil">
+        <span id="profile-emoji">👤</span>
+      </button>
       <button id="btn-settings" class="nav-btn" title="Configuración" aria-label="Configuración">⚙️</button>
       <button id="btn-menu" class="nav-btn" title="Ventanas, privado y zoom" aria-label="Ventanas, privado y zoom">☰</button>
     </div>
@@ -70,6 +73,7 @@
       <button id="more-history" type="button" class="settings-btn">🕘 Historial</button>
       <button id="more-downloads" type="button" class="settings-btn">⬇︎ Descargas</button>
       <button id="more-favorites" type="button" class="settings-btn">★ Favoritos</button>
+      <button id="more-profile" type="button" class="settings-btn">👤 Perfil</button>
     </div>
   </div>
 
@@ -88,6 +92,24 @@
         <button id="zoom-in" type="button" class="nav-btn" aria-label="Acercar">+</button>
         <button id="zoom-reset" type="button" class="settings-btn">Restablecer</button>
       </div>
+    </div>
+  </div>
+
+  <div id="panel-profile" class="panel hidden" role="dialog" aria-label="Perfil">
+    <div class="panel-header">
+      <span>Perfil</span>
+      <button class="panel-close" data-close="profile">✕</button>
+    </div>
+    <div class="panel-body">
+      <p class="settings-note" id="profile-active-note"></p>
+      <ul id="profile-list" class="panel-list"></ul>
+      <button id="profile-guest" type="button" class="settings-btn">🕶️ Modo invitado</button>
+      <p class="settings-note">Una ventana nueva, sin guardar nada — ni historial, ni favoritos, ni cookies. Se olvida todo al cerrarla.</p>
+      <div class="profile-create-row">
+        <input id="profile-new-name" type="text" placeholder="Nombre del perfil nuevo" aria-label="Nombre del perfil nuevo" maxlength="40" />
+        <button id="profile-create" type="button" class="settings-btn">+ Crear perfil</button>
+      </div>
+      <p id="profile-create-error" class="settings-note hidden"></p>
     </div>
   </div>
 
@@ -131,6 +153,27 @@
       <button class="panel-close" data-close="settings">✕</button>
     </div>
     <div class="panel-body">
+      <section class="settings-section">
+        <h3>General</h3>
+        <p id="settings-active-profile" class="settings-note"></p>
+        <label class="shields-toggle">
+          <input id="settings-restore-session" type="checkbox" />
+          Restaurar las pestañas abiertas al iniciar
+        </label>
+      </section>
+
+      <section class="settings-section">
+        <h3>Búsqueda</h3>
+        <p class="settings-note">El motor que usa la barra de direcciones cuando escribís algo que no es una dirección web. MABRIONA nunca es la única opción — elegí cualquiera.</p>
+        <select id="settings-search-engine" aria-label="Motor de búsqueda">
+          <option value="mabriona">MABRIONA Search</option>
+          <option value="google">Google</option>
+          <option value="bing">Bing</option>
+          <option value="duckduckgo">DuckDuckGo</option>
+          <option value="brave">Brave Search</option>
+        </select>
+      </section>
+
       <section class="settings-section">
         <h3>Privacidad</h3>
         <button id="settings-clear-data" type="button" class="settings-btn">Borrar datos de navegación</button>
