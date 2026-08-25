@@ -12,7 +12,7 @@
     "test": "node --test test/address-resolver.test.js test/blocklist.test.js test/braveSearch.test.js test/permissions.test.js test/profiles.test.js test/settings.test.js test/spectrumResolver.test.js test/store.test.js test/tools.test.js",
     "dist": "electron-builder --mac zip dir",
     "dist:linux": "electron-builder --linux AppImage",
-    "dist:win": "electron-builder --win nsis"
+    "dist:win": "electron-builder --win nsis --publish=never"
   },
   "devDependencies": {
     "electron": "^31.0.0",

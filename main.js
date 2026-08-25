@@ -610,7 +610,14 @@ ipcMain.handle('profiles:delete', (_e, id) => {
 // ventanas del mismo perfil sin que la persona lo pida con Cmd+N); si no, se abre una nueva.
 ipcMain.handle('profiles:switch-to', (_e, profileId) => {
   const existing = findWindowForProfile(profileId)
-  if (existing != null) { windows.get(existing).window.focus(); return existing }
+  if (existing != null) {
+    windows.get(existing).window.focus()
+    // "Último perfil activo" tiene que reflejar de verdad al que la persona está usando, no solo
+    // al que se creó más recientemente — si no, la próxima vez que abra la app arrancaría en el
+    // perfil equivocado aunque haya vuelto a enfocar Principal antes de cerrar.
+    registry.setLastActiveProfileId(profileId)
+    return existing
+  }
   return createWindow({ profileId, restoreSession: true })
 })
 
