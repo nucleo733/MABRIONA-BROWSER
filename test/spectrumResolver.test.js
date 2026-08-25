@@ -49,7 +49,7 @@ test('herramienta real (calculadora) queda primera — es la respuesta más dire
   assert.equal(result.tabs[1].id, 'tools')
 })
 
-test('muchas categorías reales: las que exceden el máximo visible van a "overflow" (Más)', () => {
+test('con todas las categorías reales posibles a la vez (6 + Imágenes), ninguna queda escondida en "Más" — sin restricción artificial', () => {
   const result = resolveSpectrum({
     web: web(5),
     videos: [...video(2, false), ...video(2, true)],
@@ -57,10 +57,27 @@ test('muchas categorías reales: las que exceden el máximo visible van a "overf
     locations: place(2),
     tool: { type: 'datetime', now: new Date().toISOString() },
   })
-  assert.ok(result.tabs.length <= MAX_VISIBLE_TABS + 1, `Todo + máximo ${MAX_VISIBLE_TABS} pestañas visibles, encontré ${result.tabs.length}`)
-  assert.ok(result.overflow.length > 0, 'con 6 categorías reales + Imágenes esperaba overflow')
+  assert.equal(result.overflow.length, 0, `hoy solo existen 7 categorías reales posibles (cabe MAX_VISIBLE_TABS=${MAX_VISIBLE_TABS}) — no debería haber overflow`)
+  assert.equal(result.tabs.length, 8, 'Todo + las 6 categorías reales + Imágenes = 8 pestañas visibles')
   const allIds = [...result.tabs.map((t) => t.id), ...result.overflow.map((t) => t.id)]
   assert.deepEqual(new Set(allIds).size, allIds.length, 'no debe haber pestañas duplicadas entre visibles y overflow')
+})
+
+test('el mecanismo de "Más" sigue funcionando como red de seguridad si algún día hay más candidatas que el máximo', () => {
+  const manyCandidates = [
+    { id: 'a', label: 'A', score: 10 },
+    { id: 'b', label: 'B', score: 9 },
+    { id: 'c', label: 'C', score: 8 },
+    { id: 'd', label: 'D', score: 7 },
+    { id: 'e', label: 'E', score: 6 },
+    { id: 'f', label: 'F', score: 5 },
+    { id: 'g', label: 'G', score: 4 },
+    { id: 'h', label: 'H', score: 3 },
+  ]
+  const visible = manyCandidates.slice(0, MAX_VISIBLE_TABS)
+  const overflow = manyCandidates.slice(MAX_VISIBLE_TABS)
+  assert.equal(visible.length, MAX_VISIBLE_TABS)
+  assert.equal(overflow.length, manyCandidates.length - MAX_VISIBLE_TABS)
 })
 
 test('Imágenes siempre es candidata (ciega, se autorregula del lado del cliente) mientras haya algo más real', () => {

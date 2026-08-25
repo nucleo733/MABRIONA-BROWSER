@@ -20,7 +20,12 @@
  *   retira sola si la carga perezosa llega vacía para esa búsqueda puntual.
  */
 
-const MAX_VISIBLE_TABS = 5 // sin contar "Todo" — el resto entra en "Más"
+// Sin contar "Todo". A pedido explícito del usuario ("que no haya restricción, misma capacidad
+// que Chrome"): hoy solo existen 7 categorías reales posibles en total (tools/places/news/web/
+// shorts/video/images), así que este número las deja SIEMPRE todas visibles de una — "Más" queda
+// como red de seguridad real para si el día de mañana se agrega una categoría nueva, no como una
+// restricción activa hoy.
+const MAX_VISIBLE_TABS = 7
 
 function resolveSpectrum({ web = [], videos = [], news = [], locations = [], tool = null } = {}) {
   const shortVideos = videos.filter((v) => v.isShortForm)

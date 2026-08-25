@@ -512,7 +512,10 @@ if (placesInfo.tabs.includes('Cortos')) {
   skip('MABRIONA Cortos', 'esta corrida no trajo videos de TikTok/Shorts reales — no siempre es determinístico')
 }
 
-// Menú "Más" — solo si esta corrida generó suficientes categorías reales como para desbordar.
+// Menú "Más" — a pedido explícito del usuario ("sin restricción, misma capacidad que Chrome") el
+// máximo de pestañas visibles se subió a 7, que es hoy el total de categorías reales posibles, así
+// que en la práctica esto casi nunca dispara — se deja como red de seguridad real, no decorativa
+// (probado en unit tests con datos sintéticos que si exceden el máximo, sí van a "Más").
 const overflowInfo = await app.evaluate(({ BrowserWindow }) => {
   const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
   return view.webContents.executeJavaScript(`({

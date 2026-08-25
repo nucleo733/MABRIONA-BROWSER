@@ -482,20 +482,20 @@ function renderSpectrumView(tabId, data, container) {
   const main = el('div', 'results-main')
   if (data.locations.length > 0) {
     main.appendChild(el('p', 'section-heading', 'Lugares'))
-    renderLocationsList(data.locations, main, 3)
+    renderLocationsList(data.locations, main, 6)
   }
   if (data.faq && data.faq.length > 0) renderFaq(data.faq, main)
   if (data.news.length > 0) {
     main.appendChild(el('p', 'section-heading', 'Noticias'))
-    renderNewsList(data.news, main, 3)
+    renderNewsList(data.news, main, 6)
   }
   if (shortVideos.length > 0) {
     main.appendChild(el('p', 'section-heading', 'Cortos'))
-    renderVideoGrid(shortVideos, main, 4, 'shorts-grid')
+    renderVideoGrid(shortVideos, main, 8, 'shorts-grid')
   }
   if (longVideos.length > 0) {
     main.appendChild(el('p', 'section-heading', 'Videos'))
-    renderVideoGrid(longVideos, main, 4)
+    renderVideoGrid(longVideos, main, 8)
   }
   if (data.web.length > 0) {
     main.appendChild(el('p', 'section-heading', 'Web'))
