@@ -96,6 +96,27 @@ function normalizeInfobox(data) {
           .filter((p) => p && p.name && p.url)
           .map((p) => ({ name: String(p.name), url: String(p.url), icon: typeof p.img === 'string' ? p.img : null }))
       : [],
+    // Foto real de la entidad — Brave la trae en `images[]` (proxeada por imgs.search.brave.com,
+    // mismo dominio ya permitido en la CSP). Se toma la primera; no se elige "la mejor" para no
+    // inventar un criterio que Brave no da.
+    image: Array.isArray(box.images) && box.images[0] && typeof box.images[0].src === 'string' ? box.images[0].src : null,
+    // Sitio oficial — campo real distinto de `sourceUrl` (que es la página fuente, casi siempre
+    // Wikipedia) y de `profiles` (redes/perfiles). No siempre viene.
+    websiteUrl: typeof box.website_url === 'string' ? box.website_url : null,
+    // Valoraciones reales con fuente y cantidad de reseñas (ej. IMDb, App Store) — vacío para la
+    // mayoría de personas/lugares, presente para apps/películas/productos. Nunca se inventa un
+    // promedio: si Brave no trae `ratings`, queda `[]`.
+    ratings: Array.isArray(box.ratings)
+      ? box.ratings
+          .filter((r) => r && typeof r.ratingValue === 'number' && typeof r.bestRating === 'number' && r.profile && r.profile.name)
+          .map((r) => ({
+            value: r.ratingValue,
+            best: r.bestRating,
+            reviewCount: typeof r.reviewCount === 'number' ? r.reviewCount : null,
+            sourceName: String(r.profile.name),
+            sourceUrl: typeof r.profile.url === 'string' ? r.profile.url : null,
+          }))
+      : [],
   }
 }
 

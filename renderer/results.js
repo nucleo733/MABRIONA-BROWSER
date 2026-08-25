@@ -46,7 +46,14 @@ function el(tag, className, text) {
  * plano siempre, nunca innerHTML con contenido de un tercero (decodificar por textarea.value es
  * seguro, no ejecuta nada). */
 function stripHtml(text) {
-  const withoutTags = String(text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  // Wikipedia arma algunos atributos (ej. "Spouses", fechas de matrimonio/divorcio) con un módulo
+  // interno cuyo render queda roto en la fuente real de Brave: deja el literal `"}]]}'>` pegado al
+  // texto, ej. `(married</span>"}]]}'>m. 1994)`. No es una etiqueta (no empieza con `<`), así que
+  // el strip de tags de abajo no lo toca — se ve consistente en múltiples entidades reales
+  // (Michael Jackson, Barack Obama, Elon Musk, Taylor Swift), así que se limpia puntualmente acá en
+  // vez de dejarlo como basura visible.
+  const withoutTemplateLeak = String(text).replaceAll('"}]]}\'>', '')
+  const withoutTags = withoutTemplateLeak.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
   const textarea = document.createElement('textarea')
   textarea.innerHTML = withoutTags
   return textarea.value
@@ -100,22 +107,70 @@ function friendlyCategory(category) {
   return CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)
 }
 
+/** Estrellas reales renderizadas a partir de una nota real sobre una escala real (ej. 8.7/10,
+ * 4.7/5) — se normaliza a 5 estrellas para mostrarlas, pero el número real siempre queda visible al
+ * lado, nunca se le esconde la escala original al usuario. */
+function renderRatingStars(value, best) {
+  const normalized = Math.max(0, Math.min(5, (value / best) * 5))
+  const full = Math.round(normalized)
+  return '★'.repeat(full) + '☆'.repeat(5 - full)
+}
+
 function renderEntityFocus(box) {
   const card = el('div', 'entity-focus')
 
-  // Identidad
+  // Identidad — con foto real cuando Brave la trae (Michael Jackson, The Matrix, etc.), nunca un
+  // placeholder gris: si no hay `box.image`, esta fila es solo texto, igual que antes.
+  const header = el('div', 'entity-header')
+  if (box.image) {
+    const photoWrap = el('div', 'entity-photo')
+    const img = document.createElement('img')
+    img.src = box.image
+    img.alt = box.title
+    photoWrap.appendChild(img)
+    header.appendChild(photoWrap)
+  }
+  const identity = el('div', 'entity-identity')
   const category = friendlyCategory(box.category)
-  if (category) card.appendChild(el('span', 'entity-category', category))
-  card.appendChild(el('h2', null, box.title))
+  if (category) identity.appendChild(el('span', 'entity-category', category))
+  identity.appendChild(el('h2', null, box.title))
   const desc = box.longDescription || box.description
-  if (desc) card.appendChild(el('p', 'entity-desc', stripHtml(desc).slice(0, 400)))
+  if (desc) identity.appendChild(el('p', 'entity-desc', stripHtml(desc).slice(0, 400)))
+  if (box.websiteUrl) {
+    let host = box.websiteUrl
+    try { host = new URL(box.websiteUrl).hostname } catch { /* URL rara, mostrar tal cual */ }
+    const site = el('a', 'entity-website')
+    site.href = box.websiteUrl
+    site.textContent = `Sitio oficial: ${host} →`
+    identity.appendChild(site)
+  }
+  header.appendChild(identity)
+  card.appendChild(header)
+
+  // Valoraciones reales (apps/películas/productos) — con fuente y cantidad de reseñas siempre
+  // visibles, nunca un promedio sin decir de dónde sale.
+  if (box.ratings.length > 0) {
+    card.appendChild(el('p', 'section-heading', 'Valoraciones'))
+    const row = el('div', 'entity-ratings')
+    for (const rating of box.ratings) {
+      const item = el('a', 'entity-rating')
+      item.href = rating.sourceUrl || '#'
+      item.appendChild(el('span', 'entity-rating-stars', renderRatingStars(rating.value, rating.best)))
+      const scoreText = rating.reviewCount != null
+        ? `${rating.value}/${rating.best} · ${rating.sourceName} (${rating.reviewCount.toLocaleString('es')})`
+        : `${rating.value}/${rating.best} · ${rating.sourceName}`
+      item.appendChild(el('span', 'entity-rating-score', scoreText))
+      row.appendChild(item)
+    }
+    card.appendChild(row)
+  }
 
   // Atributos — solo los que de verdad tienen un valor (ver normalizeInfobox: las filas
   // separadoras de sección de la tabla original ya vienen descartadas).
   if (box.attributes.length > 0) {
     card.appendChild(el('p', 'section-heading', 'Atributos'))
     const grid = el('div', 'entity-attrs')
-    for (const attr of box.attributes.slice(0, 8)) {
+    for (const attr of box.attributes.slice(0, 16)) {
       const item = el('div', 'entity-attr')
       item.appendChild(el('span', 'label', attr.label))
       item.appendChild(el('span', 'value', stripHtml(attr.value)))

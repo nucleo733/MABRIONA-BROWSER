@@ -144,6 +144,7 @@ const spectrumInfo = await app.evaluate(({ BrowserWindow }) => {
     hasEntityFocus: !!document.querySelector('.entity-focus'),
     entityTitle: document.querySelector('.entity-focus h2')?.textContent || null,
     entitySourceHref: document.querySelector('.entity-source')?.getAttribute('href') || null,
+    entityPhotoSrc: document.querySelector('.entity-photo img')?.getAttribute('src') || null,
     hasVideoGrid: !!document.querySelector('.video-grid'),
     faqQuestionCount: document.querySelectorAll('.faq-item').length,
     orbitNodeCount: document.querySelectorAll('.orbit-node').length,
@@ -159,6 +160,8 @@ else skip('Entity Focus', 'Brave no devolvió infobox para esta búsqueda en est
 if (spectrumInfo.hasEntityFocus) {
   if (spectrumInfo.entitySourceHref && spectrumInfo.entitySourceHref.startsWith('http')) ok(`MABRIONA Search: Entity Focus conserva el enlace real a su fuente (${spectrumInfo.entitySourceHref})`)
   else bad('Entity Focus — fuente', 'no hay enlace de fuente aunque hay Entity Focus')
+  if (spectrumInfo.entityPhotoSrc) ok(`MABRIONA Search: Entity Focus muestra una foto real de la entidad (${spectrumInfo.entityPhotoSrc.slice(0, 60)})`)
+  else skip('Entity Focus — foto', 'Brave no trajo imagen para esta entidad en esta corrida — no siempre viene, no es un bug')
 }
 if (spectrumInfo.tabs.includes('Videos') ? spectrumInfo.hasVideoGrid : true) ok('MABRIONA Search: la pestaña Videos (si aparece) trae una grilla real')
 else bad('Video grid', 'la pestaña Video está pero no hay grilla')
@@ -282,6 +285,54 @@ if (spectrumInfo.tabs.includes('Imágenes')) {
   } else {
     bad('pestaña Imágenes', JSON.stringify(imagesInfo))
   }
+}
+
+// Entity Focus más completo: valoraciones reales con fuente (IMDb) y sitio oficial — búsqueda de
+// una película real que la auditoría de esta fase mostró que trae `ratings`/`website_url`.
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'the matrix movie'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(3000)
+const ratingsInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    hasEntityFocus: !!document.querySelector('.entity-focus'),
+    ratingCount: document.querySelectorAll('.entity-rating').length,
+    ratingText: document.querySelector('.entity-rating-score')?.textContent || null,
+    websiteText: document.querySelector('.entity-website')?.textContent || null,
+  })`)
+})
+if (ratingsInfo.hasEntityFocus && ratingsInfo.ratingCount > 0) {
+  ok(`MABRIONA Search: Entity Focus muestra valoraciones reales con fuente (${ratingsInfo.ratingText})`)
+} else if (ratingsInfo.hasEntityFocus) {
+  skip('Entity Focus — valoraciones', 'Brave no trajo ratings para esta búsqueda en esta corrida — no siempre viene, no es un bug')
+} else {
+  skip('Entity Focus — valoraciones', 'esta corrida no reconoció la entidad "The Matrix" — no siempre es determinístico')
+}
+if (ratingsInfo.websiteText) ok(`MABRIONA Search: Entity Focus muestra el sitio oficial real (${ratingsInfo.websiteText})`)
+
+// Artefacto real de plantilla rota de Wikipedia en atributos de matrimonio/divorcio (ver
+// stripHtml) — verificado con una persona real que sabemos que lo trae.
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = 'michael jackson'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(3000)
+const attrsText = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript("document.querySelector('.entity-attrs')?.textContent || null")
+})
+if (attrsText === null) {
+  skip('Entity Focus — limpieza de atributos', 'esta corrida no reconoció la entidad "Michael Jackson" — no siempre es determinístico')
+} else if (!attrsText.includes('}]]}')) {
+  ok('MABRIONA Search: el artefacto roto de Wikipedia ("}]]}\'>") se limpia de los atributos reales')
+} else {
+  bad('limpieza de atributos', 'el artefacto sigue visible en el texto real')
 }
 
 // Noticias + Lugares — buscar algo de actualidad real ("taylor swift" trae infobox+faq+news+

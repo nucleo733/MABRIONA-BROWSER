@@ -113,6 +113,55 @@ test('normalizeInfobox no rompe si attributes/profiles vienen con forma rara', (
   assert.deepEqual(box.profiles, [])
 })
 
+test('normalizeInfobox extrae la foto real (primera de images[]), sitio oficial y valoraciones reales (forma real de "the matrix movie")', () => {
+  const data = {
+    infobox: {
+      results: [
+        {
+          title: 'The Matrix',
+          website_url: 'https://www.warnerbros.com/movies/matrix',
+          images: [{ src: 'https://imgs.search.brave.com/logo.png', alt: 'The-matrix-logo', logo: true }],
+          ratings: [
+            {
+              ratingValue: 8.7,
+              bestRating: 10,
+              reviewCount: 2230711,
+              profile: { name: 'IMDb', url: 'https://www.imdb.com/title/tt0133093/', long_name: 'Internet Movie Database' },
+            },
+          ],
+        },
+      ],
+    },
+  }
+  const box = normalizeInfobox(data)
+  assert.equal(box.image, 'https://imgs.search.brave.com/logo.png')
+  assert.equal(box.websiteUrl, 'https://www.warnerbros.com/movies/matrix')
+  assert.deepEqual(box.ratings, [
+    { value: 8.7, best: 10, reviewCount: 2230711, sourceName: 'IMDb', sourceUrl: 'https://www.imdb.com/title/tt0133093/' },
+  ])
+})
+
+test('normalizeInfobox: image/websiteUrl/ratings quedan null/[] cuando Brave no los manda (la mayoría de personas/lugares) — nunca se inventan', () => {
+  const box = normalizeInfobox({ infobox: { results: [{ title: 'X' }] } })
+  assert.equal(box.image, null)
+  assert.equal(box.websiteUrl, null)
+  assert.deepEqual(box.ratings, [])
+})
+
+test('normalizeInfobox descarta ratings con forma rara (sin nombre de fuente o sin nota numérica) en vez de romper', () => {
+  const data = {
+    infobox: {
+      results: [
+        {
+          title: 'X',
+          ratings: [{ ratingValue: 4 }, { ratingValue: 'no-es-numero', bestRating: 5, profile: { name: 'Y' } }, 'no-es-objeto'],
+        },
+      ],
+    },
+  }
+  assert.deepEqual(normalizeInfobox(data).ratings, [])
+})
+
 test('normalizeVideos extrae título/url/miniatura/duración/fuente de una respuesta real', () => {
   const data = {
     videos: {
