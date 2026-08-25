@@ -41,12 +41,22 @@ jobs:
           $installer = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
           Write-Host "Instalador: $($installer.FullName)"
           Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
-          Start-Sleep -Seconds 5
-          $exePath = "$env:LOCALAPPDATA\Programs\mabriona-browser\MABRIONA Browser.exe"
-          if (-not (Test-Path $exePath)) {
-            $exePath = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Recurse -Filter "MABRIONA Browser.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+
+          $searchRoots = @("$env:LOCALAPPDATA\Programs", $env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA")
+          $exePath = $null
+          for ($i = 0; $i -lt 6 -and -not $exePath; $i++) {
+            foreach ($root in $searchRoots) {
+              if (-not $root -or -not (Test-Path $root)) { continue }
+              $found = Get-ChildItem -Path $root -Recurse -Filter "MABRIONA Browser.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+              if ($found) { $exePath = $found; break }
+            }
+            if (-not $exePath) { Start-Sleep -Seconds 3 }
           }
-          if (-not $exePath) { Write-Error "No se encontró MABRIONA Browser.exe instalado — la instalación silenciosa falló."; exit 1 }
+          if (-not $exePath) {
+            Write-Host "No se encontró el .exe instalado. Contenido real de las carpetas de instalación típicas:"
+            foreach ($root in $searchRoots) { if ($root -and (Test-Path $root)) { Get-ChildItem -Path $root -Recurse -ErrorAction SilentlyContinue | Select-Object -First 40 FullName } }
+            Write-Error "No se encontró MABRIONA Browser.exe instalado — la instalación silenciosa falló."; exit 1
+          }
           Write-Host "Instalado en: $exePath"
           Start-Process -FilePath $exePath
           Start-Sleep -Seconds 8
