@@ -9,14 +9,9 @@
  * a veces un panel de entidad (Entity Focus, cuando Brave reconoce a
  * quién/qué se busca — persona, lugar, cosa), a veces videos y a
  * veces preguntas frecuentes reales (MABRIONA FAQ) — todo en la misma
- * llamada, sin pedir nada extra. Cuando además existen relaciones REALES
- * y verificables (enlaces explícitos dentro del infobox, perfiles,
- * fuente, contenido co-devuelto para la misma entidad reconocida), se
- * arma Context Orbit — ver `search/contextGraph.js` para las reglas de
- * evidencia/confianza que sostienen cada nodo. Se arma todo con el
- * diseño propio de MABRIONA (Spectrum + Entity Focus + FAQ + Context
- * Orbit) — nada de esto es HTML de Brave, es JSON que MABRIONA renderiza
- * con su propia identidad visual.
+ * llamada, sin pedir nada extra. Se arma todo con el diseño propio de
+ * MABRIONA (Spectrum + Entity Focus + FAQ) — nada de esto es HTML de
+ * Brave, es JSON que MABRIONA renderiza con su propia identidad visual.
  *
  * Desde Etapa 4: Noticias y Lugares vienen en la misma respuesta de
  * arriba (sin llamada aparte). Imágenes es la única categoría que
@@ -378,61 +373,6 @@ function renderFaq(items, container) {
   container.appendChild(section)
 }
 
-// ---------------- Context Orbit ----------------
-
-const ORBIT_TYPE_LABELS = {
-  ENTITY: 'Entidad relacionada',
-  SOURCE: 'Fuente',
-  WEBSITE: 'Sitio',
-  FAQ: 'Pregunta',
-  VIDEO: 'Video',
-  NEWS: 'Noticia',
-  DISCUSSION: 'Discusión',
-}
-
-/** Diagrama orbital propio — no es decoración: la cantidad de nodos y sus posiciones se calculan a
- * partir de las relaciones reales del Context Graph (`main.js` → `search/contextGraph.js`). Cada
- * nodo es un enlace real: al hacer click navega al contenido original, nunca a una simulación. Sin
- * imágenes externas a propósito (evita depender de dominios de terceros no cubiertos por la CSP). */
-function renderContextOrbit(graph, container) {
-  const section = el('div', 'context-orbit-section')
-  section.appendChild(el('p', 'section-heading', 'Context Orbit'))
-
-  const stage = el('div', 'context-orbit')
-  const core = el('div', 'orbit-core')
-  core.appendChild(el('span', null, graph.center.label))
-  stage.appendChild(core)
-
-  const total = graph.edges.length
-  graph.edges.forEach((edge, index) => {
-    const angleDeg = (360 / total) * index - 90
-    const angleRad = (angleDeg * Math.PI) / 180
-    const x = 50 + 50 * Math.cos(angleRad)
-    const y = 50 + 50 * Math.sin(angleRad)
-
-    const line = el('div', 'orbit-line')
-    line.style.transform = `rotate(${angleDeg}deg)`
-    stage.appendChild(line)
-
-    const node = el('a', `orbit-node orbit-node--${edge.confidence}`)
-    node.href = edge.target.url
-    node.style.left = `${x}%`
-    node.style.top = `${y}%`
-    node.appendChild(el('span', 'orbit-node-dot'))
-
-    const tooltip = el('span', 'orbit-tooltip')
-    tooltip.appendChild(el('strong', null, edge.target.label))
-    tooltip.appendChild(el('em', null, ORBIT_TYPE_LABELS[edge.target.type] || edge.target.type))
-    tooltip.appendChild(el('span', 'orbit-tooltip-relation', edge.type))
-    node.appendChild(tooltip)
-
-    stage.appendChild(node)
-  })
-
-  section.appendChild(stage)
-  container.appendChild(section)
-}
-
 // ---------------- Herramientas (filtros reales) ----------------
 
 /** Único filtro real disponible hoy: frescura por fecha (`freshness` real de Brave, verificado con
@@ -533,11 +473,10 @@ function renderSpectrumView(tabId, data, container) {
     return
   }
   // "Todo" — composición con jerarquía: la respuesta más directa posible primero (una herramienta
-  // real, si la consulta es exactamente eso), entidad, Context Orbit, lugares (negocio local), FAQ,
-  // una muestra de noticias, cortos, video, y web al final. Cada sección se omite si no hay dato real.
+  // real, si la consulta es exactamente eso), entidad, lugares (negocio local), FAQ, una muestra de
+  // noticias, cortos, video, y web al final. Cada sección se omite si no hay dato real.
   if (data.tool) renderToolResult(data.tool, container)
   if (data.infobox) container.appendChild(renderEntityFocus(data.infobox))
-  if (data.contextGraph) renderContextOrbit(data.contextGraph, container)
   if (data.locations.length > 0) {
     container.appendChild(el('p', 'section-heading', 'Lugares'))
     renderLocationsList(data.locations, container, 3)

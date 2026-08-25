@@ -14,11 +14,9 @@ const {
   normalizeVideos,
   normalizeFaq,
   normalizeNews,
-  normalizeDiscussions,
   normalizeLocations,
   normalizeImages,
 } = require('./search/braveSearch')
-const { buildContextGraph } = require('./search/contextGraph')
 const { detectTool } = require('./search/tools')
 const { resolveSpectrum } = require('./search/spectrumResolver')
 
@@ -489,7 +487,6 @@ const SEARCH_EMPTY = {
   faq: [],
   news: [],
   locations: [],
-  contextGraph: null,
   tool: null,
   spectrum: { tabs: [], overflow: [] },
 }
@@ -513,14 +510,13 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
     }
     const data = await res.json()
     // Todo sale de esta misma respuesta — Brave ya la trae completa, no se hace ninguna llamada
-    // extra para FAQ, News, Locations ni Context Orbit (misma regla desde Etapa 1: sin red extra
-    // para "llenar" la UI). Imágenes es la única excepción real: Brave no la incluye acá (ver
-    // `search:images` — confirmado contra la cuenta real que necesita su propio endpoint).
+    // extra para FAQ, News ni Locations (misma regla desde Etapa 1: sin red extra para "llenar" la
+    // UI). Imágenes es la única excepción real: Brave no la incluye acá (ver `search:images` —
+    // confirmado contra la cuenta real que necesita su propio endpoint).
     const infobox = normalizeInfobox(data)
     const faq = normalizeFaq(data)
     const videos = normalizeVideos(data)
     const news = normalizeNews(data)
-    const discussions = normalizeDiscussions(data)
     const locations = normalizeLocations(data)
     const web = normalizeResults(data)
     return {
@@ -531,7 +527,6 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
       faq,
       news,
       locations,
-      contextGraph: buildContextGraph({ infobox, faq, videos, news, discussions }),
       tool,
       spectrum: resolveSpectrum({ web, videos, news, locations, tool }),
     }

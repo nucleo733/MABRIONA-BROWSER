@@ -249,21 +249,6 @@ function normalizeImages(data) {
     }))
 }
 
-/** Discusiones reales (mayormente Reddit) que Brave trae para algunas búsquedas de actualidad/tema
- * amplio. Mismo criterio que normalizeNews: solo se normaliza para Context Orbit, no se convierte
- * en una función/pestaña propia todavía. */
-function normalizeDiscussions(data) {
-  const results = data?.discussions?.results
-  if (!Array.isArray(results)) return []
-  return results
-    .filter((d) => d && d.url && d.title)
-    .map((d) => ({
-      title: String(d.title),
-      url: String(d.url),
-      forum: typeof d?.data?.forum_name === 'string' ? d.data.forum_name : null,
-    }))
-}
-
 module.exports = {
   buildRequest,
   buildImagesRequest,
@@ -274,7 +259,6 @@ module.exports = {
   isShortFormVideo,
   normalizeFaq,
   normalizeNews,
-  normalizeDiscussions,
   normalizeLocations,
   normalizeImages,
   BRAVE_ENDPOINT,
