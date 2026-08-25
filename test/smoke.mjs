@@ -879,6 +879,30 @@ if (shieldsToggleVisible) ok('panel de MABRIONA SHIELDS abre con el toggle visib
 else bad('panel de shields', 'el toggle no está visible')
 await win.locator('[data-close="shields"]').click()
 
+// Shields real: pedidos de red reales a rastreadores reales (google-analytics.com,
+// doubleclick.net) — no alcanza con que el toggle exista, tiene que bloquear de verdad.
+const trackerFixture = 'file://' + path.join(appRoot, 'test', 'fixtures', 'tracker-page.html')
+await win.locator('#address').fill(trackerFixture)
+await win.locator('#address').press('Enter')
+await win.waitForTimeout(1500)
+const blockedWithShieldsOn = await win.locator('#shields-count').textContent()
+if (Number(blockedWithShieldsOn) > 0) ok(`MABRIONA SHIELDS real: bloqueó ${blockedWithShieldsOn} pedido(s) reales a rastreadores conocidos (con Shields activo)`)
+else bad('Shields activo — bloqueo real', `esperaba > 0, encontré "${blockedWithShieldsOn}"`)
+
+await win.locator('#btn-shields').click()
+await win.waitForTimeout(200)
+await win.locator('#shields-toggle-input').uncheck()
+await win.locator('[data-close="shields"]').click()
+await win.locator('#btn-reload').click()
+await win.waitForTimeout(1500)
+const blockedWithShieldsOff = await win.locator('#shields-count').textContent()
+if (Number(blockedWithShieldsOff) === 0) ok('MABRIONA SHIELDS real: con Shields desactivado, los mismos pedidos pasan (0 bloqueados) — el toggle controla de verdad el filtro de red')
+else bad('Shields desactivado — no debería bloquear', `esperaba 0, encontré "${blockedWithShieldsOff}"`)
+await win.locator('#btn-shields').click()
+await win.waitForTimeout(200)
+await win.locator('#shields-toggle-input').check() // se deja como estaba (activado, default real)
+await win.locator('[data-close="shields"]').click()
+
 // Settings — solo capacidades reales conectadas, nada de switches decorativos.
 await win.locator('#btn-settings').click()
 await win.waitForTimeout(300)

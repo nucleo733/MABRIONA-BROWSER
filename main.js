@@ -180,7 +180,11 @@ function createTab(initialUrl, windowId, options = {}) {
     }
     saveSessionSoon(windowId)
   })
-  wc.on('did-navigate', (_e, url) => { tab.url = url; broadcastTabs(windowId); saveSessionSoon(windowId) })
+  // El contador de Shields refleja la página actual (igual que Brave/uBlock Origin) — una
+  // navegación real a otra página empieza de cero, si no el número solo crecería para siempre y
+  // dejaría de significar nada. `did-navigate-in-page` (anchors/rutas de una SPA, misma página) no
+  // cuenta como navegación nueva a propósito.
+  wc.on('did-navigate', (_e, url) => { tab.url = url; tab.blockedCount = 0; broadcastTabs(windowId); saveSessionSoon(windowId) })
   wc.on('did-navigate-in-page', (_e, url) => { tab.url = url; broadcastTabs(windowId) })
   wc.on('page-title-updated', (_e, title) => { tab.title = title; broadcastTabs(windowId) })
   wc.on('found-in-page', (_e, result) => {
