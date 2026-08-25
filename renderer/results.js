@@ -175,8 +175,8 @@ function renderWebList(results, container, limit) {
 
 // ---------------- Video ----------------
 
-function renderVideoGrid(videos, container, limit) {
-  const grid = el('div', 'video-grid')
+function renderVideoGrid(videos, container, limit, gridClass) {
+  const grid = el('div', gridClass || 'video-grid')
   for (const v of videos.slice(0, limit || videos.length)) {
     const card = el('a', 'video-card')
     card.href = v.url
@@ -411,30 +411,58 @@ function mountTools(currentFreshness, onChange) {
   return wrap
 }
 
-// ---------------- Spectrum (pestañas propias) ----------------
+// ---------------- MABRIONA Tools (calculadora / conversión / hora) ----------------
 
-function buildSpectrum(data) {
-  const tabs = [{ id: 'todo', label: 'Todo' }]
-  if (data.web.length > 0) tabs.push({ id: 'web', label: 'Web' })
-  if (data.videos.length > 0) tabs.push({ id: 'video', label: 'Video' })
-  if (data.news.length > 0) tabs.push({ id: 'news', label: 'Noticias' })
-  if (data.locations.length > 0) tabs.push({ id: 'places', label: 'Lugares' })
-  // Imágenes es la única categoría que MABRIONA no puede confirmar sin pedirla — Brave no la
-  // incluye en la misma respuesta (auditoría Etapa 4). Se ofrece la pestaña porque en la práctica
-  // casi toda búsqueda real trae imágenes, pero si al abrirla no hay ninguna, la pestaña se retira
-  // sola (ver `mountSpectrum`) — nunca se deja mostrando una categoría vacía.
-  tabs.push({ id: 'images', label: 'Imágenes' })
-  return tabs
+/** Formatea un número real sin arrastrar el ruido de coma flotante (ej. 2.2675999999999997). */
+function formatToolNumber(n) {
+  if (Number.isInteger(n)) return String(n)
+  return String(Math.round(n * 10000) / 10000)
 }
+
+const UNIT_DISPLAY_LABELS = {
+  km: 'km', m: 'm', cm: 'cm', mm: 'mm', mi: 'millas', yd: 'yardas', ft: 'pies', in: 'pulgadas',
+  kg: 'kg', g: 'g', mg: 'mg', lb: 'lb', oz: 'oz',
+  c: '°C', f: '°F', k: 'K',
+}
+
+/** Resultado calculado 100% por MABRIONA (`search/tools.js`, proceso principal) — nunca pedido a
+ * Brave ni a ningún tercero: aritmética real, conversión con factores reales, o la hora real del
+ * sistema en el momento de la búsqueda. */
+function renderToolResult(tool, container) {
+  const card = el('div', 'tool-card')
+  if (tool.type === 'calculator') {
+    card.appendChild(el('p', 'tool-expression', tool.expression))
+    card.appendChild(el('p', 'tool-result', formatToolNumber(tool.result)))
+  } else if (tool.type === 'conversion') {
+    const fromLabel = UNIT_DISPLAY_LABELS[tool.from] || tool.from
+    const toLabel = UNIT_DISPLAY_LABELS[tool.to] || tool.to
+    card.appendChild(el('p', 'tool-expression', `${formatToolNumber(tool.value)} ${fromLabel} equivale a`))
+    card.appendChild(el('p', 'tool-result', `${formatToolNumber(tool.result)} ${toLabel}`))
+  } else if (tool.type === 'datetime') {
+    const date = new Date(tool.now)
+    const formatted = new Intl.DateTimeFormat('es', { dateStyle: 'full', timeStyle: 'medium' }).format(date)
+    card.appendChild(el('p', 'tool-result', formatted.charAt(0).toUpperCase() + formatted.slice(1)))
+  }
+  container.appendChild(card)
+}
+
+// ---------------- Spectrum (pestañas propias) ----------------
 
 function renderSpectrumView(tabId, data, container) {
   container.replaceChildren()
+  const shortVideos = data.videos.filter((v) => v.isShortForm)
+  const longVideos = data.videos.filter((v) => !v.isShortForm)
+
   if (tabId === 'web') {
     renderWebList(data.web, container)
     return
   }
   if (tabId === 'video') {
-    renderVideoGrid(data.videos, container)
+    renderVideoGrid(longVideos, container)
+    return
+  }
+  if (tabId === 'shorts') {
+    renderVideoGrid(shortVideos, container, null, 'shorts-grid')
     return
   }
   if (tabId === 'news') {
@@ -445,9 +473,14 @@ function renderSpectrumView(tabId, data, container) {
     renderLocationsList(data.locations, container)
     return
   }
-  // "Todo" — composición con jerarquía: entidad primero, Context Orbit (relaciones reales, si
-  // existen), lugares (cuando la búsqueda es de un negocio local), FAQ, una muestra de noticias, una
-  // muestra de video, y web al final. Cada sección se omite por completo si no hay dato real.
+  if (tabId === 'tools') {
+    if (data.tool) renderToolResult(data.tool, container)
+    return
+  }
+  // "Todo" — composición con jerarquía: la respuesta más directa posible primero (una herramienta
+  // real, si la consulta es exactamente eso), entidad, Context Orbit, lugares (negocio local), FAQ,
+  // una muestra de noticias, cortos, video, y web al final. Cada sección se omite si no hay dato real.
+  if (data.tool) renderToolResult(data.tool, container)
   if (data.infobox) container.appendChild(renderEntityFocus(data.infobox))
   if (data.contextGraph) renderContextOrbit(data.contextGraph, container)
   if (data.locations.length > 0) {
@@ -459,9 +492,13 @@ function renderSpectrumView(tabId, data, container) {
     container.appendChild(el('p', 'section-heading', 'Noticias'))
     renderNewsList(data.news, container, 3)
   }
-  if (data.videos.length > 0) {
-    container.appendChild(el('p', 'section-heading', 'Video'))
-    renderVideoGrid(data.videos, container, 4)
+  if (shortVideos.length > 0) {
+    container.appendChild(el('p', 'section-heading', 'Cortos'))
+    renderVideoGrid(shortVideos, container, 4, 'shorts-grid')
+  }
+  if (longVideos.length > 0) {
+    container.appendChild(el('p', 'section-heading', 'Videos'))
+    renderVideoGrid(longVideos, container, 4)
   }
   if (data.web.length > 0) {
     container.appendChild(el('p', 'section-heading', 'Web'))
@@ -469,21 +506,66 @@ function renderSpectrumView(tabId, data, container) {
   }
 }
 
+/** Menú "Más" — categorías reales que existen para esta búsqueda pero no entraron en el espacio
+ * principal (ver `search/spectrumResolver.js`, máximo de pestañas visibles). Nunca lista una
+ * categoría sin datos: si `overflow` viene vacío, el botón ni se muestra. */
+function mountOverflowMenu(overflowTabs, activeId, onSelect) {
+  if (overflowTabs.length === 0) return null
+  const wrap = el('div', 'spectrum-more')
+  const trigger = el('button', 'spectrum-tab spectrum-more-trigger', 'Más ▾')
+  trigger.type = 'button'
+  trigger.setAttribute('aria-haspopup', 'true')
+  trigger.setAttribute('aria-expanded', 'false')
+  const isOverflowActive = overflowTabs.some((t) => t.id === activeId)
+  trigger.classList.toggle('active', isOverflowActive)
+
+  const menu = el('div', 'spectrum-more-menu')
+  menu.hidden = true
+  for (const tab of overflowTabs) {
+    const item = el('button', 'spectrum-more-item', tab.label)
+    item.type = 'button'
+    item.setAttribute('role', 'tab')
+    if (tab.id === activeId) item.classList.add('active')
+    item.addEventListener('click', () => {
+      menu.hidden = true
+      trigger.setAttribute('aria-expanded', 'false')
+      onSelect(tab.id)
+    })
+    menu.appendChild(item)
+  }
+
+  trigger.addEventListener('click', () => {
+    const willShow = menu.hidden
+    menu.hidden = !willShow
+    trigger.setAttribute('aria-expanded', String(willShow))
+  })
+  document.addEventListener('click', (ev) => {
+    if (!wrap.contains(ev.target)) { menu.hidden = true; trigger.setAttribute('aria-expanded', 'false') }
+  })
+
+  wrap.appendChild(trigger)
+  wrap.appendChild(menu)
+  return wrap
+}
+
 function mountSpectrum(data, container, query, freshness) {
-  const tabs = buildSpectrum(data)
+  const spectrum = data.spectrum || { tabs: [{ id: 'todo', label: 'Todo' }], overflow: [] }
   const spectrumEl = document.getElementById('spectrum')
   spectrumEl.replaceChildren()
   spectrumEl.classList.remove('hidden')
+  let tabs = spectrum.tabs
+  let overflow = spectrum.overflow
   let active = 'todo'
   let imagesCache = null
 
   async function draw() {
-    const buttons = Array.from(spectrumEl.querySelectorAll('.spectrum-tab'))
+    const buttons = Array.from(spectrumEl.querySelectorAll('.spectrum-tab:not(.spectrum-more-trigger)'))
     buttons.forEach((btn) => {
       const isActive = btn.dataset.tab === active
       btn.classList.toggle('active', isActive)
       btn.setAttribute('aria-selected', String(isActive))
     })
+    renderOverflowButton()
 
     if (active !== 'images') {
       renderSpectrumView(active, data, container)
@@ -508,8 +590,8 @@ function mountSpectrum(data, container, query, freshness) {
     imagesCache = images
     if (active !== 'images') return // el usuario cambió de pestaña mientras cargaba
     if (images.length === 0) {
-      const btn = spectrumEl.querySelector('[data-tab="images"]')
-      if (btn) btn.remove()
+      tabs = tabs.filter((t) => t.id !== 'images')
+      rebuildTabButtons()
       active = 'todo'
       draw()
       return
@@ -518,35 +600,50 @@ function mountSpectrum(data, container, query, freshness) {
     renderImagesGrid(images, container)
   }
 
-  for (const tab of tabs) {
-    const btn = el('button', 'spectrum-tab', tab.label)
-    btn.type = 'button'
-    btn.dataset.tab = tab.id
-    btn.setAttribute('role', 'tab')
-    btn.setAttribute('aria-controls', 'results')
-    btn.addEventListener('click', () => { active = tab.id; draw() })
-    // Patrón estándar de teclado para role="tab": flechas mueven el foco Y activan la pestaña
-    // (activación automática) — Tab/Enter ya funcionaban solos por ser un <button> real.
-    btn.addEventListener('keydown', (ev) => {
-      if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
-      ev.preventDefault()
-      const buttons = Array.from(spectrumEl.querySelectorAll('.spectrum-tab'))
-      const currentIndex = buttons.indexOf(ev.currentTarget)
-      const delta = ev.key === 'ArrowRight' ? 1 : -1
-      const next = buttons[(currentIndex + delta + buttons.length) % buttons.length]
-      next.focus()
-      active = next.dataset.tab
-      draw()
-    })
-    spectrumEl.appendChild(btn)
+  function renderOverflowButton() {
+    const existing = spectrumEl.querySelector('.spectrum-more')
+    if (existing) existing.remove()
+    const toolsEl = spectrumEl.querySelector('.spectrum-tools')
+    const menu = mountOverflowMenu(overflow, active, (id) => { active = id; draw() })
+    if (menu) spectrumEl.insertBefore(menu, toolsEl)
   }
-  spectrumEl.appendChild(mountTools(freshness || '', (newFreshness) => {
+
+  function rebuildTabButtons() {
+    spectrumEl.querySelectorAll('.spectrum-tab:not(.spectrum-more-trigger)').forEach((btn) => btn.remove())
+    const toolsEl = spectrumEl.querySelector('.spectrum-tools')
+    for (const tab of tabs) {
+      const btn = el('button', 'spectrum-tab', tab.label)
+      btn.type = 'button'
+      btn.dataset.tab = tab.id
+      btn.setAttribute('role', 'tab')
+      btn.setAttribute('aria-controls', 'results')
+      btn.addEventListener('click', () => { active = tab.id; draw() })
+      // Patrón estándar de teclado para role="tab": flechas mueven el foco Y activan la pestaña
+      // (activación automática) — Tab/Enter ya funcionaban solos por ser un <button> real.
+      btn.addEventListener('keydown', (ev) => {
+        if (ev.key !== 'ArrowRight' && ev.key !== 'ArrowLeft') return
+        ev.preventDefault()
+        const all = Array.from(spectrumEl.querySelectorAll('.spectrum-tab'))
+        const currentIndex = all.indexOf(ev.currentTarget)
+        const delta = ev.key === 'ArrowRight' ? 1 : -1
+        const next = all[(currentIndex + delta + all.length) % all.length]
+        next.focus()
+        if (next.dataset.tab) { active = next.dataset.tab; draw() }
+      })
+      spectrumEl.insertBefore(btn, toolsEl)
+    }
+  }
+
+  const toolsWrap = mountTools(freshness || '', (newFreshness) => {
     const url = new URL(location.href)
     if (newFreshness) url.searchParams.set('fresh', newFreshness)
     else url.searchParams.delete('fresh')
     history.replaceState(null, '', url)
     search(query, newFreshness)
-  }))
+  })
+  spectrumEl.appendChild(toolsWrap)
+  rebuildTabButtons()
+  renderOverflowButton()
   draw()
 }
 
@@ -641,7 +738,8 @@ async function search(query, freshness) {
           response.videos.length > 0 ||
           (response.faq && response.faq.length > 0) ||
           (response.news && response.news.length > 0) ||
-          (response.locations && response.locations.length > 0)
+          (response.locations && response.locations.length > 0) ||
+          response.tool
         if (hasAnything) mountSpectrum(response, container, query, freshness)
         else { container.replaceChildren(); renderEmpty(query, container) }
         return

@@ -160,7 +160,7 @@ if (spectrumInfo.hasEntityFocus) {
   if (spectrumInfo.entitySourceHref && spectrumInfo.entitySourceHref.startsWith('http')) ok(`MABRIONA Search: Entity Focus conserva el enlace real a su fuente (${spectrumInfo.entitySourceHref})`)
   else bad('Entity Focus — fuente', 'no hay enlace de fuente aunque hay Entity Focus')
 }
-if (spectrumInfo.tabs.includes('Video') ? spectrumInfo.hasVideoGrid : true) ok('MABRIONA Search: la pestaña Video (si aparece) trae una grilla real')
+if (spectrumInfo.tabs.includes('Videos') ? spectrumInfo.hasVideoGrid : true) ok('MABRIONA Search: la pestaña Videos (si aparece) trae una grilla real')
 else bad('Video grid', 'la pestaña Video está pero no hay grilla')
 if (spectrumInfo.faqQuestionCount > 0) {
   ok(`MABRIONA Search: MABRIONA FAQ real integrada (${spectrumInfo.faqQuestionCount} preguntas)`)
@@ -366,6 +366,117 @@ if (placesInfo.tabs.includes('Lugares')) {
   }
 } else {
   skip('MABRIONA Places', 'Brave no devolvió locations para esta búsqueda en esta corrida — no siempre es determinístico')
+}
+
+// MABRIONA Tools — calculadora real, cálculo 100% local (sin depender de Brave).
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = '23 * 47'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(2500)
+const calcInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    tabs: Array.from(document.querySelectorAll('.spectrum-tab')).map((b) => b.textContent),
+    toolResult: document.querySelector('.tool-result')?.textContent || null,
+  })`)
+})
+if (calcInfo.tabs.includes('Herramientas') && calcInfo.toolResult === '1081') {
+  ok('MABRIONA Tools: la calculadora real resuelve "23 * 47" = 1081 y aparece como pestaña Herramientas')
+} else {
+  bad('MABRIONA Tools — calculadora', JSON.stringify(calcInfo))
+}
+
+// MABRIONA Tools — conversión de unidades real (factor real, no inventado).
+await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(
+    "document.querySelector('input[name=q]').value = '10 km to miles'; document.querySelector('form').submit();",
+  )
+})
+await win.waitForTimeout(2500)
+const convInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    toolResult: document.querySelector('.tool-result')?.textContent || null,
+  })`)
+})
+if (convInfo.toolResult && convInfo.toolResult.startsWith('6.2137')) {
+  ok(`MABRIONA Tools: conversión real de unidades (10 km = ${convInfo.toolResult})`)
+} else {
+  bad('MABRIONA Tools — conversión', JSON.stringify(convInfo))
+}
+
+// Relevancia dinámica del Spectrum — verificado con los mismos datos reales del test de Noticias/
+// Lugares de arriba: una consulta de actualidad debe subir Noticias por encima de Web (Category
+// Resolver real, no un orden fijo).
+if (newsInfo.tabs.includes('Noticias') && newsInfo.tabs.includes('Web')) {
+  if (newsInfo.tabs.indexOf('Noticias') < newsInfo.tabs.indexOf('Web')) {
+    ok('MABRIONA Search: el Category Resolver sube Noticias por encima de Web en una consulta de actualidad real')
+  } else {
+    bad('orden de relevancia — Noticias', JSON.stringify(newsInfo.tabs))
+  }
+}
+if (placesInfo.tabs.includes('Lugares') && placesInfo.tabs.includes('Web')) {
+  if (placesInfo.tabs.indexOf('Lugares') < placesInfo.tabs.indexOf('Web')) {
+    ok('MABRIONA Search: el Category Resolver sube Lugares por encima de Web en una búsqueda de negocio local')
+  } else {
+    bad('orden de relevancia — Lugares', JSON.stringify(placesInfo.tabs))
+  }
+}
+if (placesInfo.tabs.includes('Cortos')) {
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(
+      "Array.from(document.querySelectorAll('.spectrum-tab')).find((b) => b.textContent === 'Cortos').click();",
+    )
+  })
+  await win.waitForTimeout(300)
+  const shortsInfo = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      count: document.querySelectorAll('.shorts-grid .video-card').length,
+      firstHref: document.querySelector('.shorts-grid .video-card')?.getAttribute('href') || null,
+    })`)
+  })
+  if (shortsInfo.count > 0 && shortsInfo.firstHref) {
+    ok(`MABRIONA Search: Cortos real (TikTok/YouTube Shorts, evidencia por URL) — ${shortsInfo.count} resultados`)
+  } else {
+    bad('pestaña Cortos', JSON.stringify(shortsInfo))
+  }
+} else {
+  skip('MABRIONA Cortos', 'esta corrida no trajo videos de TikTok/Shorts reales — no siempre es determinístico')
+}
+
+// Menú "Más" — solo si esta corrida generó suficientes categorías reales como para desbordar.
+const overflowInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    hasMore: !!document.querySelector('.spectrum-more-trigger'),
+  })`)
+})
+if (overflowInfo.hasMore) {
+  await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript("document.querySelector('.spectrum-more-trigger').click();")
+  })
+  await win.waitForTimeout(200)
+  const menuInfo = await app.evaluate(({ BrowserWindow }) => {
+    const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+    return view.webContents.executeJavaScript(`({
+      itemCount: document.querySelectorAll('.spectrum-more-item').length,
+      menuVisible: !document.querySelector('.spectrum-more-menu').hidden,
+    })`)
+  })
+  if (menuInfo.itemCount > 0 && menuInfo.menuVisible) {
+    ok(`MABRIONA Search: el menú "Más" real muestra las categorías que no entraron (${menuInfo.itemCount})`)
+  } else {
+    bad('menú Más', JSON.stringify(menuInfo))
+  }
+} else {
+  skip('MABRIONA Search: menú "Más"', 'esta corrida no generó suficientes categorías reales como para desbordar — depende de los datos que trajo Brave, no es un bug')
 }
 
 // Herramientas — filtro real de frescura (Etapa 5): verificado por fuera que freshness=pd cambia

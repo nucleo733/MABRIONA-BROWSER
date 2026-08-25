@@ -19,6 +19,8 @@ const {
   normalizeImages,
 } = require('./search/braveSearch')
 const { buildContextGraph } = require('./search/contextGraph')
+const { detectTool } = require('./search/tools')
+const { resolveSpectrum } = require('./search/spectrumResolver')
 
 const TOOLBAR_HEIGHT = 118
 
@@ -349,11 +351,26 @@ ipcMain.handle('settings:choose-downloads-dir', async () => {
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
 // diseño de MABRIONA) — la key vive solo acá, nunca llega a la página. Si todavía no hay key
 // configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
-const SEARCH_EMPTY = { configured: false, web: [], infobox: null, videos: [], faq: [], news: [], locations: [], contextGraph: null }
+const SEARCH_EMPTY = {
+  configured: false,
+  web: [],
+  infobox: null,
+  videos: [],
+  faq: [],
+  news: [],
+  locations: [],
+  contextGraph: null,
+  tool: null,
+  spectrum: { tabs: [], overflow: [] },
+}
 
 ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
+  // MABRIONA Tools no depende de Brave ni de red — es cálculo real local (calculadora, conversión
+  // de unidades, hora/fecha del sistema). Se evalúa siempre, incluso si Brave falla después: una
+  // herramienta que funciona no debe quedar bloqueada por un problema de la búsqueda web.
+  const tool = detectTool(text)
   const apiKey = store.getBraveApiKey()
-  if (!apiKey) return SEARCH_EMPTY
+  if (!apiKey) return { ...SEARCH_EMPTY, tool }
   try {
     const { url, headers } = buildRequest(text, apiKey, { freshness })
     const res = await fetch(url, { headers })
@@ -362,7 +379,7 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
       // distinto de un error genérico — la UI necesita poder decir "esperá un momento" en vez de
       // "no encontramos nada", que sería engañoso.
       const errorKind = res.status === 429 ? 'rate_limited' : 'http_error'
-      return { ...SEARCH_EMPTY, configured: true, error: `error ${res.status}`, errorKind }
+      return { ...SEARCH_EMPTY, configured: true, error: `error ${res.status}`, errorKind, tool }
     }
     const data = await res.json()
     // Todo sale de esta misma respuesta — Brave ya la trae completa, no se hace ninguna llamada
@@ -375,19 +392,22 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
     const news = normalizeNews(data)
     const discussions = normalizeDiscussions(data)
     const locations = normalizeLocations(data)
+    const web = normalizeResults(data)
     return {
       configured: true,
-      web: normalizeResults(data),
+      web,
       infobox,
       videos,
       faq,
       news,
       locations,
       contextGraph: buildContextGraph({ infobox, faq, videos, news, discussions }),
+      tool,
+      spectrum: resolveSpectrum({ web, videos, news, locations, tool }),
     }
   } catch (err) {
     // fetch() lanza acá cuando no hay conexión real (DNS, red caída) — distinto de un error HTTP.
-    return { ...SEARCH_EMPTY, configured: true, error: String(err), errorKind: 'network' }
+    return { ...SEARCH_EMPTY, configured: true, error: String(err), errorKind: 'network', tool }
   }
 })
 

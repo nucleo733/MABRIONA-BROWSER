@@ -119,6 +119,28 @@ function normalizeFaq(data) {
     }))
 }
 
+/**
+ * Short Videos — auditoría real (no se asumió "video corto = duración corta"): la respuesta de
+ * video ya trae, sin pedir nada aparte, contenido real de TikTok y de YouTube Shorts, identificable
+ * de forma estructural por su propia URL — no por adivinar la duración (que casi siempre viene
+ * `undefined` para este tipo de contenido). Evidencia real: "bachata tiktok" trae 6/6 resultados con
+ * `tiktok.com`; "funny cats shorts" trae URLs reales `youtube.com/shorts/...`.
+ */
+function isShortFormVideo(url) {
+  let hostname = ''
+  let pathname = ''
+  try {
+    const parsed = new URL(url)
+    hostname = parsed.hostname
+    pathname = parsed.pathname
+  } catch {
+    return false
+  }
+  if (hostname === 'tiktok.com' || hostname.endsWith('.tiktok.com')) return true
+  if (hostname.endsWith('youtube.com') && pathname.startsWith('/shorts/')) return true
+  return false
+}
+
 /** Videos reales (mayormente YouTube) que Brave ya trae en la misma respuesta — sin API aparte. */
 function normalizeVideos(data) {
   const results = data?.videos?.results
@@ -131,6 +153,7 @@ function normalizeVideos(data) {
       thumbnail: v.thumbnail && typeof v.thumbnail.src === 'string' ? v.thumbnail.src : null,
       duration: v.video && typeof v.video.duration === 'string' ? v.video.duration : null,
       source: v.video && typeof v.video.publisher === 'string' ? v.video.publisher : null,
+      isShortForm: isShortFormVideo(v.url),
     }))
 }
 
@@ -227,6 +250,7 @@ module.exports = {
   normalizeResults,
   normalizeInfobox,
   normalizeVideos,
+  isShortFormVideo,
   normalizeFaq,
   normalizeNews,
   normalizeDiscussions,

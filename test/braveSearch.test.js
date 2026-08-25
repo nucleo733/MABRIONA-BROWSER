@@ -8,6 +8,7 @@ const {
   normalizeResults,
   normalizeInfobox,
   normalizeVideos,
+  isShortFormVideo,
   normalizeFaq,
   normalizeNews,
   normalizeLocations,
@@ -126,8 +127,28 @@ test('normalizeVideos extrae título/url/miniatura/duración/fuente de una respu
     },
   }
   assert.deepEqual(normalizeVideos(data), [
-    { title: 'Video real', url: 'https://www.youtube.com/watch?v=abc', thumbnail: 'https://img.example/thumb.jpg', duration: '05:03', source: 'YouTube' },
+    { title: 'Video real', url: 'https://www.youtube.com/watch?v=abc', thumbnail: 'https://img.example/thumb.jpg', duration: '05:03', source: 'YouTube', isShortForm: false },
   ])
+})
+
+test('isShortFormVideo detecta TikTok y YouTube Shorts por su URL real (nunca por adivinar la duración)', () => {
+  assert.equal(isShortFormVideo('https://www.tiktok.com/@user/video/123'), true)
+  assert.equal(isShortFormVideo('https://tiktok.com/@user/video/123'), true)
+  assert.equal(isShortFormVideo('https://www.youtube.com/shorts/abc123'), true)
+  assert.equal(isShortFormVideo('https://www.youtube.com/watch?v=abc123'), false)
+  assert.equal(isShortFormVideo('https://www.facebook.com/videos/123'), false)
+  assert.equal(isShortFormVideo('no-es-una-url'), false)
+})
+
+test('normalizeVideos marca isShortForm real para un video de TikTok/Shorts real', () => {
+  const data = {
+    videos: {
+      results: [
+        { title: 'Short real', url: 'https://www.youtube.com/shorts/xyz', thumbnail: { src: 'https://img.example/s.jpg' }, video: {} },
+      ],
+    },
+  }
+  assert.equal(normalizeVideos(data)[0].isShortForm, true)
 })
 
 test('normalizeVideos descarta resultados sin título o sin url, y no rompe sin datos', () => {
