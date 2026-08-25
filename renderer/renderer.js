@@ -116,7 +116,7 @@ btnScreenshot.addEventListener('click', async () => {
 
 // ---------------- Paneles (historial / favoritos / descargas / shields) ----------------
 
-const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'menu', 'profile']
+const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'menu', 'profile', 'extensions']
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')
 }
@@ -135,6 +135,8 @@ document.getElementById('btn-settings').addEventListener('click', () => { toggle
 document.getElementById('btn-more').addEventListener('click', () => togglePanel('more'))
 document.getElementById('btn-profile').addEventListener('click', () => { togglePanel('profile'); refreshProfilePanel() })
 document.getElementById('more-profile').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-profile').click() })
+document.getElementById('btn-extensions').addEventListener('click', () => { togglePanel('extensions'); refreshExtensionsPanel() })
+document.getElementById('more-extensions').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-extensions').click() })
 document.getElementById('btn-menu').addEventListener('click', () => { togglePanel('menu'); refreshZoomLevel() })
 document.querySelectorAll('.panel-close').forEach((btn) => btn.addEventListener('click', (e) => {
   document.getElementById(`panel-${e.target.dataset.close}`).classList.add('hidden')
@@ -306,6 +308,102 @@ document.getElementById('profile-create').addEventListener('click', async () => 
   input.value = ''
   await mabrionaBrowser.switchToProfile(profile.id)
   togglePanel('profile')
+})
+
+// ---------------- Extensiones — reales, mismo formato que Chrome/Edge/Brave ----------------
+
+const ORIGIN_LABEL = { unpacked: 'Sin empaquetar', imported: 'Importada', webstore: 'Chrome Web Store' }
+
+async function refreshExtensionsPanel() {
+  const extensions = await mabrionaBrowser.listExtensions()
+  const ul = document.getElementById('extensions-list')
+  ul.innerHTML = ''
+  if (extensions.length === 0) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'Sin extensiones instaladas en este perfil todavía'
+    ul.appendChild(li)
+  }
+  for (const ext of extensions) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span class="item-title">${escapeHtml(ext.name)} <span class="ext-version">v${escapeHtml(ext.version)}</span></span><span class="item-url">${ORIGIN_LABEL[ext.origin] || ext.origin}${ext.enabled ? '' : ' — desactivada'}</span>`
+    const toggle = document.createElement('input')
+    toggle.type = 'checkbox'
+    toggle.className = 'ext-toggle'
+    toggle.checked = !!ext.enabled
+    toggle.title = ext.enabled ? 'Desactivar' : 'Activar'
+    toggle.addEventListener('click', (e) => e.stopPropagation())
+    toggle.addEventListener('change', async () => {
+      await mabrionaBrowser.setExtensionEnabled(ext.recordId, toggle.checked)
+      refreshExtensionsPanel()
+    })
+    li.appendChild(toggle)
+    const del = document.createElement('button')
+    del.className = 'item-delete'
+    del.type = 'button'
+    del.title = 'Quitar esta extensión'
+    del.textContent = '✕'
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      if (!confirm(`¿Quitar "${ext.name}"? No se puede deshacer.`)) return
+      await mabrionaBrowser.removeExtension(ext.recordId)
+      refreshExtensionsPanel()
+    })
+    li.appendChild(del)
+    ul.appendChild(li)
+  }
+}
+
+document.getElementById('ext-load-unpacked').addEventListener('click', async () => {
+  const result = await mabrionaBrowser.loadUnpackedExtension()
+  if (result.canceled) return
+  if (!result.ok) { alert(`No se pudo cargar la extensión: ${result.error}`); return }
+  refreshExtensionsPanel()
+})
+
+document.getElementById('ext-scan-browsers').addEventListener('click', async () => {
+  const resultsList = document.getElementById('ext-scan-results')
+  const btn = document.getElementById('ext-scan-browsers')
+  btn.disabled = true
+  const found = await mabrionaBrowser.scanOtherBrowsersForExtensions()
+  btn.disabled = false
+  resultsList.innerHTML = ''
+  resultsList.classList.remove('hidden')
+  if (found.length === 0) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'No se encontró ningún navegador Chromium con extensiones instaladas en esta máquina'
+    resultsList.appendChild(li)
+    return
+  }
+  for (const item of found) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span class="item-title">${escapeHtml(item.name)} <span class="ext-version">v${escapeHtml(item.version)}</span></span><span class="item-url">${escapeHtml(item.browser)} — ${escapeHtml(item.profile)}</span>`
+    li.addEventListener('click', async () => {
+      const result = await mabrionaBrowser.importExtension(item.sourcePath)
+      if (!result.ok) { alert(`No se pudo importar: ${result.error}`); return }
+      resultsList.classList.add('hidden')
+      refreshExtensionsPanel()
+    })
+    resultsList.appendChild(li)
+  }
+})
+
+document.getElementById('ext-webstore-install').addEventListener('click', async () => {
+  const input = document.getElementById('ext-webstore-input')
+  const errorEl = document.getElementById('ext-webstore-error')
+  const btn = document.getElementById('ext-webstore-install')
+  errorEl.classList.add('hidden')
+  if (!input.value.trim()) return
+  btn.disabled = true
+  const original = btn.textContent
+  btn.textContent = 'Instalando…'
+  const result = await mabrionaBrowser.installExtensionFromWebStore(input.value.trim())
+  btn.disabled = false
+  btn.textContent = original
+  if (!result.ok) { errorEl.textContent = result.error; errorEl.classList.remove('hidden'); return }
+  input.value = ''
+  refreshExtensionsPanel()
 })
 
 // ---------------- Settings — solo capacidades reales, nada de switches decorativos ----------------

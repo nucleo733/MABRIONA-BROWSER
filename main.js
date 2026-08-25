@@ -5,6 +5,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const { createStore, createMemoryStore } = require('./store')
 const { createProfileRegistry } = require('./profiles')
+const extensionsLib = require('./extensions')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
 const {
@@ -382,6 +383,19 @@ function ensureProfileSession(profileId) {
   installShieldsFor(sess)
   installDownloadsFor(sess, profileStore)
   installPermissionsFor(sess, true, profileStore)
+  loadEnabledExtensionsInto(sess, profileStore)
+}
+
+// Extensiones reales de Chrome (session.loadExtension, API oficial de Electron) — se cargan al
+// arrancar la sesión del perfil, igual que Chrome carga las suyas al abrir. Modo Privado/Invitado
+// a propósito NO cargan extensiones (mismo default que el Incógnito de Chrome real).
+function loadEnabledExtensionsInto(sess, profileStore) {
+  for (const record of profileStore.listExtensions()) {
+    if (!record.enabled) continue
+    sess.loadExtension(record.path, { allowFileAccess: true }).catch((err) => {
+      console.error(`[MABRIONA Browser] no se pudo cargar la extensión "${record.name}" (${record.path}):`, err.message)
+    })
+  }
 }
 
 function createWindow(options = {}) {
@@ -619,6 +633,101 @@ ipcMain.handle('profiles:switch-to', (_e, profileId) => {
     return existing
   }
   return createWindow({ profileId, restoreSession: true })
+})
+
+// ===================== Extensiones reales de Chrome =====================
+// MABRIONA es Chromium (Electron) — el mismo formato de extensión (manifest.json + código) que
+// usan Chrome/Edge/Brave/Opera funciona acá tal cual, con `session.loadExtension` (API oficial de
+// Electron). Ver extensions.js para las 3 formas reales de agregar una. Por perfil, igual que el
+// resto de la configuración — cada perfil tiene sus propias extensiones instaladas.
+
+function profileStoreAndSessionFor(windowId) {
+  const state = windows.get(windowId)
+  const profileId = state && !state.isGuest ? state.profileId : 'default'
+  return { profileId, profileStore: storeFor(profileId), sess: session.fromPartition(registry.partitionFor(profileId)) }
+}
+
+async function loadAndRecord(profileStore, sess, record) {
+  const loaded = await sess.loadExtension(record.path, { allowFileAccess: true })
+  const fullRecord = { ...record, chromeExtensionId: loaded.id }
+  profileStore.addExtensionRecord(fullRecord)
+  return fullRecord
+}
+
+ipcMain.handle('extensions:list', (e) => storeForWindow(windowIdForSender(e)).listExtensions())
+
+ipcMain.handle('extensions:load-unpacked', async (e) => {
+  const winId = windowIdForSender(e)
+  const win = windows.get(winId)?.window
+  const result = await dialog.showOpenDialog(win, { properties: ['openDirectory'], title: 'Elegí la carpeta de la extensión (con manifest.json)' })
+  if (result.canceled || result.filePaths.length === 0) return { ok: false, canceled: true }
+  try {
+    const { profileStore, sess } = profileStoreAndSessionFor(winId)
+    const record = extensionsLib.loadUnpacked(result.filePaths[0])
+    const fullRecord = await loadAndRecord(profileStore, sess, record)
+    return { ok: true, record: fullRecord }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+// Extensiones reales ya instaladas en Chrome/Edge/Brave/Chromium de esta misma máquina — mismo
+// formato en disco, listas para importar (no depende de red).
+ipcMain.handle('extensions:scan-other-browsers', () => extensionsLib.scanOtherBrowsers())
+
+ipcMain.handle('extensions:import', async (e, sourcePath) => {
+  const winId = windowIdForSender(e)
+  try {
+    const { profileId, profileStore, sess } = profileStoreAndSessionFor(winId)
+    const record = extensionsLib.importFromFolder(sourcePath, app.getPath('userData'), profileId)
+    const fullRecord = await loadAndRecord(profileStore, sess, record)
+    return { ok: true, record: fullRecord }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+// Instalar por ID o link de la Chrome Web Store — descarga el .crx real (endpoint público de
+// actualización de Google, el mismo que usa Chrome) y lo instala. No es el botón "Agregar a
+// Chrome" de la tienda (esa integración depende de una API privada de Google que Electron no
+// expone) — el resultado real es el mismo, solo cambia cómo se inicia la instalación.
+ipcMain.handle('extensions:install-from-webstore', async (e, idOrUrl) => {
+  const winId = windowIdForSender(e)
+  try {
+    const { profileId, profileStore, sess } = profileStoreAndSessionFor(winId)
+    const record = await extensionsLib.installFromChromeWebStore(idOrUrl, app.getPath('userData'), profileId)
+    const fullRecord = await loadAndRecord(profileStore, sess, record)
+    return { ok: true, record: fullRecord }
+  } catch (err) {
+    return { ok: false, error: err.message }
+  }
+})
+
+ipcMain.handle('extensions:set-enabled', (e, { recordId, enabled }) => {
+  const winId = windowIdForSender(e)
+  const { profileStore, sess } = profileStoreAndSessionFor(winId)
+  const record = profileStore.listExtensions().find((x) => x.recordId === recordId)
+  if (!record) return { ok: false, error: 'esa extensión ya no existe' }
+  profileStore.setExtensionEnabled(recordId, enabled)
+  if (enabled) {
+    sess.loadExtension(record.path, { allowFileAccess: true }).catch((err) => console.error('[MABRIONA Browser] no se pudo recargar la extensión:', err.message))
+  } else if (record.chromeExtensionId) {
+    try { sess.removeExtension(record.chromeExtensionId) } catch { /* ya no estaba cargada */ }
+  }
+  return { ok: true }
+})
+
+ipcMain.handle('extensions:remove', (e, recordId) => {
+  const winId = windowIdForSender(e)
+  const { profileStore, sess } = profileStoreAndSessionFor(winId)
+  const record = profileStore.listExtensions().find((x) => x.recordId === recordId)
+  if (!record) return { ok: false, error: 'esa extensión ya no existe' }
+  if (record.chromeExtensionId) {
+    try { sess.removeExtension(record.chromeExtensionId) } catch { /* ya no estaba cargada */ }
+  }
+  extensionsLib.removeExtensionFiles(record)
+  profileStore.removeExtensionRecord(recordId)
+  return { ok: true }
 })
 
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el

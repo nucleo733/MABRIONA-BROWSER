@@ -255,7 +255,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 /* ---------------- Responsive — la barra se reorganiza en vez de romperse ---------------- */
 #btn-more { display: none; }
 @media (max-width: 880px) {
-  #btn-screenshot, #btn-shields, #btn-history, #btn-downloads, #btn-favorites, #btn-profile { display: none; }
+  #btn-screenshot, #btn-shields, #btn-history, #btn-downloads, #btn-favorites, #btn-profile, #btn-extensions { display: none; }
   #btn-more { display: flex; }
 }
 @media (max-width: 520px) {
@@ -295,6 +295,18 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   border-radius: 999px;
 }
 .panel-list .item-delete:hover { color: var(--volt); background: rgba(212, 255, 0, 0.12); }
+
+/* ---------------- Extensiones ---------------- */
+#extensions-list li { padding-right: 56px; }
+.ext-version { color: var(--text-dim); font-weight: 400; }
+.ext-toggle {
+  position: absolute;
+  top: 10px;
+  right: 30px;
+  accent-color: var(--volt);
+  cursor: pointer;
+}
+#ext-scan-results { max-height: 160px; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
 
 #findbar {
   position: absolute;

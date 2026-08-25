@@ -28,6 +28,9 @@ function freshDefaults() {
     lastSession: [],
     searchEngine: 'mabriona', // 'mabriona' | 'google' | 'bing' | 'duckduckgo' | 'brave'
     restoreSessionOnStartup: true,
+    // Extensiones reales de Chrome de este perfil — ver extensions.js. Cada entrada:
+    // { recordId, origin: 'unpacked'|'imported'|'webstore', path, name, version, manifestVersion, enabled }.
+    extensions: [],
   }
 }
 
@@ -175,6 +178,24 @@ function buildStore(readAll, writeAll) {
       data.restoreSessionOnStartup = !!enabled
       writeAll(data)
       return data.restoreSessionOnStartup
+    },
+
+    // Extensiones reales de Chrome — ver extensions.js para cómo se cargan/instalan de verdad.
+    listExtensions: () => data.extensions || [],
+    addExtensionRecord(record) {
+      data.extensions = [...(data.extensions || []), record]
+      writeAll(data)
+      return data.extensions
+    },
+    removeExtensionRecord(recordId) {
+      data.extensions = (data.extensions || []).filter((e) => e.recordId !== recordId)
+      writeAll(data)
+      return data.extensions
+    },
+    setExtensionEnabled(recordId, enabled) {
+      data.extensions = (data.extensions || []).map((e) => (e.recordId === recordId ? { ...e, enabled } : e))
+      writeAll(data)
+      return data.extensions
     },
   }
 }

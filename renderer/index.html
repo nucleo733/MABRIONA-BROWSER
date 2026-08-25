@@ -27,6 +27,7 @@
       <button id="btn-history" class="nav-btn" title="Historial" aria-label="Historial">🕘</button>
       <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
       <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
+      <button id="btn-extensions" class="nav-btn" title="Extensiones" aria-label="Extensiones">🧩</button>
       <button id="btn-more" class="nav-btn" title="Más opciones" aria-label="Más opciones">⋯</button>
       <button id="btn-profile" class="nav-btn" title="Perfil" aria-label="Perfil">
         <span id="profile-emoji">👤</span>
@@ -73,6 +74,7 @@
       <button id="more-history" type="button" class="settings-btn">🕘 Historial</button>
       <button id="more-downloads" type="button" class="settings-btn">⬇︎ Descargas</button>
       <button id="more-favorites" type="button" class="settings-btn">★ Favoritos</button>
+      <button id="more-extensions" type="button" class="settings-btn">🧩 Extensiones</button>
       <button id="more-profile" type="button" class="settings-btn">👤 Perfil</button>
     </div>
   </div>
@@ -110,6 +112,32 @@
         <button id="profile-create" type="button" class="settings-btn">+ Crear perfil</button>
       </div>
       <p id="profile-create-error" class="settings-note hidden"></p>
+    </div>
+  </div>
+
+  <div id="panel-extensions" class="panel hidden" role="dialog" aria-label="Extensiones">
+    <div class="panel-header">
+      <span>Extensiones</span>
+      <button class="panel-close" data-close="extensions">✕</button>
+    </div>
+    <div class="panel-body">
+      <p class="settings-note">Extensiones reales de Chrome — el mismo formato que usan Chrome, Edge y Brave funciona acá tal cual. Solo del perfil activo.</p>
+      <ul id="extensions-list" class="panel-list"></ul>
+
+      <section class="settings-section">
+        <h3>Agregar extensión</h3>
+        <button id="ext-load-unpacked" type="button" class="settings-btn">📁 Cargar desde una carpeta</button>
+        <p class="settings-note">Para una extensión que ya tenés descomprimida en tu computadora (modo desarrollador).</p>
+
+        <button id="ext-scan-browsers" type="button" class="settings-btn">🔎 Importar de Chrome / Edge / Brave</button>
+        <ul id="ext-scan-results" class="panel-list hidden"></ul>
+
+        <div class="profile-create-row">
+          <input id="ext-webstore-input" type="text" placeholder="ID o link de la Chrome Web Store" aria-label="ID o link de la Chrome Web Store" />
+          <button id="ext-webstore-install" type="button" class="settings-btn">Instalar</button>
+        </div>
+        <p id="ext-webstore-error" class="settings-note hidden"></p>
+      </section>
     </div>
   </div>
 

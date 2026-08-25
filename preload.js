@@ -68,4 +68,12 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   canDeleteProfile: (id) => ipcRenderer.invoke('profiles:can-delete', id),
   deleteProfile: (id) => ipcRenderer.invoke('profiles:delete', id),
   switchToProfile: (id) => ipcRenderer.invoke('profiles:switch-to', id),
+
+  listExtensions: () => ipcRenderer.invoke('extensions:list'),
+  loadUnpackedExtension: () => ipcRenderer.invoke('extensions:load-unpacked'),
+  scanOtherBrowsersForExtensions: () => ipcRenderer.invoke('extensions:scan-other-browsers'),
+  importExtension: (sourcePath) => ipcRenderer.invoke('extensions:import', sourcePath),
+  installExtensionFromWebStore: (idOrUrl) => ipcRenderer.invoke('extensions:install-from-webstore', idOrUrl),
+  setExtensionEnabled: (recordId, enabled) => ipcRenderer.invoke('extensions:set-enabled', { recordId, enabled }),
+  removeExtension: (recordId) => ipcRenderer.invoke('extensions:remove', recordId),
 })
