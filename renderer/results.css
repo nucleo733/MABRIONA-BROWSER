@@ -130,7 +130,17 @@ header {
 .freshness-select:focus-visible { outline: none; border-color: var(--volt-dim); box-shadow: 0 0 0 1px rgba(212, 255, 0, 0.18); }
 .freshness-select option { background: var(--bg); color: var(--text); }
 
-main { max-width: 880px; width: 100%; margin: 0 auto; padding: 28px 32px 72px; flex: 1; box-sizing: border-box; }
+main { max-width: 1100px; width: 100%; margin: 0 auto; padding: 28px 32px 72px; flex: 1; box-sizing: border-box; }
+
+/* ---------------- Resultados + información — experiencia normal de buscador, dos columnas ---------------- */
+.results-columns { display: flex; align-items: flex-start; gap: 32px; }
+.results-main { flex: 1; min-width: 0; max-width: 680px; }
+.results-side { flex-shrink: 0; width: 320px; }
+@media (max-width: 860px) {
+  .results-columns { flex-direction: column; }
+  .results-main { max-width: 100%; }
+  .results-side { width: 100%; order: -1; }
+}
 /* Estados sin contenido de verdad (cargando/vacío/error) — se centran en todo el espacio disponible
    en vez de quedar como una tarjeta chica flotando arriba con el resto de la pantalla vacío. */
 main#results.state-centered { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
@@ -231,6 +241,14 @@ main#results.state-centered .search-error { text-align: left; }
   text-decoration: none;
 }
 .entity-profile:hover { border-color: var(--volt-dim); color: var(--volt); }
+
+/* ---------------- Panel de información — versión compacta cuando vive en la columna secundaria ---------------- */
+.results-side .entity-focus { padding: 22px 22px; margin-bottom: 0; }
+.results-side .entity-header { flex-direction: column; gap: 14px; }
+.results-side .entity-photo { width: 100%; height: 160px; }
+.results-side .entity-focus h2 { font-size: 19px; }
+.results-side .entity-focus .entity-desc { max-width: 100%; font-size: 13px; -webkit-line-clamp: 6; display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; }
+.results-side .entity-attrs { grid-template-columns: 1fr; gap: 10px; }
 .entity-profile img { width: 14px; height: 14px; border-radius: 3px; }
 
 .entity-source {

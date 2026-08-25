@@ -172,6 +172,39 @@ if (spectrumInfo.hasEntityFocus) {
   if (spectrumInfo.entityPhotoSrc) ok(`MABRIONA Search: Entity Focus muestra una foto real de la entidad (${spectrumInfo.entityPhotoSrc.slice(0, 60)})`)
   else skip('Entity Focus — foto', 'Brave no trajo imagen para esta entidad en esta corrida — no siempre viene, no es un bug')
 }
+
+// Experiencia normal de buscador: resultados como columna principal, información de la entidad
+// como columna secundaria al lado — nunca un diagrama orbital (ver pedido explícito del usuario).
+const layoutInfo = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript(`({
+    hasColumns: !!document.querySelector('.results-columns'),
+    hasMain: !!document.querySelector('.results-main'),
+    entityInSide: !!document.querySelector('.results-side .entity-focus'),
+    mainHasWeb: !!document.querySelector('.results-main .result-list'),
+    columnsFlexDirection: getComputedStyle(document.querySelector('.results-columns')).flexDirection,
+  })`)
+})
+if (layoutInfo.hasColumns && layoutInfo.hasMain && layoutInfo.mainHasWeb) {
+  ok(`MABRIONA Search: resultados en columna principal, sin diagrama orbital (flex-direction: ${layoutInfo.columnsFlexDirection})`)
+} else {
+  bad('layout de dos columnas', JSON.stringify(layoutInfo))
+}
+if (spectrumInfo.hasEntityFocus) {
+  if (layoutInfo.entityInSide) ok('MABRIONA Search: el panel de información de la entidad vive en la columna secundaria')
+  else bad('panel de información — columna secundaria', 'Entity Focus no está dentro de .results-side')
+}
+// Responsive: en ventana angosta, las dos columnas se apilan (nunca se superponen).
+await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 900))
+await win.waitForTimeout(300)
+const stackedDirection = await app.evaluate(({ BrowserWindow }) => {
+  const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
+  return view.webContents.executeJavaScript("getComputedStyle(document.querySelector('.results-columns')).flexDirection")
+})
+if (stackedDirection === 'column') ok('MABRIONA Search: en ventana angosta, resultados e información se apilan (nunca se superponen)')
+else bad('layout responsive de Search', `esperaba flex-direction: column, encontré "${stackedDirection}"`)
+await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1400, 900))
+await win.waitForTimeout(300)
 if (spectrumInfo.tabs.includes('Videos') ? spectrumInfo.hasVideoGrid : true) ok('MABRIONA Search: la pestaña Videos (si aparece) trae una grilla real')
 else bad('Video grid', 'la pestaña Video está pero no hay grilla')
 if (spectrumInfo.faqQuestionCount > 0) {

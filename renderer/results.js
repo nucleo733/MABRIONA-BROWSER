@@ -472,32 +472,44 @@ function renderSpectrumView(tabId, data, container) {
     if (data.tool) renderToolResult(data.tool, container)
     return
   }
-  // "Todo" — composición con jerarquía: la respuesta más directa posible primero (una herramienta
-  // real, si la consulta es exactamente eso), entidad, lugares (negocio local), FAQ, una muestra de
-  // noticias, cortos, video, y web al final. Cada sección se omite si no hay dato real.
+  // "Todo" — experiencia normal de buscador: resultados como columna principal, información de la
+  // entidad como columna secundaria al lado (nunca un diagrama ni un "universo") — se apila abajo
+  // en ventanas angostas, ver .results-columns en results.css. La respuesta más directa posible
+  // (una herramienta real, si la consulta es exactamente eso) va arriba de todo, a todo el ancho.
   if (data.tool) renderToolResult(data.tool, container)
-  if (data.infobox) container.appendChild(renderEntityFocus(data.infobox))
+
+  const columns = el('div', 'results-columns')
+  const main = el('div', 'results-main')
   if (data.locations.length > 0) {
-    container.appendChild(el('p', 'section-heading', 'Lugares'))
-    renderLocationsList(data.locations, container, 3)
+    main.appendChild(el('p', 'section-heading', 'Lugares'))
+    renderLocationsList(data.locations, main, 3)
   }
-  if (data.faq && data.faq.length > 0) renderFaq(data.faq, container)
+  if (data.faq && data.faq.length > 0) renderFaq(data.faq, main)
   if (data.news.length > 0) {
-    container.appendChild(el('p', 'section-heading', 'Noticias'))
-    renderNewsList(data.news, container, 3)
+    main.appendChild(el('p', 'section-heading', 'Noticias'))
+    renderNewsList(data.news, main, 3)
   }
   if (shortVideos.length > 0) {
-    container.appendChild(el('p', 'section-heading', 'Cortos'))
-    renderVideoGrid(shortVideos, container, 4, 'shorts-grid')
+    main.appendChild(el('p', 'section-heading', 'Cortos'))
+    renderVideoGrid(shortVideos, main, 4, 'shorts-grid')
   }
   if (longVideos.length > 0) {
-    container.appendChild(el('p', 'section-heading', 'Videos'))
-    renderVideoGrid(longVideos, container, 4)
+    main.appendChild(el('p', 'section-heading', 'Videos'))
+    renderVideoGrid(longVideos, main, 4)
   }
   if (data.web.length > 0) {
-    container.appendChild(el('p', 'section-heading', 'Web'))
-    renderWebList(data.web, container, 8, officialHostname)
+    main.appendChild(el('p', 'section-heading', 'Web'))
+    renderWebList(data.web, main, 15, officialHostname)
   }
+  columns.appendChild(main)
+
+  if (data.infobox) {
+    const side = el('aside', 'results-side')
+    side.appendChild(renderEntityFocus(data.infobox))
+    columns.appendChild(side)
+  }
+
+  container.appendChild(columns)
 }
 
 /** Menú "Más" — categorías reales que existen para esta búsqueda pero no entraron en el espacio
