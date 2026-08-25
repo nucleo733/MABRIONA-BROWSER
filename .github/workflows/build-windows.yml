@@ -40,27 +40,26 @@ jobs:
         run: |
           $installer = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
           Write-Host "Instalador: $($installer.FullName)"
-          Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+          # /D fuerza una carpeta de instalación conocida (técnica estándar de NSIS para instalar
+          # en silencio) — tiene que ser el último argumento y va sin comillas.
+          $installDir = "C:\mabriona-browser-ci-install"
+          Start-Process -FilePath $installer.FullName -ArgumentList "/S", "/D=$installDir" -Wait
 
-          $searchRoots = @("$env:LOCALAPPDATA\Programs", $env:ProgramFiles, ${env:ProgramFiles(x86)}, "$env:LOCALAPPDATA")
           $exePath = $null
-          for ($i = 0; $i -lt 6 -and -not $exePath; $i++) {
-            foreach ($root in $searchRoots) {
-              if (-not $root -or -not (Test-Path $root)) { continue }
-              $found = Get-ChildItem -Path $root -Recurse -Filter "MABRIONA Browser.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
-              if ($found) { $exePath = $found; break }
-            }
-            if (-not $exePath) { Start-Sleep -Seconds 3 }
+          for ($i = 0; $i -lt 8 -and -not $exePath; $i++) {
+            $found = Get-ChildItem -Path $installDir -Recurse -Filter "*.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+            if ($found) { $exePath = $found } else { Start-Sleep -Seconds 3 }
           }
           if (-not $exePath) {
-            Write-Host "No se encontró el .exe instalado. Contenido real de las carpetas de instalación típicas:"
-            foreach ($root in $searchRoots) { if ($root -and (Test-Path $root)) { Get-ChildItem -Path $root -Recurse -ErrorAction SilentlyContinue | Select-Object -First 40 FullName } }
-            Write-Error "No se encontró MABRIONA Browser.exe instalado — la instalación silenciosa falló."; exit 1
+            Write-Host "No se encontró ningún .exe en $installDir. Contenido real de esa carpeta:"
+            if (Test-Path $installDir) { Get-ChildItem -Path $installDir -Recurse -ErrorAction SilentlyContinue | Select-Object FullName } else { Write-Host "(la carpeta ni siquiera existe — la instalación silenciosa no corrió)" }
+            Write-Error "No se encontró ningún .exe instalado en $installDir — la instalación silenciosa falló."; exit 1
           }
           Write-Host "Instalado en: $exePath"
           Start-Process -FilePath $exePath
           Start-Sleep -Seconds 8
-          $proc = Get-Process -Name "MABRIONA Browser" -ErrorAction SilentlyContinue
+          $procName = [System.IO.Path]::GetFileNameWithoutExtension($exePath)
+          $proc = Get-Process -Name $procName -ErrorAction SilentlyContinue
           if ($proc) {
             Write-Host "REAL: el proceso arrancó y sigue vivo (PID $($proc.Id)) — verificación real en Windows, no simulada."
             Stop-Process -Id $proc.Id -Force
