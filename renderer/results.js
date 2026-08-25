@@ -91,22 +91,6 @@ function renderSearchError(response, query, freshness, container) {
 
 // ---------------- Entity Focus ----------------
 
-/** Traducción del `category` real que manda Brave (persona/empresa/lugar/app/...) al lenguaje
- * propio de MABRIONA. Solo formatea la etiqueta — nunca inventa una categoría que no vino en el
- * dato: si Brave manda un valor que no está en este mapa, se muestra el valor real tal cual. */
-const CATEGORY_LABELS = {
-  person: 'Persona',
-  company: 'Empresa',
-  place: 'Lugar',
-  application: 'Aplicación',
-  programming: 'Tecnología',
-}
-
-function friendlyCategory(category) {
-  if (!category) return null
-  return CATEGORY_LABELS[category] || category.charAt(0).toUpperCase() + category.slice(1)
-}
-
 /** Estrellas reales renderizadas a partir de una nota real sobre una escala real (ej. 8.7/10,
  * 4.7/5) — se normaliza a 5 estrellas para mostrarlas, pero el número real siempre queda visible al
  * lado, nunca se le esconde la escala original al usuario. */
@@ -131,8 +115,6 @@ function renderEntityFocus(box) {
     header.appendChild(photoWrap)
   }
   const identity = el('div', 'entity-identity')
-  const category = friendlyCategory(box.category)
-  if (category) identity.appendChild(el('span', 'entity-category', category))
   identity.appendChild(el('h2', null, box.title))
   const desc = box.longDescription || box.description
   if (desc) identity.appendChild(el('p', 'entity-desc', stripHtml(desc).slice(0, 400)))
