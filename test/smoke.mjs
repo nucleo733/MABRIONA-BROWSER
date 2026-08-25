@@ -108,9 +108,9 @@ const addressAfterSearch = await win.locator('#address').inputValue()
 if (addressAfterSearch === 'python') ok(`la barra de direcciones muestra la búsqueda limpia, no la ruta interna ("${addressAfterSearch}")`)
 else bad('barra de direcciones tras la búsqueda', `esperaba "python", encontré "${addressAfterSearch}"`)
 
-// La página de resultados tiene que traer contenido real (API oficial de Respuestas Instantáneas)
-// y no mostrar la marca de DuckDuckGo en ningún lado — solo el link honesto de "ver resultados
-// reales" cuando no hay respuesta directa, que si aparece, es intencional y transparente.
+// La página de resultados tiene que traer contenido real (Brave Search API por atrás, key
+// empaquetada) y no mostrar la marca de ningún tercero en ningún lado — nunca DuckDuckGo, nunca
+// Brave, solo la voz propia de MABRIONA.
 await win.waitForTimeout(2000) // tiempo real para el fetch a la API
 const resultsPageText = await app.evaluate(({ BrowserWindow }) => {
   const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
@@ -118,17 +118,19 @@ const resultsPageText = await app.evaluate(({ BrowserWindow }) => {
 })
 console.log('texto de la página de resultados:', resultsPageText.slice(0, 300).replace(/\n+/g, ' | '))
 if (!resultsPageText.includes('Buscando…')) ok('la página de resultados terminó de cargar (no se quedó en "Buscando…")')
-else bad('carga de resultados', 'se quedó mostrando "Buscando…" — puede ser falta de red hacia api.duckduckgo.com en este entorno')
-if (!resultsPageText.includes('DuckDuckGo')) ok('la página de resultados no menciona a ningún tercero — voz 100% propia de MABRIONA')
+else bad('carga de resultados', 'se quedó mostrando "Buscando…" — puede ser falta de red real hacia la API de Brave en este entorno')
+if (!resultsPageText.includes('DuckDuckGo') && !resultsPageText.includes('Brave')) ok('la página de resultados no menciona a ningún tercero — voz 100% propia de MABRIONA')
 else bad('mención de un tercero en resultados propios', resultsPageText.slice(0, 200))
 
-// CSP real de results.html — misma verificación en vivo, no solo en el archivo fuente.
+// CSP real de results.html — misma verificación en vivo, no solo en el archivo fuente. Sin
+// connect-src abierto: el renderer no hace ningún fetch propio, todo pasa por IPC al proceso
+// principal (ver renderer/results.js — se sacó el respaldo viejo a la API de DuckDuckGo).
 const resultsCsp = await app.evaluate(({ BrowserWindow }) => {
   const view = BrowserWindow.getAllWindows()[0].getBrowserViews()[0]
   return view.webContents.executeJavaScript('document.querySelector(\'meta[http-equiv="Content-Security-Policy"]\')?.content || null')
 })
-if (resultsCsp && resultsCsp.includes("object-src 'none'") && resultsCsp.includes('api.duckduckgo.com')) {
-  ok(`CSP de la página de resultados activa y endurecida (${resultsCsp.slice(0, 60)}...)`)
+if (resultsCsp && resultsCsp.includes("object-src 'none'") && resultsCsp.includes("connect-src 'none'")) {
+  ok(`CSP de la página de resultados activa y endurecida, sin conexiones propias del renderer (${resultsCsp.slice(0, 60)}...)`)
 } else {
   bad('CSP de resultados', String(resultsCsp))
 }

@@ -21,9 +21,13 @@
  * categoría propia, People más allá del infobox, MABRIONA AI): a
  * propósito NO se simulan — ver docs/FASE-MABRIONA-SEARCH-ETAPA-4-FUENTES.md.
  *
- * Fuente de respaldo (sin key configurada todavía): la API oficial de
- * Respuestas Instantáneas de DuckDuckGo (gratis, sin key) — solo
- * definiciones/resúmenes de temas conocidos.
+ * Sin respaldo a ningún otro proveedor: si Brave no está configurada
+ * (`configured: false`, no debería pasar en el .app distribuido — la
+ * key viene empaquetada, ver profiles.js) o falla, se muestra el
+ * estado de error real correspondiente — nunca se manda la consulta a
+ * otro tercero por atrás sin que la persona lo haya elegido ella misma
+ * (eso solo pasa si elige explícitamente un motor externo en
+ * Configuración → Búsqueda).
  */
 
 function qs(name) {
@@ -55,13 +59,7 @@ function stripHtml(text) {
 }
 
 function renderEmpty(query, container) {
-  container.appendChild(el('p', 'empty', 'MABRIONA no encontró una respuesta directa para esto.'))
-  const note = el('p', 'note', 'Para la mayoría de búsquedas comunes puede no traer nada todavía.')
-  container.appendChild(note)
-  const link = el('a', 'fallback-link')
-  link.href = `https://duckduckgo.com/?q=${encodeURIComponent(query)}`
-  link.textContent = 'Buscar en la web →'
-  container.appendChild(link)
+  container.appendChild(el('p', 'empty', 'MABRIONA no encontró resultados para esta búsqueda.'))
 }
 
 /** Estado de error real y distinguible — antes, cualquier falla (sin conexión, límite de cuenta,
@@ -75,6 +73,8 @@ function renderSearchError(response, query, freshness, container) {
     message = 'MABRIONA alcanzó el límite de búsquedas por ahora. Probá de nuevo en unos segundos.'
   } else if (response.errorKind === 'network') {
     message = 'No se pudo conectar — revisá tu conexión a internet.'
+  } else if (response.errorKind === 'not_configured') {
+    message = 'MABRIONA Search no está configurada en este build.'
   }
   card.appendChild(el('p', 'search-error-title', message))
   const retry = el('button', 'search-error-retry', 'Reintentar')
@@ -653,73 +653,6 @@ function mountSpectrum(data, container, query, freshness) {
   draw()
 }
 
-// ---------------- Respaldo: Respuestas Instantáneas de DuckDuckGo (sin key todavía) ----------------
-
-function renderInstantAnswer(data, query, container) {
-  let any = false
-  if (data.Heading || data.AbstractText) {
-    const card = el('div', 'card')
-    if (data.Heading) card.appendChild(el('h2', null, data.Heading))
-    if (data.AbstractText) card.appendChild(el('p', null, stripHtml(data.AbstractText)))
-    if (data.AbstractURL) {
-      const link = el('a', 'source-link')
-      link.href = data.AbstractURL
-      link.textContent = data.AbstractSource ? `Fuente: ${data.AbstractSource}` : 'Ver más'
-      card.appendChild(link)
-    }
-    container.appendChild(card)
-    any = true
-  }
-  if (data.Answer) {
-    const card = el('div', 'card')
-    card.appendChild(el('p', 'answer', stripHtml(data.Answer)))
-    container.appendChild(card)
-    any = true
-  }
-  if (data.Definition) {
-    const card = el('div', 'card')
-    card.appendChild(el('p', null, stripHtml(data.Definition)))
-    if (data.DefinitionURL) {
-      const link = el('a', 'source-link')
-      link.href = data.DefinitionURL
-      link.textContent = data.DefinitionSource ? `Fuente: ${data.DefinitionSource}` : 'Ver más'
-      card.appendChild(link)
-    }
-    container.appendChild(card)
-    any = true
-  }
-  const topics = Array.isArray(data.RelatedTopics) ? data.RelatedTopics : []
-  const flatTopics = topics.flatMap((t) => (Array.isArray(t.Topics) ? t.Topics : [t])).filter((t) => t.Text && t.FirstURL)
-  if (flatTopics.length > 0) {
-    const list = el('ul', 'related')
-    for (const t of flatTopics.slice(0, 10)) {
-      const li = el('li')
-      const link = el('a')
-      link.href = t.FirstURL
-      link.textContent = t.Text
-      li.appendChild(link)
-      list.appendChild(li)
-    }
-    container.appendChild(list)
-    any = true
-  }
-  return any
-}
-
-async function searchInstantAnswer(query, container) {
-  try {
-    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_html=1&skip_disambig=1`
-    const res = await fetch(url)
-    const data = await res.json()
-    const any = renderInstantAnswer(data, query, container)
-    if (!any) renderEmpty(query, container)
-    return any
-  } catch {
-    renderEmpty(query, container)
-    return false
-  }
-}
-
 // ---------------- Orquestación ----------------
 
 async function search(query, freshness) {
@@ -735,40 +668,41 @@ async function search(query, freshness) {
     return
   }
 
-  if (window.mabrionaSearch) {
-    try {
-      const response = await window.mabrionaSearch.query(query, freshness)
-      if (response.configured) {
-        if (response.error) {
-          container.replaceChildren()
-          renderSearchError(response, query, freshness, container)
-          return
-        }
-        const hasAnything =
-          response.infobox ||
-          response.web.length > 0 ||
-          response.videos.length > 0 ||
-          (response.faq && response.faq.length > 0) ||
-          (response.news && response.news.length > 0) ||
-          (response.locations && response.locations.length > 0) ||
-          response.tool
-        if (hasAnything) {
-          container.classList.remove('state-centered')
-          mountSpectrum(response, container, query, freshness)
-        } else {
-          container.replaceChildren()
-          renderEmpty(query, container)
-        }
-        return
-      }
-    } catch {
-      // sigue al respaldo de abajo
+  // No hay ningún respaldo a un tercero acá — si `window.mabrionaSearch` faltara (el preload no
+  // cargó) o `.query()` tirara una excepción real (no un error HTTP normal, ese ya viene adentro
+  // de `response` y se maneja abajo), se muestra el mismo estado de error honesto de siempre, con
+  // Reintentar — nunca se manda la consulta a otro proveedor sin que la persona lo haya elegido.
+  try {
+    const response = await window.mabrionaSearch.query(query, freshness)
+    if (!response.configured) {
+      container.replaceChildren()
+      renderSearchError({ errorKind: 'not_configured' }, query, freshness, container)
+      return
     }
+    if (response.error) {
+      container.replaceChildren()
+      renderSearchError(response, query, freshness, container)
+      return
+    }
+    const hasAnything =
+      response.infobox ||
+      response.web.length > 0 ||
+      response.videos.length > 0 ||
+      (response.faq && response.faq.length > 0) ||
+      (response.news && response.news.length > 0) ||
+      (response.locations && response.locations.length > 0) ||
+      response.tool
+    container.replaceChildren()
+    if (hasAnything) {
+      container.classList.remove('state-centered')
+      mountSpectrum(response, container, query, freshness)
+    } else {
+      renderEmpty(query, container)
+    }
+  } catch {
+    container.replaceChildren()
+    renderSearchError({ errorKind: 'network' }, query, freshness, container)
   }
-
-  container.replaceChildren()
-  const any = await searchInstantAnswer(query, container)
-  if (any) container.classList.remove('state-centered')
 }
 
 const initialQuery = qs('q')
