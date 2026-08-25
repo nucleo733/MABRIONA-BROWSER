@@ -1,0 +1,74 @@
+name: Build Windows
+
+# Windows no se puede compilar desde la máquina de desarrollo habitual (necesita Wine, no
+# instalado ahí) — este workflow usa un runner de Windows real de GitHub Actions para compilar
+# el instalador NSIS de verdad, y confirma que la app instalada arranca de verdad en ese runner
+# (no solo que "el build terminó sin error"). Manual a propósito (workflow_dispatch): cada build
+# de Windows se dispara y se revisa a mano antes de publicarlo en un Release.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - name: Correr unit tests reales antes de compilar
+        run: npm test
+
+      # La Brave API key real (para que MABRIONA Search funcione sin configuración manual, ver
+      # docs/MABRIONA-BROWSER-PRODUCTION-SEARCH-FIX.md) nunca vive en el repo — se escribe acá
+      # desde un secret de GitHub Actions, solo dentro de este runner efímero.
+      - name: Escribir la Brave API key empaquetada (desde un secret, nunca en el repo)
+        shell: bash
+        run: |
+          printf '{"braveApiKey": "%s"}' "${{ secrets.BRAVE_API_KEY }}" > brave-api-key.local.json
+
+      - name: Compilar el instalador NSIS real
+        run: npm run dist:win
+
+      - name: Verificación real — instalar en silencio y confirmar que el proceso arranca
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path dist -Filter "*.exe" | Select-Object -First 1
+          Write-Host "Instalador: $($installer.FullName)"
+          Start-Process -FilePath $installer.FullName -ArgumentList "/S" -Wait
+          Start-Sleep -Seconds 5
+          $exePath = "$env:LOCALAPPDATA\Programs\mabriona-browser\MABRIONA Browser.exe"
+          if (-not (Test-Path $exePath)) {
+            $exePath = Get-ChildItem -Path "$env:LOCALAPPDATA\Programs" -Recurse -Filter "MABRIONA Browser.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $exePath) { Write-Error "No se encontró MABRIONA Browser.exe instalado — la instalación silenciosa falló."; exit 1 }
+          Write-Host "Instalado en: $exePath"
+          Start-Process -FilePath $exePath
+          Start-Sleep -Seconds 8
+          $proc = Get-Process -Name "MABRIONA Browser" -ErrorAction SilentlyContinue
+          if ($proc) {
+            Write-Host "REAL: el proceso arrancó y sigue vivo (PID $($proc.Id)) — verificación real en Windows, no simulada."
+            Stop-Process -Id $proc.Id -Force
+          } else {
+            Write-Error "El proceso no aparece corriendo después de abrirlo — falló el arranque real en Windows."
+            exit 1
+          }
+
+      - name: Checksum real del instalador
+        shell: bash
+        run: |
+          cd dist
+          sha256sum *.exe | tee checksums-win.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mabriona-browser-windows
+          path: |
+            dist/*.exe
+            dist/checksums-win.txt
+          retention-days: 30
