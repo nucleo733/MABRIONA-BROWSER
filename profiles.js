@@ -14,7 +14,7 @@ const path = require('node:path')
  * archivo de datos (`mabriona-browser-data.json`) y a la MISMA partición de Chromium
  * (`persist:mabriona-browser`) que ya existían — cero riesgo de pérdida de datos, cero copia.
  */
-function createProfileRegistry(registryFilePath, legacyDataFilePath) {
+function createProfileRegistry(registryFilePath, legacyDataFilePath, bundledKeyFilePath = path.join(__dirname, 'brave-api-key.local.json')) {
   function readAll() {
     try {
       const raw = fs.readFileSync(registryFilePath, 'utf-8')
@@ -28,6 +28,19 @@ function createProfileRegistry(registryFilePath, legacyDataFilePath) {
   function writeAll(d) {
     fs.mkdirSync(path.dirname(registryFilePath), { recursive: true })
     fs.writeFileSync(registryFilePath, JSON.stringify(d, null, 2))
+  }
+
+  // La Brave API key real de MABRIONA Corporation, empaquetada junto al código para que la
+  // búsqueda funcione en el .app que se descarga — nunca en el repo público (ver .gitignore),
+  // se coloca a mano en la máquina que hace el build oficial. Un build local sin ese archivo
+  // simplemente no trae key (mismo estado "no configurado" de siempre, honesto, no fingido).
+  function readBundledApiKey() {
+    try {
+      const raw = fs.readFileSync(bundledKeyFilePath, 'utf-8')
+      return JSON.parse(raw).braveApiKey || null
+    } catch {
+      return null
+    }
   }
 
   let data = readAll()
@@ -44,6 +57,13 @@ function createProfileRegistry(registryFilePath, legacyDataFilePath) {
       braveApiKey: migratedKey,
     }
     writeAll(data)
+  }
+  // Cubre tanto la instalación 100% nueva de arriba como una instalación existente cuyo registro
+  // ya se creó antes de que esta key empezara a empaquetarse — en ningún caso pisa una key que
+  // la persona ya haya configurado ella misma.
+  if (!data.braveApiKey) {
+    const bundled = readBundledApiKey()
+    if (bundled) { data.braveApiKey = bundled; writeAll(data) }
   }
 
   function genId() {

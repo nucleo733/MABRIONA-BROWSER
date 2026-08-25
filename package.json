@@ -28,6 +28,7 @@
       "store.js",
       "profiles.js",
       "address-resolver.js",
+      "brave-api-key.local.json",
       "renderer/**/*",
       "shields/**/*",
       "search/**/*"

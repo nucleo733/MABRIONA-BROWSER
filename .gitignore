@@ -4,3 +4,7 @@ screenshots/
 .DS_Store
 *.log
 build/icon.iconset/
+
+# Credencial real de la Brave API, empaquetada en el .app distribuido (ver profiles.js) pero
+# NUNCA en el repo público — se coloca a mano en la máquina que hace el build oficial.
+brave-api-key.local.json
