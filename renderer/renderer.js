@@ -102,7 +102,7 @@ btnFav.addEventListener('click', async () => {
   if (isFav) await mabrionaBrowser.removeFavorite(activeTab.url)
   else await mabrionaBrowser.addFavorite({ url: activeTab.url, title: activeTab.title, addedAt: Date.now() })
   btnFav.textContent = isFav ? '☆' : '★'
-  refreshFavoritesPanel()
+  refreshAllFavoritesUI()
 })
 btnScreenshot.addEventListener('click', async () => {
   if (!activeTab) return
@@ -232,11 +232,37 @@ document.getElementById('history-search').addEventListener('input', (e) => {
   renderHistoryList(historyCache.filter((h) => (h.title || '').toLowerCase().includes(q) || h.url.toLowerCase().includes(q)))
 })
 async function refreshFavoritesPanel() {
-  const favorites = await mabrionaBrowser.listFavorites()
-  renderList('favorites-list', favorites, 'Sin favoritos todavía', (item) => {
-    if (activeTab) mabrionaBrowser.navigate(activeTab.id, item.url)
-  })
+  await loadFavoritesData()
+  renderFavoritesPanelList()
 }
+function renderFavoritesPanelList() {
+  const ul = document.getElementById('favorites-list')
+  ul.innerHTML = ''
+  const folders = childFolders(null)
+  const favorites = childFavorites(null)
+  if (folders.length === 0 && favorites.length === 0) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'Sin favoritos todavía'
+    ul.appendChild(li)
+    return
+  }
+  for (const folder of folders) {
+    const li = document.createElement('li')
+    li.className = 'fav-panel-group-label'
+    li.textContent = `📁 ${folder.name}`
+    li.addEventListener('click', () => { togglePanel('favorites'); openBookmarksManager(folder.id) })
+    ul.appendChild(li)
+  }
+  for (const item of favorites) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span class="item-title">${escapeHtml(item.title || item.url)}</span><span class="item-url">${escapeHtml(item.url)}</span>`
+    li.addEventListener('click', () => { if (activeTab) mabrionaBrowser.navigate(activeTab.id, item.url) })
+    li.addEventListener('contextmenu', (e) => { e.preventDefault(); openFavoriteContextMenu(e.clientX, e.clientY, item) })
+    ul.appendChild(li)
+  }
+}
+document.getElementById('favorites-open-manager').addEventListener('click', () => { togglePanel('favorites'); openBookmarksManager(null) })
 async function refreshDownloadsPanel() {
   const downloads = await mabrionaBrowser.listDownloads()
   renderList('downloads-list', downloads.map((d) => ({ title: d.filename, url: d.state })), 'Sin descargas todavía', (item) => {
@@ -549,6 +575,7 @@ document.getElementById('onboarding-start-import').addEventListener('click', asy
     resultEl.textContent = parts.length > 0 ? `Importado: ${parts.join(' · ')}.` : 'No importaste nada — podés hacerlo cuando quieras desde Configuración.'
   }
   showOnboardingStep('onboarding-step-done')
+  refreshAllFavoritesUI()
 })
 
 document.getElementById('settings-import-data').addEventListener('click', () => openOnboarding(false))
@@ -594,6 +621,487 @@ mabrionaBrowser.onPermissionRequest((req) => {
   showNextPermissionRequest()
 })
 
+// ---------------- Reemplazo real de window.prompt() — Electron no lo implementa (excepción real
+// verificada: "prompt() is and will not be supported"). alert()/confirm() sí funcionan (dialogo
+// nativo real) y se siguen usando tal cual en el resto del archivo. ----------------
+
+function showTextPrompt(label, defaultValue = '') {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('text-prompt-overlay')
+    const input = document.getElementById('text-prompt-input')
+    const okBtn = document.getElementById('text-prompt-ok')
+    const cancelBtn = document.getElementById('text-prompt-cancel')
+    document.getElementById('text-prompt-label').textContent = label
+    input.value = defaultValue
+    overlay.classList.remove('hidden')
+    input.focus()
+    input.select()
+    function cleanup(result) {
+      overlay.classList.add('hidden')
+      okBtn.removeEventListener('click', onOk)
+      cancelBtn.removeEventListener('click', onCancel)
+      input.removeEventListener('keydown', onKeydown)
+      resolve(result)
+    }
+    function onOk() { cleanup(input.value) }
+    function onCancel() { cleanup(null) }
+    function onKeydown(e) {
+      if (e.key === 'Enter') { e.preventDefault(); onOk() }
+      else if (e.key === 'Escape') { e.preventDefault(); onCancel() }
+    }
+    okBtn.addEventListener('click', onOk)
+    cancelBtn.addEventListener('click', onCancel)
+    input.addEventListener('keydown', onKeydown)
+  })
+}
+
+// ---------------- Favoritos: barra real + gestor profesional (carpetas reales por id) ----------------
+
+let foldersCache = []
+let favoritesCache = []
+
+function favSortValue(item) { return typeof item.order === 'number' ? item.order : Number.MAX_SAFE_INTEGER }
+function sortItems(items) {
+  return [...items].sort((a, b) => favSortValue(a) - favSortValue(b) || String(a.name || a.title || '').localeCompare(String(b.name || b.title || '')))
+}
+function childFolders(parentId) { return sortItems(foldersCache.filter((f) => (f.parentId || null) === (parentId || null))) }
+function childFavorites(folderId) { return sortItems(favoritesCache.filter((f) => (f.folderId || null) === (folderId || null))) }
+function folderById(id) { return foldersCache.find((f) => f.id === id) || null }
+
+async function loadFavoritesData() {
+  ;[foldersCache, favoritesCache] = await Promise.all([mabrionaBrowser.listFolders(), mabrionaBrowser.listFavorites()])
+}
+
+async function refreshAllFavoritesUI() {
+  await loadFavoritesData()
+  renderFavoritesBar()
+  if (!document.getElementById('panel-favorites').classList.contains('hidden')) renderFavoritesPanelList()
+  if (!document.getElementById('bookmarks-manager-overlay').classList.contains('hidden')) renderBookmarksManager()
+}
+
+// ---- Arrastrar y soltar real (HTML5 DnD) — reutilizado por la barra, el desplegable y el gestor ----
+
+function readDragPayload(e) {
+  try { return JSON.parse(e.dataTransfer.getData('application/json')) } catch { return null }
+}
+function makeDraggable(el, payload) {
+  el.draggable = true
+  el.addEventListener('dragstart', (e) => {
+    e.stopPropagation()
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('application/json', JSON.stringify(payload))
+    el.classList.add('dragging')
+  })
+  el.addEventListener('dragend', () => el.classList.remove('dragging'))
+}
+/** Soltar acá = mover el favorito/carpeta arrastrado ADENTRO de `targetFolderId` (o al nivel
+ * superior si es null). Se usa en carpetas y en fondos de contenedor. */
+function makeDropTargetMoveInto(el, targetFolderId) {
+  el.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over') })
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'))
+  el.addEventListener('drop', async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    el.classList.remove('drag-over')
+    await moveDraggedTo(readDragPayload(e), targetFolderId)
+  })
+}
+/** Soltar acá = reordenar el arrastrado junto a `targetId` dentro de la MISMA lista real de
+ * hermanos (mismo tipo, mismo padre) que devuelve `siblingsProvider()`. */
+function makeDropTargetReorder(el, siblingsProvider, targetId) {
+  el.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; el.classList.add('drag-over') })
+  el.addEventListener('dragleave', () => el.classList.remove('drag-over'))
+  el.addEventListener('drop', async (e) => {
+    e.preventDefault()
+    e.stopPropagation()
+    el.classList.remove('drag-over')
+    await reorderAfterDrop(readDragPayload(e), siblingsProvider(), targetId)
+  })
+}
+async function moveDraggedTo(payload, targetFolderId) {
+  if (!payload) return
+  if (payload.type === 'favorite') await mabrionaBrowser.moveFavorite(payload.id, targetFolderId)
+  else if (payload.type === 'folder' && payload.id !== targetFolderId) await mabrionaBrowser.moveFolder(payload.id, targetFolderId)
+  await refreshAllFavoritesUI()
+}
+async function reorderAfterDrop(payload, siblingsBeforeMove, targetId) {
+  if (!payload) return
+  const matchId = (it) => (payload.type === 'favorite' ? it.url : it.id)
+  const draggedItem = siblingsBeforeMove.find((it) => matchId(it) === payload.id)
+  if (!draggedItem) return // el arrastrado no es del mismo tipo/lista real que el destino — no hacer nada
+  const list = siblingsBeforeMove.filter((it) => matchId(it) !== payload.id)
+  const targetIndex = list.findIndex((it) => matchId(it) === targetId)
+  list.splice(targetIndex === -1 ? list.length : targetIndex, 0, draggedItem)
+  for (let i = 0; i < list.length; i++) {
+    if (payload.type === 'favorite') await mabrionaBrowser.reorderFavorite(list[i].url, i)
+    else await mabrionaBrowser.reorderFolder(list[i].id, i)
+  }
+  await refreshAllFavoritesUI()
+}
+
+// ---- Menú contextual real (clic derecho) — favoritos y carpetas, en la barra y en el gestor ----
+
+const contextMenuEl = document.getElementById('context-menu')
+function closeContextMenu() { contextMenuEl.classList.add('hidden'); contextMenuEl.innerHTML = '' }
+function openContextMenuAt(x, y, buildFn) {
+  contextMenuEl.innerHTML = ''
+  buildFn(contextMenuEl)
+  contextMenuEl.classList.remove('hidden')
+  const rect = contextMenuEl.getBoundingClientRect()
+  const maxX = window.innerWidth - rect.width - 8
+  const maxY = window.innerHeight - rect.height - 8
+  contextMenuEl.style.left = `${Math.max(8, Math.min(x, maxX))}px`
+  contextMenuEl.style.top = `${Math.max(8, Math.min(y, maxY))}px`
+}
+function addMenuButton(parent, label, onClick, opts = {}) {
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.textContent = label
+  if (opts.danger) btn.classList.add('danger')
+  btn.addEventListener('click', (e) => { e.stopPropagation(); closeContextMenu(); onClick() })
+  parent.appendChild(btn)
+  return btn
+}
+function addMenuDivider(parent) { parent.appendChild(document.createElement('hr')) }
+document.addEventListener('click', (e) => { if (!contextMenuEl.contains(e.target)) closeContextMenu() })
+document.addEventListener('contextmenu', (e) => { if (!e.defaultPrevented) closeContextMenu() })
+window.addEventListener('blur', closeContextMenu)
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContextMenu() }, true)
+
+function flattenFoldersForPicker(excludeId) {
+  const result = []
+  function walk(parentId, depth) {
+    for (const f of childFolders(parentId)) {
+      if (f.id !== excludeId) result.push({ folder: f, depth })
+      walk(f.id, depth + 1)
+    }
+  }
+  walk(null, 0)
+  return result
+}
+function openMoveToMenu(x, y, { excludeFolderId, onPick }) {
+  openContextMenuAt(x, y, (menu) => {
+    const label = document.createElement('div')
+    label.className = 'cm-label'
+    label.textContent = 'Mover a'
+    menu.appendChild(label)
+    addMenuButton(menu, '🔖 Nivel superior', () => onPick(null))
+    const list = flattenFoldersForPicker(excludeFolderId)
+    if (list.length > 0) addMenuDivider(menu)
+    for (const { folder, depth } of list) addMenuButton(menu, `${'　'.repeat(depth)}📁 ${folder.name}`, () => onPick(folder.id))
+  })
+}
+
+async function editFavoritePrompt(fav) {
+  const newTitle = await showTextPrompt('Título del favorito', fav.title || '')
+  if (newTitle === null) return
+  if (newTitle.trim() && newTitle.trim() !== fav.title) await mabrionaBrowser.renameFavorite(fav.url, newTitle.trim())
+  const newUrl = await showTextPrompt('URL del favorito', fav.url)
+  if (newUrl !== null && newUrl.trim() && newUrl.trim() !== fav.url) {
+    const ok = await mabrionaBrowser.updateFavoriteUrl(fav.url, newUrl.trim())
+    if (!ok) alert('Esa URL no es válida, o ya la usa otro favorito.')
+  }
+  await refreshAllFavoritesUI()
+}
+
+function openFavoriteContextMenu(x, y, fav) {
+  openContextMenuAt(x, y, (menu) => {
+    addMenuButton(menu, '↗ Abrir', () => { if (activeTab) mabrionaBrowser.navigate(activeTab.id, fav.url) })
+    addMenuButton(menu, '＋ Abrir en nueva pestaña', () => mabrionaBrowser.createTab(fav.url))
+    addMenuButton(menu, '🪟 Abrir en nueva ventana', () => mabrionaBrowser.newWindow(fav.url))
+    addMenuDivider(menu)
+    addMenuButton(menu, '✎ Editar', () => editFavoritePrompt(fav))
+    addMenuButton(menu, '➜ Mover a…', () => {
+      openMoveToMenu(x, y, { onPick: async (folderId) => { await mabrionaBrowser.moveFavorite(fav.url, folderId); await refreshAllFavoritesUI() } })
+    })
+    addMenuDivider(menu)
+    addMenuButton(menu, '🗑 Eliminar', async () => {
+      if (!confirm(`¿Eliminar "${fav.title || fav.url}" de favoritos?`)) return
+      await mabrionaBrowser.removeFavorite(fav.url)
+      await refreshAllFavoritesUI()
+    }, { danger: true })
+  })
+}
+
+function openAllInFolder(folderId) {
+  const favs = childFavorites(folderId)
+  if (favs.length === 0) return
+  if (favs.length > 8 && !confirm(`¿Abrir ${favs.length} pestañas nuevas?`)) return
+  for (const fav of favs) mabrionaBrowser.createTab(fav.url)
+}
+
+function openFolderContextMenu(x, y, folder) {
+  openContextMenuAt(x, y, (menu) => {
+    addMenuButton(menu, '↗ Abrir todos', () => openAllInFolder(folder.id))
+    addMenuDivider(menu)
+    addMenuButton(menu, '📁 Nueva subcarpeta', async () => {
+      const name = await showTextPrompt('Nombre de la subcarpeta', '')
+      if (!name || !name.trim()) return
+      await mabrionaBrowser.createFolder(name.trim(), folder.id)
+      await refreshAllFavoritesUI()
+    })
+    addMenuButton(menu, '✎ Renombrar', async () => {
+      const name = await showTextPrompt('Nuevo nombre de la carpeta', folder.name)
+      if (!name || !name.trim()) return
+      await mabrionaBrowser.renameFolder(folder.id, name.trim())
+      await refreshAllFavoritesUI()
+    })
+    addMenuButton(menu, '➜ Mover a…', () => {
+      openMoveToMenu(x, y, {
+        excludeFolderId: folder.id,
+        onPick: async (targetId) => {
+          const ok = await mabrionaBrowser.moveFolder(folder.id, targetId)
+          if (!ok) alert('No se puede mover una carpeta adentro de sí misma o de una de sus propias subcarpetas.')
+          await refreshAllFavoritesUI()
+        },
+      })
+    })
+    addMenuDivider(menu)
+    addMenuButton(menu, '🗑 Eliminar', async () => {
+      if (!confirm(`¿Eliminar la carpeta "${folder.name}"? Lo que tenga adentro sube al nivel de arriba — no se borra nada más.`)) return
+      await mabrionaBrowser.deleteFolder(folder.id)
+      await refreshAllFavoritesUI()
+    }, { danger: true })
+  })
+}
+
+// ---- Barra de favoritos real, en la barra de herramientas ----
+
+function closeAllFavDropdowns(exceptEl) {
+  document.querySelectorAll('.fav-bar-dropdown').forEach((el) => { if (el !== exceptEl) el.classList.add('hidden') })
+}
+document.addEventListener('click', () => closeAllFavDropdowns())
+
+function buildFavBarNode(kind, item, { nested } = {}) {
+  if (kind === 'favorite') {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = nested ? 'fbd-item' : 'fav-bar-item'
+    btn.innerHTML = `<span>🔖 ${escapeHtml(item.title || item.url)}</span>`
+    btn.title = item.url
+    btn.addEventListener('click', () => {
+      closeAllFavDropdowns()
+      if (activeTab) mabrionaBrowser.navigate(activeTab.id, item.url)
+    })
+    btn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openFavoriteContextMenu(e.clientX, e.clientY, item) })
+    makeDraggable(btn, { type: 'favorite', id: item.url })
+    makeDropTargetReorder(btn, () => childFavorites(item.folderId || null), item.url)
+    return btn
+  }
+  const wrap = document.createElement('div')
+  wrap.className = nested ? 'fbd-folder' : 'fav-bar-folder'
+  const btn = document.createElement('button')
+  btn.type = 'button'
+  btn.className = nested ? 'fbd-folder-btn' : 'fav-bar-folder-btn'
+  btn.innerHTML = `<span>📁 ${escapeHtml(item.name)}</span>`
+  btn.title = item.name
+  const dropdown = document.createElement('div')
+  dropdown.className = 'fav-bar-dropdown hidden'
+  const subFolders = childFolders(item.id)
+  const subFavorites = childFavorites(item.id)
+  if (subFolders.length === 0 && subFavorites.length === 0) {
+    const empty = document.createElement('div')
+    empty.className = 'fbd-empty'
+    empty.textContent = 'Vacía'
+    dropdown.appendChild(empty)
+  } else {
+    for (const f of subFolders) dropdown.appendChild(buildFavBarNode('folder', f, { nested: true }))
+    for (const fav of subFavorites) dropdown.appendChild(buildFavBarNode('favorite', fav, { nested: true }))
+  }
+  makeDropTargetMoveInto(dropdown, item.id)
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation()
+    const willOpen = dropdown.classList.contains('hidden')
+    closeAllFavDropdowns(willOpen ? dropdown : null)
+    dropdown.classList.toggle('hidden', !willOpen)
+  })
+  btn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openFolderContextMenu(e.clientX, e.clientY, item) })
+  makeDraggable(btn, { type: 'folder', id: item.id })
+  makeDropTargetMoveInto(btn, item.id)
+  wrap.appendChild(btn)
+  wrap.appendChild(dropdown)
+  return wrap
+}
+
+function renderFavoritesBar() {
+  const container = document.getElementById('favorites-bar-items')
+  container.innerHTML = ''
+  for (const f of childFolders(null)) container.appendChild(buildFavBarNode('folder', f))
+  for (const fav of childFavorites(null)) container.appendChild(buildFavBarNode('favorite', fav))
+}
+makeDropTargetMoveInto(document.getElementById('favorites-bar'), null)
+document.getElementById('btn-manage-favorites').addEventListener('click', (e) => { e.stopPropagation(); openBookmarksManager(null) })
+
+// ---- Gestor profesional de favoritos — pantalla completa, carpetas reales ----
+
+let bmCurrentFolderId = null
+let bmSearch = ''
+let bmSortMode = 'manual'
+
+function openBookmarksManager(initialFolderId) {
+  bmCurrentFolderId = initialFolderId || null
+  bmSearch = ''
+  document.getElementById('bm-search').value = ''
+  document.getElementById('bm-sort').value = bmSortMode
+  closeAllPanels()
+  closeContextMenu()
+  document.getElementById('bookmarks-manager-overlay').classList.remove('hidden')
+  loadFavoritesData().then(renderBookmarksManager)
+}
+function closeBookmarksManager() {
+  document.getElementById('bookmarks-manager-overlay').classList.add('hidden')
+}
+document.getElementById('bm-close').addEventListener('click', closeBookmarksManager)
+
+function renderBookmarksManager() {
+  renderBmTree()
+  renderBmBreadcrumb()
+  renderBmItems()
+}
+
+function buildTreeLevel(container, parentId) {
+  for (const folder of childFolders(parentId)) {
+    const node = document.createElement('div')
+    node.className = 'bm-tree-node'
+    const row = document.createElement('div')
+    row.className = 'bm-tree-row' + (bmCurrentFolderId === folder.id ? ' active' : '')
+    row.textContent = `📁 ${folder.name}`
+    row.title = folder.name
+    row.addEventListener('click', () => { bmCurrentFolderId = folder.id; renderBookmarksManager() })
+    row.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openFolderContextMenu(e.clientX, e.clientY, folder) })
+    makeDraggable(row, { type: 'folder', id: folder.id })
+    makeDropTargetMoveInto(row, folder.id)
+    node.appendChild(row)
+    const childrenWrap = document.createElement('div')
+    childrenWrap.className = 'bm-tree-children'
+    node.appendChild(childrenWrap)
+    buildTreeLevel(childrenWrap, folder.id)
+    container.appendChild(node)
+  }
+}
+function renderBmTree() {
+  const root = document.getElementById('bm-tree')
+  root.innerHTML = ''
+  const rootRow = document.createElement('div')
+  rootRow.className = 'bm-tree-row' + (bmCurrentFolderId === null ? ' active' : '')
+  rootRow.textContent = '🔖 Favoritos'
+  rootRow.addEventListener('click', () => { bmCurrentFolderId = null; renderBookmarksManager() })
+  makeDropTargetMoveInto(rootRow, null)
+  root.appendChild(rootRow)
+  const childrenWrap = document.createElement('div')
+  root.appendChild(childrenWrap)
+  buildTreeLevel(childrenWrap, null)
+}
+
+function renderBmBreadcrumb() {
+  const el = document.getElementById('bm-breadcrumb')
+  el.innerHTML = ''
+  const chain = []
+  let current = bmCurrentFolderId ? folderById(bmCurrentFolderId) : null
+  while (current) { chain.unshift(current); current = current.parentId ? folderById(current.parentId) : null }
+  const rootBtn = document.createElement('button')
+  rootBtn.type = 'button'
+  rootBtn.textContent = 'Favoritos'
+  rootBtn.addEventListener('click', () => { bmCurrentFolderId = null; renderBookmarksManager() })
+  el.appendChild(rootBtn)
+  for (const folder of chain) {
+    const sep = document.createElement('span')
+    sep.textContent = ' / '
+    el.appendChild(sep)
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.textContent = folder.name
+    btn.addEventListener('click', () => { bmCurrentFolderId = folder.id; renderBookmarksManager() })
+    el.appendChild(btn)
+  }
+}
+
+function folderPathLabel(folderId) {
+  const parts = []
+  let current = folderId ? folderById(folderId) : null
+  while (current) { parts.unshift(current.name); current = current.parentId ? folderById(current.parentId) : null }
+  return parts.length ? parts.join('/') : 'Favoritos'
+}
+
+function applySortMode(items, isFolder) {
+  if (bmSortMode !== 'name') return items // orden manual real — ya viene ordenado por el campo `order`
+  return [...items].sort((a, b) => String(isFolder ? a.name : (a.title || a.url)).localeCompare(String(isFolder ? b.name : (b.title || b.url))))
+}
+
+function buildBmFolderRow(folder) {
+  const li = document.createElement('li')
+  li.className = 'bm-item'
+  li.innerHTML = `<span class="bm-item-icon">📁</span><span class="bm-item-text"><span class="bm-item-title">${escapeHtml(folder.name)}</span></span>`
+  li.addEventListener('click', () => { bmCurrentFolderId = folder.id; renderBookmarksManager() })
+  li.addEventListener('contextmenu', (e) => { e.preventDefault(); openFolderContextMenu(e.clientX, e.clientY, folder) })
+  const more = document.createElement('button')
+  more.className = 'bm-item-more'
+  more.type = 'button'
+  more.textContent = '⋯'
+  more.title = 'Más opciones'
+  more.addEventListener('click', (e) => { e.stopPropagation(); openFolderContextMenu(e.clientX, e.clientY, folder) })
+  li.appendChild(more)
+  makeDraggable(li, { type: 'folder', id: folder.id })
+  makeDropTargetMoveInto(li, folder.id)
+  return li
+}
+function buildBmFavoriteRow(fav, { showPath } = {}) {
+  const li = document.createElement('li')
+  li.className = 'bm-item'
+  const pathLabel = showPath ? folderPathLabel(fav.folderId) : null
+  const urlLine = pathLabel ? `${pathLabel} · ${fav.url}` : fav.url
+  li.innerHTML = `<span class="bm-item-icon">🔖</span><span class="bm-item-text"><span class="bm-item-title">${escapeHtml(fav.title || fav.url)}</span><span class="bm-item-url">${escapeHtml(urlLine)}</span></span>`
+  li.addEventListener('click', () => { if (activeTab) mabrionaBrowser.navigate(activeTab.id, fav.url); closeBookmarksManager() })
+  li.addEventListener('contextmenu', (e) => { e.preventDefault(); openFavoriteContextMenu(e.clientX, e.clientY, fav) })
+  const more = document.createElement('button')
+  more.className = 'bm-item-more'
+  more.type = 'button'
+  more.textContent = '⋯'
+  more.title = 'Más opciones'
+  more.addEventListener('click', (e) => { e.stopPropagation(); openFavoriteContextMenu(e.clientX, e.clientY, fav) })
+  li.appendChild(more)
+  makeDraggable(li, { type: 'favorite', id: fav.url })
+  makeDropTargetReorder(li, () => childFavorites(fav.folderId || null), fav.url)
+  return li
+}
+
+function renderBmItems() {
+  const ul = document.getElementById('bm-items')
+  ul.innerHTML = ''
+  const query = bmSearch.trim().toLowerCase()
+
+  if (query) {
+    const matches = favoritesCache.filter((f) => (f.title || '').toLowerCase().includes(query) || f.url.toLowerCase().includes(query))
+    if (matches.length === 0) { ul.innerHTML = '<li class="bm-empty">Sin resultados</li>'; return }
+    for (const fav of applySortMode(matches, false)) ul.appendChild(buildBmFavoriteRow(fav, { showPath: true }))
+    return
+  }
+
+  const folders = applySortMode(childFolders(bmCurrentFolderId), true)
+  const favorites = applySortMode(childFavorites(bmCurrentFolderId), false)
+  if (folders.length === 0 && favorites.length === 0) { ul.innerHTML = '<li class="bm-empty">Esta carpeta está vacía</li>'; return }
+  for (const folder of folders) ul.appendChild(buildBmFolderRow(folder))
+  for (const fav of favorites) ul.appendChild(buildBmFavoriteRow(fav))
+}
+
+// Fondo de la lista de items del gestor — soltar acá mueve al nivel actualmente abierto
+// (bmCurrentFolderId cambia con la navegación, por eso se lee en vivo y no se fija al registrar).
+const bmItemsEl = document.getElementById('bm-items')
+bmItemsEl.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' })
+bmItemsEl.addEventListener('drop', async (e) => { e.preventDefault(); await moveDraggedTo(readDragPayload(e), bmCurrentFolderId) })
+
+document.getElementById('bm-search').addEventListener('input', (e) => { bmSearch = e.target.value; renderBmItems() })
+document.getElementById('bm-sort').addEventListener('change', (e) => { bmSortMode = e.target.value; renderBmItems() })
+document.getElementById('bm-new-folder').addEventListener('click', async () => {
+  const name = await showTextPrompt('Nombre de la carpeta nueva', '')
+  if (!name || !name.trim()) return
+  await mabrionaBrowser.createFolder(name.trim(), bmCurrentFolderId)
+  await loadFavoritesData()
+  renderBookmarksManager()
+})
+
+refreshAllFavoritesUI()
+
 // Find in Page — capacidad real de Chromium (webContents.findInPage), funciona contra el
 // contenido real de cualquier pestaña, con el mismo contador que Chrome/Safari.
 const findbar = document.getElementById('findbar')
@@ -630,6 +1138,7 @@ window.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase()
   if (cmdOrCtrl && key === 'f') { e.preventDefault(); openFindbar() }
   else if (e.key === 'Escape' && !findbar.classList.contains('hidden')) closeFindbar()
+  else if (e.key === 'Escape' && !document.getElementById('bookmarks-manager-overlay').classList.contains('hidden')) closeBookmarksManager()
   else if (cmdOrCtrl && e.shiftKey && key === 'n') { e.preventDefault(); mabrionaBrowser.createPrivateTab() }
   else if (cmdOrCtrl && key === 'n') { e.preventDefault(); mabrionaBrowser.newWindow() }
   else if (cmdOrCtrl && key === 't') { e.preventDefault(); mabrionaBrowser.createTab() }

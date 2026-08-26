@@ -20,6 +20,10 @@ function freshDefaults() {
   return {
     history: [],
     favorites: [],
+    // Carpetas reales de Favoritos — árbol real por id, no rutas de texto. Cada entrada:
+    // { id, name, parentId, order }. `parentId: null` = carpeta de primer nivel (la barra de
+    // favoritos). Un favorito con `folderId: null` está en el primer nivel también.
+    folders: [],
     downloads: [],
     shieldsEnabled: true,
     braveApiKey: null,
@@ -39,6 +43,45 @@ function freshDefaults() {
   }
 }
 
+/**
+ * Migra los favoritos reales de "carpeta como ruta de texto" (formato viejo, el que dejaba el
+ * asistente de importación antes de que existiera un árbol real de carpetas) a un árbol real de
+ * carpetas con id — sin esto, renombrar o mover una carpeta sería reescribir strings a mano en
+ * cada favorito, frágil y no soporta carpetas vacías. Real y aditiva: nunca borra un favorito, el
+ * campo viejo `folder` se deja tal cual en cada favorito (no se borra, por si algo lo necesita),
+ * solo se agrega `folderId` apuntando a la carpeta real correspondiente.
+ */
+/**
+ * Busca (o crea, real, mutando el array recibido) la carpeta real correspondiente a una ruta de
+ * texto tipo "Barra de favoritos/Trabajo" — reutilizable tanto por la migración de una sola vez
+ * como por cada importación nueva (si ya existe una carpeta con ese nombre en ese mismo nivel, la
+ * reutiliza en vez de crear una duplicada).
+ */
+function resolveFolderPathInto(folders, pathStr) {
+  if (!pathStr) return null
+  const segments = pathStr.split('/').filter(Boolean)
+  let parentId = null
+  for (const segment of segments) {
+    let existing = folders.find((f) => f.parentId === parentId && f.name === segment)
+    if (!existing) {
+      const id = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}${folders.length}`
+      const order = folders.filter((f) => f.parentId === parentId).length
+      existing = { id, name: segment, parentId, order }
+      folders.push(existing)
+    }
+    parentId = existing.id
+  }
+  return parentId
+}
+
+function migrateFolderPathsToRealFolders(data, alreadyHadFolders) {
+  if (alreadyHadFolders) return data // ya migrado — nunca se vuelve a correr
+  const folders = []
+  data.favorites = (data.favorites || []).map((fav) => ({ ...fav, folderId: resolveFolderPathInto(folders, fav.folder) }))
+  data.folders = folders
+  return data
+}
+
 function createStore(filePath) {
   function readAll() {
     try {
@@ -48,7 +91,9 @@ function createStore(filePath) {
       // trae `hasCompletedOnboarding` todavía) es de alguien que YA usaba MABRIONA — nunca se le
       // debe mostrar el asistente de "bienvenido, ¿venís de otro navegador?" como si fuera nuevo.
       const migratingFromBeforeOnboarding = !('hasCompletedOnboarding' in parsed)
-      return { ...freshDefaults(), ...parsed, ...(migratingFromBeforeOnboarding ? { hasCompletedOnboarding: true } : {}) }
+      const alreadyHadFolders = Array.isArray(parsed.folders)
+      const merged = { ...freshDefaults(), ...parsed, ...(migratingFromBeforeOnboarding ? { hasCompletedOnboarding: true } : {}) }
+      return migrateFolderPathsToRealFolders(merged, alreadyHadFolders)
     } catch {
       return freshDefaults()
     }
@@ -107,6 +152,91 @@ function buildStore(readAll, writeAll) {
       return data.favorites
     },
     isFavorite: (url) => data.favorites.some((f) => f.url === url),
+    renameFavorite(url, title) {
+      const trimmed = (title || '').trim()
+      if (!trimmed) return false
+      data.favorites = data.favorites.map((f) => (f.url === url ? { ...f, title: trimmed } : f))
+      writeAll(data)
+      return true
+    },
+    /** Cambiar la URL de un favorito ya guardado — nunca deja dos favoritos reales con la misma
+     * URL nueva (se rechaza en vez de pisar el que ya estaba ahí). */
+    updateFavoriteUrl(oldUrl, newUrl) {
+      const trimmed = (newUrl || '').trim()
+      if (!trimmed || !/^https?:\/\//i.test(trimmed)) return false
+      if (trimmed !== oldUrl && data.favorites.some((f) => f.url === trimmed)) return false
+      data.favorites = data.favorites.map((f) => (f.url === oldUrl ? { ...f, url: trimmed } : f))
+      writeAll(data)
+      return true
+    },
+    moveFavorite(url, folderId) {
+      data.favorites = data.favorites.map((f) => (f.url === url ? { ...f, folderId: folderId || null } : f))
+      writeAll(data)
+      return true
+    },
+    reorderFavorite(url, order) {
+      data.favorites = data.favorites.map((f) => (f.url === url ? { ...f, order } : f))
+      writeAll(data)
+      return true
+    },
+
+    // ---------------- Carpetas reales de Favoritos ----------------
+    listFolders: () => data.folders,
+    createFolder(name, parentId = null) {
+      const id = `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+      const order = data.folders.filter((f) => f.parentId === parentId).length
+      const folder = { id, name: (name || '').trim() || 'Carpeta nueva', parentId, order }
+      data.folders = [...data.folders, folder]
+      writeAll(data)
+      return folder
+    },
+    renameFolder(id, name) {
+      const trimmed = (name || '').trim()
+      if (!trimmed) return this.getFolder(id)
+      data.folders = data.folders.map((f) => (f.id === id ? { ...f, name: trimmed } : f))
+      writeAll(data)
+      return this.getFolder(id)
+    },
+    getFolder: (id) => data.folders.find((f) => f.id === id) || null,
+    /** Es descendiente real (directo o indirecto) de otra carpeta — evita moverla adentro de sí
+     * misma o de uno de sus propios hijos, lo que rompería el árbol en un ciclo. */
+    isDescendantFolder(candidateId, ofId) {
+      let current = data.folders.find((f) => f.id === candidateId)
+      let guard = 0
+      while (current && current.parentId != null && guard < 200) {
+        if (current.parentId === ofId) return true
+        current = data.folders.find((f) => f.id === current.parentId)
+        guard++
+      }
+      return false
+    },
+    moveFolder(id, newParentId) {
+      const target = newParentId || null
+      if (id === target) return false
+      if (target && this.isDescendantFolder(target, id)) return false
+      const order = data.folders.filter((f) => f.parentId === target && f.id !== id).length
+      data.folders = data.folders.map((f) => (f.id === id ? { ...f, parentId: target, order } : f))
+      writeAll(data)
+      return true
+    },
+    reorderFolder(id, order) {
+      data.folders = data.folders.map((f) => (f.id === id ? { ...f, order } : f))
+      writeAll(data)
+      return true
+    },
+    /** Borrar una carpeta NUNCA borra lo que tenía adentro — sus favoritos y subcarpetas suben un
+     * nivel real (al padre de la carpeta borrada). Nada desaparece sin que la persona lo borre
+     * aparte, a propósito. */
+    deleteFolder(id) {
+      const folder = this.getFolder(id)
+      if (!folder) return false
+      data.folders = data.folders
+        .filter((f) => f.id !== id)
+        .map((f) => (f.parentId === id ? { ...f, parentId: folder.parentId } : f))
+      data.favorites = data.favorites.map((fav) => (fav.folderId === id ? { ...fav, folderId: folder.parentId } : fav))
+      writeAll(data)
+      return true
+    },
 
     listDownloads: () => data.downloads,
     addDownload(entry) {
@@ -224,7 +354,11 @@ function buildStore(readAll, writeAll) {
       for (const item of items) {
         if (existingUrls.has(item.url)) continue
         existingUrls.add(item.url)
-        data.favorites.push(item)
+        // La carpeta real de origen (si el navegador de origen tenía una) se resuelve a una
+        // carpeta real acá mismo — reutiliza una carpeta que ya exista con el mismo nombre en vez
+        // de crear una duplicada en cada importación.
+        const folderId = item.folder ? resolveFolderPathInto(data.folders, item.folder) : (item.folderId ?? null)
+        data.favorites.push({ ...item, folderId })
         imported++
       }
       writeAll(data)

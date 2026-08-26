@@ -35,6 +35,10 @@
       <button id="btn-settings" class="nav-btn" title="Configuración" aria-label="Configuración">⚙️</button>
       <button id="btn-menu" class="nav-btn" title="Ventanas, privado y zoom" aria-label="Ventanas, privado y zoom">☰</button>
     </div>
+    <div id="favorites-bar" role="toolbar" aria-label="Barra de favoritos">
+      <div id="favorites-bar-items"></div>
+      <button id="btn-manage-favorites" class="fav-bar-manage" type="button" title="Administrar favoritos" aria-label="Administrar favoritos">⋯</button>
+    </div>
   </div>
 
   <div id="findbar" class="hidden" role="search" aria-label="Buscar en la página">
@@ -147,6 +151,7 @@
       <button class="panel-close" data-close="favorites">✕</button>
     </div>
     <ul id="favorites-list" class="panel-list"></ul>
+    <button id="favorites-open-manager" type="button" class="settings-btn fav-panel-manage">Administrar favoritos…</button>
   </div>
 
   <div id="panel-downloads" class="panel hidden" role="dialog" aria-label="Descargas">
@@ -265,6 +270,47 @@
           <button id="onboarding-finish" type="button" class="onboarding-primary">Continuar</button>
         </div>
       </section>
+    </div>
+  </div>
+
+  <!-- Gestor profesional de favoritos — carpetas/subcarpetas reales, mover, renombrar, eliminar,
+       arrastrar y soltar. Mismo patrón de overlay que la importación (pantalla completa a
+       propósito: es la pantalla dedicada de gestión, no un panel chico de paso). -->
+  <div id="bookmarks-manager-overlay" class="hidden" role="dialog" aria-label="Administrar favoritos" aria-modal="true">
+    <div id="bm-card">
+      <div id="bm-header">
+        <span class="bm-title">Favoritos</span>
+        <input id="bm-search" type="text" placeholder="Buscar en tus favoritos…" aria-label="Buscar en tus favoritos" />
+        <select id="bm-sort" aria-label="Ordenar">
+          <option value="manual">Orden manual</option>
+          <option value="name">Nombre (A-Z)</option>
+        </select>
+        <button id="bm-new-folder" type="button" class="settings-btn">+ Carpeta</button>
+        <button id="bm-close" type="button" class="panel-close" aria-label="Cerrar">✕</button>
+      </div>
+      <div id="bm-body">
+        <nav id="bm-tree" aria-label="Carpetas"></nav>
+        <div id="bm-main">
+          <div id="bm-breadcrumb"></div>
+          <ul id="bm-items" class="bm-items-list"></ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="context-menu" class="hidden" role="menu"></div>
+
+  <!-- Electron real no implementa window.prompt() (lanza una excepción real, verificado) — este
+       es el reemplazo real, propio de MABRIONA, para pedir un texto corto (nombre de carpeta,
+       título/URL de un favorito). -->
+  <div id="text-prompt-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Escribir un valor">
+    <div id="text-prompt-card">
+      <p id="text-prompt-label"></p>
+      <input id="text-prompt-input" type="text" aria-label="Valor" />
+      <div class="text-prompt-actions">
+        <button id="text-prompt-cancel" type="button" class="settings-btn">Cancelar</button>
+        <button id="text-prompt-ok" type="button" class="onboarding-primary">Aceptar</button>
+      </div>
     </div>
   </div>
 

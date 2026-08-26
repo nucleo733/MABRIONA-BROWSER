@@ -24,6 +24,17 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   addFavorite: (fav) => ipcRenderer.invoke('favorites:add', fav),
   removeFavorite: (url) => ipcRenderer.invoke('favorites:remove', url),
   isFavorite: (url) => ipcRenderer.invoke('favorites:is', url),
+  renameFavorite: (url, title) => ipcRenderer.invoke('favorites:rename', url, title),
+  updateFavoriteUrl: (oldUrl, newUrl) => ipcRenderer.invoke('favorites:update-url', oldUrl, newUrl),
+  moveFavorite: (url, folderId) => ipcRenderer.invoke('favorites:move', url, folderId),
+  reorderFavorite: (url, order) => ipcRenderer.invoke('favorites:reorder', url, order),
+
+  listFolders: () => ipcRenderer.invoke('folders:list'),
+  createFolder: (name, parentId) => ipcRenderer.invoke('folders:create', name, parentId),
+  renameFolder: (id, name) => ipcRenderer.invoke('folders:rename', id, name),
+  moveFolder: (id, newParentId) => ipcRenderer.invoke('folders:move', id, newParentId),
+  reorderFolder: (id, order) => ipcRenderer.invoke('folders:reorder', id, order),
+  deleteFolder: (id) => ipcRenderer.invoke('folders:delete', id),
 
   captureScreenshot: (id) => ipcRenderer.invoke('tabs:screenshot', id),
 
@@ -53,7 +64,7 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   getZoom: (id) => ipcRenderer.invoke('zoom:get', id),
   setZoom: (id, factor) => ipcRenderer.invoke('zoom:set', { id, factor }),
 
-  newWindow: () => ipcRenderer.invoke('windows:new'),
+  newWindow: (initialUrl) => ipcRenderer.invoke('windows:new', initialUrl),
   newGuestWindow: () => ipcRenderer.invoke('windows:new-guest'),
 
   getSearchEngine: () => ipcRenderer.invoke('settings:get-search-engine'),

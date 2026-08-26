@@ -475,7 +475,7 @@ function createWindow(options = {}) {
   if (restoreUrls.length > 0) {
     for (const url of restoreUrls) createAndSwitchTab(url, windowId)
   } else {
-    createAndSwitchTab(HOME_URL, windowId, { private: isGuest })
+    createAndSwitchTab(options.initialUrl || HOME_URL, windowId, { private: isGuest })
   }
   return windowId
 }
@@ -611,9 +611,9 @@ ipcMain.handle('zoom:set', (_e, { id, factor }) => {
 // Ventanas reales — Electron nativo (nueva BrowserWindow independiente), no una simulación.
 // Hereda el perfil de la ventana desde la que se pidió — Cmd+N abre otra ventana del mismo
 // perfil, no cambia a "el último usado" por sorpresa.
-ipcMain.handle('windows:new', (e) => {
+ipcMain.handle('windows:new', (e, initialUrl) => {
   const cur = windows.get(windowIdForSender(e))
-  createWindow({ profileId: cur ? cur.profileId : undefined })
+  createWindow({ profileId: cur ? cur.profileId : undefined, initialUrl: initialUrl || undefined })
   return true
 })
 // Modo Invitado real — ventana nueva, sesión en memoria compartida con Modo Privado (nunca toca
@@ -628,6 +628,17 @@ ipcMain.handle('favorites:list', (e) => storeForWindow(windowIdForSender(e)).lis
 ipcMain.handle('favorites:add', (e, fav) => storeForWindow(windowIdForSender(e)).addFavorite(fav))
 ipcMain.handle('favorites:remove', (e, url) => storeForWindow(windowIdForSender(e)).removeFavorite(url))
 ipcMain.handle('favorites:is', (e, url) => storeForWindow(windowIdForSender(e)).isFavorite(url))
+ipcMain.handle('favorites:rename', (e, url, title) => storeForWindow(windowIdForSender(e)).renameFavorite(url, title))
+ipcMain.handle('favorites:update-url', (e, oldUrl, newUrl) => storeForWindow(windowIdForSender(e)).updateFavoriteUrl(oldUrl, newUrl))
+ipcMain.handle('favorites:move', (e, url, folderId) => storeForWindow(windowIdForSender(e)).moveFavorite(url, folderId))
+ipcMain.handle('favorites:reorder', (e, url, order) => storeForWindow(windowIdForSender(e)).reorderFavorite(url, order))
+
+ipcMain.handle('folders:list', (e) => storeForWindow(windowIdForSender(e)).listFolders())
+ipcMain.handle('folders:create', (e, name, parentId) => storeForWindow(windowIdForSender(e)).createFolder(name, parentId))
+ipcMain.handle('folders:rename', (e, id, name) => storeForWindow(windowIdForSender(e)).renameFolder(id, name))
+ipcMain.handle('folders:move', (e, id, newParentId) => storeForWindow(windowIdForSender(e)).moveFolder(id, newParentId))
+ipcMain.handle('folders:reorder', (e, id, order) => storeForWindow(windowIdForSender(e)).reorderFolder(id, order))
+ipcMain.handle('folders:delete', (e, id) => storeForWindow(windowIdForSender(e)).deleteFolder(id))
 
 ipcMain.handle('downloads:list', (e) => storeForWindow(windowIdForSender(e)).listDownloads())
 ipcMain.handle('downloads:open', (_e, filePath) => shell.openPath(filePath))
