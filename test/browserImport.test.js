@@ -90,24 +90,25 @@ test('scanFirefoxSources: parsea profiles.ini real y solo devuelve perfiles con 
     'Path=Profiles/sin-datos.default',
   ].join('\n'))
 
-  // scanFirefoxSources usa la ruta real del sistema — se simula apuntando HOME a este directorio temporal.
-  const originalHome = os.homedir
-  os.homedir = () => dir
-  try {
-    // En Mac necesita Library/Application Support/Firefox — se arma esa estructura real acá.
-    const macRoot = path.join(dir, 'Library', 'Application Support', 'Firefox')
-    fs.mkdirSync(macRoot, { recursive: true })
-    fs.cpSync(path.join(dir, 'Profiles'), path.join(macRoot, 'Profiles'), { recursive: true })
-    fs.copyFileSync(path.join(dir, 'profiles.ini'), path.join(macRoot, 'profiles.ini'))
+  // scanFirefoxSources acepta la ruta real como parámetro (para poder probarlo así, sin depender
+  // de en qué sistema operativo real corre la suite — un fallo real en CI de Windows confirmó que
+  // mockear solo la ruta de macOS no alcanza cuando el test corre en Windows de verdad).
+  const sources = imp.scanFirefoxSources(dir)
+  assert.equal(sources.length, 1, 'el perfil sin places.sqlite real no debería aparecer')
+  assert.equal(sources[0].profile, 'default-release')
+  assert.equal(sources[0].engine, 'firefox')
+  fs.rmSync(dir, { recursive: true, force: true })
+})
 
-    const sources = imp.scanFirefoxSources()
-    assert.equal(sources.length, 1, 'el perfil sin places.sqlite real no debería aparecer')
-    assert.equal(sources[0].profile, 'default-release')
-    assert.equal(sources[0].engine, 'firefox')
-  } finally {
-    os.homedir = originalHome
-    fs.rmSync(dir, { recursive: true, force: true })
-  }
+test('firefoxRootFor: cada sistema operativo real usa su ruta correcta', () => {
+  const home = '/home/usuario-de-prueba'
+  assert.equal(imp.firefoxRootFor('darwin', home), path.join(home, 'Library/Application Support/Firefox'))
+  assert.equal(imp.firefoxRootFor('linux', home), path.join(home, '.mozilla/firefox'))
+  const originalAppData = process.env.APPDATA
+  process.env.APPDATA = 'C:\\Users\\prueba\\AppData\\Roaming'
+  assert.equal(imp.firefoxRootFor('win32', home), path.join(process.env.APPDATA, 'Mozilla/Firefox'))
+  if (originalAppData === undefined) delete process.env.APPDATA
+  else process.env.APPDATA = originalAppData
 })
 
 test('readFirefoxData: reconstruye la ruta real de carpeta desde el árbol de moz_bookmarks', async () => {

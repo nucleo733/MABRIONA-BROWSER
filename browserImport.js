@@ -87,13 +87,16 @@ function scanChromiumSources() {
 
 /** Perfiles reales de Firefox, vía profiles.ini (Firefox no usa nombres de carpeta predecibles —
  * cada perfil tiene un hash real generado al crearse). */
-function scanFirefoxSources() {
-  const home = os.homedir()
-  let firefoxRoot
-  if (process.platform === 'darwin') firefoxRoot = path.join(home, 'Library/Application Support/Firefox')
-  else if (process.platform === 'win32') firefoxRoot = path.join(process.env.APPDATA || path.join(home, 'AppData/Roaming'), 'Mozilla/Firefox')
-  else firefoxRoot = path.join(home, '.mozilla/firefox')
+/** Ruta real de Firefox según el sistema operativo — separada para poder probarla con una ruta
+ * inyectada en los tests, sin depender de en qué SO corre realmente la suite (confirmado con un
+ * fallo real en CI de Windows: un test armado solo para la ruta de macOS no encontraba nada ahí). */
+function firefoxRootFor(platform = process.platform, home = os.homedir()) {
+  if (platform === 'darwin') return path.join(home, 'Library/Application Support/Firefox')
+  if (platform === 'win32') return path.join(process.env.APPDATA || path.join(home, 'AppData/Roaming'), 'Mozilla/Firefox')
+  return path.join(home, '.mozilla/firefox')
+}
 
+function scanFirefoxSources(firefoxRoot = firefoxRootFor()) {
   const iniPath = path.join(firefoxRoot, 'profiles.ini')
   if (!fs.existsSync(iniPath)) return []
 
@@ -298,6 +301,7 @@ module.exports = {
   scanAllSources,
   scanChromiumSources,
   scanFirefoxSources,
+  firefoxRootFor,
   readChromiumBookmarks,
   readChromiumHistory,
   readFirefoxData,
