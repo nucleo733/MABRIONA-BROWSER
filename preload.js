@@ -76,4 +76,9 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   installExtensionFromWebStore: (idOrUrl) => ipcRenderer.invoke('extensions:install-from-webstore', idOrUrl),
   setExtensionEnabled: (recordId, enabled) => ipcRenderer.invoke('extensions:set-enabled', { recordId, enabled }),
   removeExtension: (recordId) => ipcRenderer.invoke('extensions:remove', recordId),
+
+  getOnboardingStatus: () => ipcRenderer.invoke('onboarding:get-status'),
+  setOnboardingCompleted: () => ipcRenderer.invoke('onboarding:set-completed'),
+  scanImportSources: () => ipcRenderer.invoke('import:scan-sources'),
+  runImport: (source, importBookmarks, importHistory) => ipcRenderer.invoke('import:run', { source, importBookmarks, importHistory }),
 })

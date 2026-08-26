@@ -471,6 +471,90 @@ document.getElementById('settings-choose-downloads').addEventListener('click', a
   document.getElementById('settings-downloads-path').textContent = `Carpeta actual: ${dir}`
 })
 
+// ---------------- Importar datos del navegador — real y local ----------------
+
+let importIsFirstRun = false
+let selectedImportSource = null
+
+function showOnboardingStep(stepId) {
+  document.querySelectorAll('.onboarding-step').forEach((el) => el.classList.add('hidden'))
+  document.getElementById(stepId).classList.remove('hidden')
+}
+
+async function openOnboarding(firstRun) {
+  importIsFirstRun = firstRun
+  selectedImportSource = null
+  closeAllPanels()
+  document.getElementById('onboarding-overlay').classList.remove('hidden')
+  showOnboardingStep('onboarding-step-welcome')
+
+  const sourcesEl = document.getElementById('onboarding-sources')
+  const noSourcesEl = document.getElementById('onboarding-no-sources')
+  sourcesEl.innerHTML = ''
+  noSourcesEl.classList.add('hidden')
+
+  const sources = await mabrionaBrowser.scanImportSources()
+  if (sources.length === 0) {
+    noSourcesEl.classList.remove('hidden')
+    return
+  }
+  for (const source of sources) {
+    const detail = source.engine === 'chromium'
+      ? [source.bookmarksPath ? 'Favoritos' : null, source.historyPath ? 'Historial' : null].filter(Boolean).join(' + ')
+      : 'Favoritos + Historial'
+    const card = document.createElement('button')
+    card.type = 'button'
+    card.className = 'onboarding-source-card'
+    card.innerHTML = `<span><span class="os-name">${escapeHtml(source.browser)}</span><br /><span class="os-detail">${escapeHtml(source.profile)} — ${escapeHtml(detail)}</span></span><span>→</span>`
+    card.addEventListener('click', () => {
+      selectedImportSource = source
+      document.getElementById('onboarding-source-label').textContent = `${source.browser} — ${source.profile}`
+      const hasBookmarks = source.engine === 'firefox' || !!source.bookmarksPath
+      const hasHistory = source.engine === 'firefox' || !!source.historyPath
+      const bookmarksCheck = document.getElementById('onboarding-check-bookmarks')
+      const historyCheck = document.getElementById('onboarding-check-history')
+      bookmarksCheck.checked = hasBookmarks
+      bookmarksCheck.disabled = !hasBookmarks
+      historyCheck.checked = hasHistory
+      historyCheck.disabled = !hasHistory
+      showOnboardingStep('onboarding-step-data')
+    })
+    sourcesEl.appendChild(card)
+  }
+}
+
+async function finishOnboarding() {
+  if (importIsFirstRun) await mabrionaBrowser.setOnboardingCompleted()
+  document.getElementById('onboarding-overlay').classList.add('hidden')
+}
+
+document.getElementById('onboarding-skip-1').addEventListener('click', finishOnboarding)
+document.getElementById('onboarding-skip-2').addEventListener('click', finishOnboarding)
+document.getElementById('onboarding-finish').addEventListener('click', finishOnboarding)
+document.getElementById('onboarding-back').addEventListener('click', () => showOnboardingStep('onboarding-step-welcome'))
+
+document.getElementById('onboarding-start-import').addEventListener('click', async () => {
+  if (!selectedImportSource) return
+  const importBookmarks = document.getElementById('onboarding-check-bookmarks').checked
+  const importHistory = document.getElementById('onboarding-check-history').checked
+  showOnboardingStep('onboarding-step-progress')
+  const result = await mabrionaBrowser.runImport(selectedImportSource, importBookmarks, importHistory)
+  const resultEl = document.getElementById('onboarding-result')
+  if (result.error) {
+    resultEl.textContent = `No se pudo importar: ${result.error}`
+  } else {
+    const parts = []
+    if (importBookmarks) parts.push(`${result.favoritesImported} favorito${result.favoritesImported === 1 ? '' : 's'} nuevo${result.favoritesImported === 1 ? '' : 's'}`)
+    if (importHistory) parts.push(`${result.historyImported} entrada${result.historyImported === 1 ? '' : 's'} de historial en total`)
+    resultEl.textContent = parts.length > 0 ? `Importado: ${parts.join(' · ')}.` : 'No importaste nada — podés hacerlo cuando quieras desde Configuración.'
+  }
+  showOnboardingStep('onboarding-step-done')
+})
+
+document.getElementById('settings-import-data').addEventListener('click', () => openOnboarding(false))
+
+mabrionaBrowser.getOnboardingStatus().then((status) => { if (status.show) openOnboarding(true) })
+
 mabrionaBrowser.onTabsState(render)
 mabrionaBrowser.onDownloadsState(() => {
   if (!document.getElementById('panel-downloads').classList.contains('hidden')) refreshDownloadsPanel()

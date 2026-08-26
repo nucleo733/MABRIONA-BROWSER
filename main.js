@@ -6,6 +6,7 @@ const fs = require('node:fs')
 const { createStore, createMemoryStore } = require('./store')
 const { createProfileRegistry } = require('./profiles')
 const extensionsLib = require('./extensions')
+const browserImportLib = require('./browserImport')
 const { isBlockedHost } = require('./shields/blocklist')
 const { resolveAddressInput, HOME_URL } = require('./address-resolver')
 const {
@@ -21,6 +22,39 @@ const {
 } = require('./search/braveSearch')
 const { detectTool } = require('./search/tools')
 const { resolveSpectrum } = require('./search/spectrumResolver')
+const { startDjiaBridge, pickAndOpenExternalCallback } = require('./bridge/djiaBridge')
+
+// Integración oficial MABRIONA DJ AI (web, sin app de escritorio) —
+// `mabriona-browser://pick?q=...&back=...`, ver
+// `docs/INTEGRACION-DJ-AI.md`, sección "Web".
+const DJIA_PROTOCOL = 'mabriona-browser'
+function handleDjiaProtocolUrl(rawUrl) {
+  let parsed
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    return
+  }
+  // `mabriona-browser://pick?...` — distintos SO parsean "pick" como
+  // host o como el primer segmento de path; se acepta cualquiera de
+  // los dos para no depender de esa diferencia.
+  const isPick = parsed.hostname === 'pick' || parsed.pathname.replace(/^\/+/, '') === 'pick'
+  if (!isPick) return
+  const query = parsed.searchParams.get('q')
+  const back = parsed.searchParams.get('back')
+  if (!query || !back) return
+  pickAndOpenExternalCallback({
+    query,
+    backUrl: back,
+    createAndSwitchTab,
+    getTab: (id) => tabs.get(id),
+    getOrCreateTargetWindowId: () => {
+      const existing = windows.keys().next()
+      return existing.done ? createWindow({ restoreSession: false }) : existing.value
+    },
+    shellOpenExternal: (url) => shell.openExternal(url),
+  })
+}
 
 const TOOLBAR_HEIGHT = 118
 const PRIVATE_PARTITION = 'mabriona-private' // sin "persist:" → en memoria, Electron la descarta al cerrar la app
@@ -452,12 +486,74 @@ function findWindowForProfile(profileId) {
   return null
 }
 
+// Registro real del protocolo `mabriona-browser://` (integración web de
+// MABRIONA DJ AI, sin app de escritorio) — `setAsDefaultProtocolClient`
+// es lo que de verdad asocia el esquema con esta app a nivel del
+// sistema operativo real (no un valor cosmético).
+if (!app.isDefaultProtocolClient(DJIA_PROTOCOL)) app.setAsDefaultProtocolClient(DJIA_PROTOCOL)
+
+// macOS entrega la URL vía `open-url` sin necesitar single-instance-lock.
+app.on('open-url', (event, url) => {
+  event.preventDefault()
+  handleDjiaProtocolUrl(url)
+})
+
+// Windows/Linux entregan la URL como argumento de una segunda
+// invocación real del ejecutable — necesita un lock de instancia
+// única real (si no, cada clic en el link abriría un proceso nuevo en
+// vez de reusar el navegador ya abierto). Se limita a estas dos
+// plataformas para no cambiar el comportamiento real ya probado en
+// macOS (multi-instancia no es un caso de uso real de esta
+// integración en Mac, que usa `open-url`).
+if (process.platform !== 'darwin') {
+  const gotLock = app.requestSingleInstanceLock()
+  if (!gotLock) {
+    app.quit()
+  } else {
+    app.on('second-instance', (_event, argv) => {
+      const urlArg = argv.find((a) => a.startsWith(`${DJIA_PROTOCOL}://`))
+      if (urlArg) handleDjiaProtocolUrl(urlArg)
+      const [, state] = windows.entries().next().value || []
+      if (state && !state.window.isDestroyed()) {
+        if (state.window.isMinimized()) state.window.restore()
+        state.window.focus()
+      }
+    })
+  }
+}
+
 app.whenReady().then(() => {
   createWindow({ restoreSession: true })
+
+  // Arranque en frío vía protocolo real en Windows/Linux (el usuario
+  // no tenía el navegador abierto todavía) — el propio `process.argv`
+  // de este primer proceso ya trae la URL real.
+  if (process.platform !== 'darwin') {
+    const coldStartUrl = process.argv.find((a) => a.startsWith(`${DJIA_PROTOCOL}://`))
+    if (coldStartUrl) handleDjiaProtocolUrl(coldStartUrl)
+  }
 
   app.on('activate', () => {
     if (windows.size === 0) createWindow({ restoreSession: true })
   })
+
+  // Integración oficial con MABRIONA DJ AI — este navegador es el
+  // único que DJ AI usa para buscar/elegir videos reales de YouTube
+  // (ver `bridge/djiaBridge.js` y `docs/INTEGRACION-DJ-AI.md`).
+  djiaBridge = startDjiaBridge({
+    userDataPath: app.getPath('userData'),
+    createAndSwitchTab,
+    getTab: (id) => tabs.get(id),
+    getOrCreateTargetWindowId: () => {
+      const existing = windows.keys().next()
+      return existing.done ? createWindow({ restoreSession: false }) : existing.value
+    },
+  })
+})
+
+let djiaBridge = null
+app.on('before-quit', () => {
+  if (djiaBridge) djiaBridge.close()
 })
 
 app.on('window-all-closed', () => {
@@ -814,4 +910,46 @@ ipcMain.handle('privacy:clear-data', async (e) => {
   await sess.clearStorageData()
   await sess.clearCache()
   return true
+})
+
+// ===================== Importar datos de otro navegador =====================
+// Real y local — ver browserImport.js. Nunca sube nada a ningún servidor, nunca toca contraseñas
+// ni cookies (fuera de alcance de esta fase, ver docs/MABRIONA-BROWSER-IMPORT.md). Modo Invitado
+// nunca ve el asistente de bienvenida — no tendría sentido en una sesión que se va a olvidar sola.
+
+ipcMain.handle('onboarding:get-status', (e) => {
+  const winId = windowIdForSender(e)
+  const state = windows.get(winId)
+  if (state && state.isGuest) return { show: false }
+  return { show: !storeForWindow(winId).getHasCompletedOnboarding() }
+})
+ipcMain.handle('onboarding:set-completed', (e) => {
+  storeForWindow(windowIdForSender(e)).setHasCompletedOnboarding(true)
+  return true
+})
+
+ipcMain.handle('import:scan-sources', () => browserImportLib.scanAllSources())
+
+ipcMain.handle('import:run', async (e, { source, importBookmarks, importHistory }) => {
+  const profileStore = storeForWindow(windowIdForSender(e))
+  const result = { favoritesImported: 0, historyImported: 0, error: null }
+  try {
+    if (source.engine === 'chromium') {
+      if (importBookmarks && source.bookmarksPath) {
+        const bookmarks = browserImportLib.readChromiumBookmarks(source.bookmarksPath)
+        result.favoritesImported = profileStore.importFavorites(bookmarks)
+      }
+      if (importHistory && source.historyPath) {
+        const history = await browserImportLib.readChromiumHistory(source.historyPath)
+        result.historyImported = profileStore.importHistoryEntries(history)
+      }
+    } else if (source.engine === 'firefox') {
+      const data = await browserImportLib.readFirefoxData(source.placesPath)
+      if (importBookmarks) result.favoritesImported = profileStore.importFavorites(data.bookmarks)
+      if (importHistory) result.historyImported = profileStore.importHistoryEntries(data.history)
+    }
+  } catch (err) {
+    result.error = String(err && err.message ? err.message : err)
+  }
+  return result
 })

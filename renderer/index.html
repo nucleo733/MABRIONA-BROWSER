@@ -218,6 +218,53 @@
         <h3>Permisos por sitio</h3>
         <ul id="settings-permissions-list" class="panel-list"></ul>
       </section>
+
+      <section class="settings-section">
+        <h3>Datos del navegador</h3>
+        <button id="settings-import-data" type="button" class="settings-btn">Importar datos del navegador…</button>
+        <p class="settings-note">Traé tus favoritos e historial de Chrome, Brave, Edge o Firefox. Local siempre — nada se sube a ningún servidor.</p>
+      </section>
+    </div>
+  </div>
+
+  <!-- Asistente real de importación — se muestra solo (primer uso de este perfil) o se abre a
+       mano desde Configuración. Pantalla completa a propósito: es una decisión real del usuario
+       ("¿de dónde vengo, qué traigo"), no un panel chico de paso. -->
+  <div id="onboarding-overlay" class="hidden" role="dialog" aria-label="Importar datos del navegador" aria-modal="true">
+    <div id="onboarding-card">
+      <section id="onboarding-step-welcome" class="onboarding-step">
+        <span class="logo"><span id="ob-logo-mabriona">MABRIONA</span> <span id="ob-logo-browser">Browser</span></span>
+        <h1>Bienvenido a MABRIONA</h1>
+        <p class="onboarding-lead">¿Venís de otro navegador? Traé tus favoritos y tu historial — es local, nunca sale de tu computadora.</p>
+        <div id="onboarding-sources" class="onboarding-sources"></div>
+        <p id="onboarding-no-sources" class="settings-note hidden">No encontramos ningún navegador con datos para importar en esta máquina.</p>
+        <button id="onboarding-skip-1" type="button" class="onboarding-skip">Omitir por ahora</button>
+      </section>
+
+      <section id="onboarding-step-data" class="onboarding-step hidden">
+        <h1>¿Qué querés importar?</h1>
+        <p id="onboarding-source-label" class="onboarding-lead"></p>
+        <label class="shields-toggle"><input id="onboarding-check-bookmarks" type="checkbox" checked /> Favoritos</label>
+        <label class="shields-toggle"><input id="onboarding-check-history" type="checkbox" checked /> Historial</label>
+        <div class="onboarding-actions">
+          <button id="onboarding-back" type="button" class="settings-btn">← Atrás</button>
+          <button id="onboarding-start-import" type="button" class="onboarding-primary">Importar</button>
+        </div>
+        <button id="onboarding-skip-2" type="button" class="onboarding-skip">Omitir por ahora</button>
+      </section>
+
+      <section id="onboarding-step-progress" class="onboarding-step hidden">
+        <h1>Importando…</h1>
+        <p class="onboarding-lead">Un momento — esto es todo local.</p>
+      </section>
+
+      <section id="onboarding-step-done" class="onboarding-step hidden">
+        <h1>Listo</h1>
+        <p id="onboarding-result" class="onboarding-lead"></p>
+        <div class="onboarding-actions">
+          <button id="onboarding-finish" type="button" class="onboarding-primary">Continuar</button>
+        </div>
+      </section>
     </div>
   </div>
 

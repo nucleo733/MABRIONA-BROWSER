@@ -19,6 +19,10 @@ const storeFile = path.join(process.env.HOME, 'Library', 'Application Support', 
 try {
   const data = JSON.parse(fs.readFileSync(storeFile, 'utf-8'))
   data.lastSession = []
+  // Mismo criterio: esta máquina ya usaba MABRIONA antes de que existiera el asistente de
+  // importación — si por lo que sea quedara en false, el overlay de bienvenida taparía toda la
+  // ventana y este test (que no lo espera) fallaría clickeando "a ciegas" detrás suyo.
+  data.hasCompletedOnboarding = true
   fs.writeFileSync(storeFile, JSON.stringify(data, null, 2))
 } catch { /* no existe todavía — primera corrida, nada que limpiar */ }
 

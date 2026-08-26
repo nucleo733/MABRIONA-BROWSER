@@ -411,3 +411,79 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   outline: none;
 }
 #settings-search-engine:focus { border-color: var(--volt); }
+
+/* ---------------- Asistente de importación (primer uso + Configuración) ---------------- */
+#onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(3, 3, 3, 0.88);
+  backdrop-filter: blur(6px);
+}
+/* Un selector por id (#onboarding-overlay) le gana en especificidad a la clase genérica .hidden
+ * — sin esto, agregar la clase "hidden" no alcanzaría para ocultarlo de verdad. */
+#onboarding-overlay.hidden { display: none; }
+#onboarding-card {
+  width: min(480px, calc(100vw - 48px));
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 32px 28px;
+  text-align: center;
+}
+.onboarding-step .logo { font-size: 15px; font-weight: 800; letter-spacing: 0.02em; }
+#ob-logo-mabriona { color: var(--text); }
+#ob-logo-browser { color: var(--volt); font-weight: 700; }
+.onboarding-step h1 { font-size: 21px; margin: 16px 0 8px; }
+.onboarding-lead { color: var(--text-dim); font-size: 13px; line-height: 1.6; margin: 0 0 20px; }
+.onboarding-sources { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+.onboarding-source-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+.onboarding-source-card:hover { border-color: var(--volt); }
+.onboarding-source-card .os-name { font-weight: 700; }
+.onboarding-source-card .os-detail { color: var(--text-dim); font-size: 11px; }
+.onboarding-step .shields-toggle { justify-content: flex-start; text-align: left; margin-bottom: 10px; }
+.onboarding-actions { display: flex; gap: 10px; margin-top: 12px; }
+.onboarding-primary {
+  flex: 1;
+  background: var(--volt);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  padding: 11px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+}
+.onboarding-primary:hover { opacity: 0.9; }
+.onboarding-primary:disabled { opacity: 0.4; cursor: default; }
+#onboarding-back { flex: 0 0 auto; }
+.onboarding-skip {
+  display: block;
+  margin: 16px auto 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.onboarding-skip:hover { color: var(--text); }
+.onboarding-step.hidden { display: none; }

@@ -43,6 +43,18 @@ await win.waitForLoadState('domcontentloaded')
 await win.waitForTimeout(1200)
 ok('el .app empaquetado real abre con un userData 100% nuevo (instalación simulada de un usuario nuevo)')
 
+// Usuario nuevo real: el asistente de importación tiene que aparecer solo, y "Omitir por ahora"
+// tiene que dejar seguir usando la app normalmente (el resto de este checklist).
+if (await win.locator('#onboarding-overlay').isVisible()) {
+  ok('asistente de importación real aparece solo en la primera apertura (usuario nuevo)')
+  await win.locator('#onboarding-skip-1').click()
+  await win.waitForTimeout(300)
+  if (!(await win.locator('#onboarding-overlay').isVisible())) ok('"Omitir por ahora" cierra el asistente de verdad')
+  else bad('omitir el asistente', 'el overlay sigue visible después de omitir')
+} else {
+  bad('asistente de importación', 'no apareció en un userData 100% nuevo')
+}
+
 // Crear pestaña
 await win.locator('#btn-new-tab').click()
 await win.waitForTimeout(500)

@@ -31,6 +31,11 @@ function freshDefaults() {
     // Extensiones reales de Chrome de este perfil — ver extensions.js. Cada entrada:
     // { recordId, origin: 'unpacked'|'imported'|'webstore', path, name, version, manifestVersion, enabled }.
     extensions: [],
+    // Se pone en true la primera vez que este perfil termina (o se salta) el asistente real de
+    // "Importar datos del navegador" — ver browserImport.js. Perfil "default" migrado de una
+    // instalación anterior a este sistema nace en true (nunca se le muestra el asistente a un
+    // perfil que ya tenía datos reales de antes).
+    hasCompletedOnboarding: false,
   }
 }
 
@@ -39,7 +44,11 @@ function createStore(filePath) {
     try {
       const raw = fs.readFileSync(filePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { ...freshDefaults(), ...parsed }
+      // Un archivo real que ya existía antes de que existiera el asistente de importación (no
+      // trae `hasCompletedOnboarding` todavía) es de alguien que YA usaba MABRIONA — nunca se le
+      // debe mostrar el asistente de "bienvenido, ¿venís de otro navegador?" como si fuera nuevo.
+      const migratingFromBeforeOnboarding = !('hasCompletedOnboarding' in parsed)
+      return { ...freshDefaults(), ...parsed, ...(migratingFromBeforeOnboarding ? { hasCompletedOnboarding: true } : {}) }
     } catch {
       return freshDefaults()
     }
@@ -196,6 +205,45 @@ function buildStore(readAll, writeAll) {
       data.extensions = (data.extensions || []).map((e) => (e.recordId === recordId ? { ...e, enabled } : e))
       writeAll(data)
       return data.extensions
+    },
+
+    getHasCompletedOnboarding: () => data.hasCompletedOnboarding === true,
+    setHasCompletedOnboarding(done) {
+      data.hasCompletedOnboarding = !!done
+      writeAll(data)
+      return data.hasCompletedOnboarding
+    },
+
+    // Importación real desde otro navegador — ver browserImport.js. Nunca duplica: un favorito
+    // cuya URL ya existe se deja como está (no se pisa, no se agrega una copia). Se escribe en
+    // disco una sola vez al final, no por cada item — importar miles de favoritos/entradas de
+    // golpe no debe hacer miles de escrituras sincrónicas.
+    importFavorites(items) {
+      const existingUrls = new Set(data.favorites.map((f) => f.url))
+      let imported = 0
+      for (const item of items) {
+        if (existingUrls.has(item.url)) continue
+        existingUrls.add(item.url)
+        data.favorites.push(item)
+        imported++
+      }
+      writeAll(data)
+      return imported
+    },
+    // El historial importado se mezcla con el real que ya había — por URL, se queda con la visita
+    // más reciente de las dos (importada o ya existente), nunca inventa ni pierde datos, y
+    // respeta el mismo límite real de 2000 entradas que ya usa addHistoryEntry.
+    importHistoryEntries(items) {
+      const byUrl = new Map(data.history.map((h) => [h.url, h]))
+      for (const item of items) {
+        const existing = byUrl.get(item.url)
+        if (!existing || item.visitedAt > existing.visitedAt) byUrl.set(item.url, item)
+      }
+      data.history = Array.from(byUrl.values())
+        .sort((a, b) => b.visitedAt - a.visitedAt)
+        .slice(0, 2000)
+      writeAll(data)
+      return data.history.length
     },
   }
 }

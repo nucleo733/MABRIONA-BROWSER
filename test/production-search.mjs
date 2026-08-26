@@ -62,6 +62,13 @@ await win.waitForLoadState('domcontentloaded')
 await win.waitForTimeout(1200)
 ok('el .app empaquetado real abre una ventana con un userData 100% nuevo')
 
+// Usuario nuevo real: se omite el asistente de importación para seguir con el resto de este test
+// (que prueba Search, no el asistente — ese tiene su propia cobertura en release-checklist.mjs).
+if (await win.locator('#onboarding-overlay').isVisible()) {
+  await win.locator('#onboarding-skip-1').click()
+  await win.waitForTimeout(300)
+}
+
 const idsBefore = await windowIds()
 const principalId = idsBefore[0]
 
