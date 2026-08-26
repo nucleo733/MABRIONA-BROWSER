@@ -5,9 +5,7 @@ screenshots/
 *.log
 build/icon.iconset/
 
-# Credencial real de la Brave API, empaquetada en el .app distribuido (ver profiles.js) pero
-# NUNCA en el repo público — se coloca a mano en la máquina que hace el build oficial.
+# Credencial real de la Brave API — nunca en el repo público. Ya no se empaqueta dentro del .app
+# distribuido (Fase 21): MABRIONA Browser usa el proxy real `mabriona.com/api/browser-search` por
+# default. Este archivo solo importa si alguien configura su PROPIA key (ver profiles.js).
 brave-api-key.local.json
-
-# Mismo criterio para la credencial real de DeepL (traductor) — ver profiles.js.
-deepl-api-key.local.json

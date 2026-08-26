@@ -338,13 +338,9 @@ document.getElementById('btn-translate').addEventListener('click', async () => {
   document.getElementById('translate-restore').classList.add('hidden')
   const shareable = isShareableUrl(activeTab?.url)
   document.getElementById('translate-not-shareable').classList.toggle('hidden', shareable)
-  document.getElementById('translate-not-configured').classList.add('hidden')
   document.getElementById('translate-controls').classList.toggle('hidden', !shareable)
   if (!shareable) return
   await ensureTranslateLanguages()
-  const configured = await mabrionaBrowser.getTranslateConfigured()
-  document.getElementById('translate-not-configured').classList.toggle('hidden', configured)
-  document.getElementById('translate-controls').classList.toggle('hidden', !configured)
 })
 document.getElementById('translate-go').addEventListener('click', async () => {
   if (!isShareableUrl(activeTab?.url)) return
@@ -355,9 +351,7 @@ document.getElementById('translate-go').addEventListener('click', async () => {
   statusEl.textContent = 'Traduciendo…'
   const result = await mabrionaBrowser.translatePage(targetLang)
   btn.disabled = false
-  if (!result.configured) {
-    statusEl.textContent = 'El traductor no está configurado en esta instalación.'
-  } else if (result.error) {
+  if (result.error) {
     statusEl.textContent = `No se pudo traducir: ${result.error}`
   } else if (result.translatedCount === 0) {
     statusEl.textContent = 'No encontramos texto real para traducir en esta página.'

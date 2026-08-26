@@ -61,6 +61,9 @@ function handleDjiaProtocolUrl(rawUrl) {
 
 const TOOLBAR_HEIGHT = 118
 const PRIVATE_PARTITION = 'mabriona-private' // sin "persist:" → en memoria, Electron la descarta al cerrar la app
+// Proxy real server-side compartido (Search y Traducir) — ver Fase 21 y Fase 1.4.3: ninguna key
+// real de MABRIONA viaja empaquetada dentro del `.app`/`.exe` distribuido, vive solo acá.
+const MABRIONA_PROXY_BASE = 'https://www.mabriona.com/api'
 
 const legacyDataFile = path.join(app.getPath('userData'), 'mabriona-browser-data.json')
 const registry = createProfileRegistry(path.join(app.getPath('userData'), 'mabriona-browser-profiles.json'), legacyDataFile)
@@ -666,11 +669,15 @@ ipcMain.handle('utils:generate-qr', async (_e, text) => {
 })
 
 // ===================== Traductor real (DeepL) =====================
-// Mismo criterio que la Brave API key: si no hay key configurada, se devuelve `configured:false`
-// real — nunca se finge una traducción. Traduce nodo de texto real por nodo de texto real (no el
-// HTML entero) para no arriesgar corromper <script>/<style> ni romper el layout de la página.
+// Fase 1.4.3: mismo criterio real que Search (Fase 21) — la key real de DeepL de MABRIONA nunca
+// viaja empaquetada dentro del `.app`/`.exe` distribuido. Sin una key propia configurada
+// (`registry.getDeeplApiKey()`), se llama al proxy real `mabriona.com/api/browser-translate` (la
+// key de MABRIONA vive solo ahí, server-side). Si la persona configuró su PROPIA key, esa sigue
+// yendo directo a DeepL con su propia cuenta — nunca se manda una key ajena al proxy de MABRIONA.
+// Traduce nodo de texto real por nodo de texto real (no el HTML entero) para no arriesgar
+// corromper <script>/<style> ni romper el layout de la página.
 const TRANSLATE_MAX_NODES = 500 // tope real por página — cuida la cuota mensual real de la cuenta
-const TRANSLATE_CHUNK_SIZE = 50 // máximo real de textos por pedido a la API de DeepL
+const TRANSLATE_CHUNK_SIZE = 50 // máximo real de textos por pedido de traducción
 
 function extractTranslatableTextScript() {
   return `(function() {
@@ -699,11 +706,9 @@ function extractTranslatableTextScript() {
 }
 
 ipcMain.handle('translate:get-languages', () => TRANSLATE_LANGUAGES)
-ipcMain.handle('translate:get-configured', () => !!registry.getDeeplApiKey())
 
 ipcMain.handle('translate:page', async (e, targetLang) => {
-  const apiKey = registry.getDeeplApiKey()
-  if (!apiKey) return { configured: false }
+  const ownApiKey = registry.getDeeplApiKey()
   const state = windows.get(windowIdForSender(e))
   const tab = state && state.activeTabId != null ? tabs.get(state.activeTabId) : null
   if (!tab) return { configured: true, error: 'no hay una pestaña activa real' }
@@ -721,12 +726,18 @@ ipcMain.handle('translate:page', async (e, targetLang) => {
   for (let i = 0; i < originalTexts.length; i += TRANSLATE_CHUNK_SIZE) {
     const chunk = originalTexts.slice(i, i + TRANSLATE_CHUNK_SIZE)
     try {
-      const { url, headers, body } = buildTranslateRequest(chunk, targetLang, apiKey)
+      const { url, headers, body } = ownApiKey
+        ? buildTranslateRequest(chunk, targetLang, ownApiKey)
+        : {
+            url: `${MABRIONA_PROXY_BASE}/browser-translate`,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: chunk, target_lang: targetLang }),
+          }
       const res = await fetch(url, { method: 'POST', headers, body })
-      if (!res.ok) return { configured: true, error: `error ${res.status} de DeepL` }
+      if (!res.ok) return { configured: true, error: `error ${res.status} ${ownApiKey ? 'de DeepL' : 'del traductor de MABRIONA'}` }
       const data = await res.json()
       const chunkTranslated = normalizeTranslateResponse(data)
-      if (!chunkTranslated) return { configured: true, error: 'respuesta inesperada de DeepL' }
+      if (!chunkTranslated) return { configured: true, error: 'respuesta inesperada del traductor' }
       translated.push(...chunkTranslated)
     } catch (err) {
       return { configured: true, error: String(err) }
@@ -947,7 +958,6 @@ ipcMain.handle('extensions:remove', (e, recordId) => {
 // real `mabriona.com/api/browser-search` en vez de a Brave directo. Si la persona configuró su
 // PROPIA key (`registry.getBraveApiKey()`, ver `scripts/set-brave-key.js`), esa sigue yendo directo
 // a Brave con su propia cuenta — nunca se manda una key ajena al proxy de MABRIONA.
-const MABRIONA_PROXY_BASE = 'https://www.mabriona.com/api'
 const SEARCH_EMPTY = {
   configured: false,
   web: [],

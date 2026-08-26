@@ -78,12 +78,12 @@ const shareStillActive = await win.locator('#btn-share.active').count()
 if (shareStillActive === 0) ok('el ícono de Compartir se apaga de verdad al cerrar el panel')
 else bad('ícono de Compartir tras cerrar', 'sigue "prendido"')
 
-// Traducir real: estado honesto sin key configurada (no hay credencial real de DeepL en este build)
+// Traducir real: abre el panel sin errores (la cadena real completa — idiomas, proxy, error
+// honesto — tiene su propio test dedicado en test/translate-packaged.mjs).
 await win.locator('#btn-translate').click()
 await win.waitForTimeout(500)
-const notConfiguredVisible = await win.locator('#translate-not-configured:not(.hidden)').count()
-if (notConfiguredVisible === 1) ok('Traducir real: sin credencial de DeepL, lo dice honestamente (no finge traducir)')
-else bad('estado de traductor no configurado', `count=${notConfiguredVisible}`)
+if ((await win.locator('#panel-translate:not(.hidden)').count()) === 1) ok('Traducir real: el panel abre sin errores en el .app instalado')
+else bad('panel de traducir en el .app instalado', 'no abrió')
 await win.locator('[data-close="translate"]').click()
 
 // Menú "Más" real: todo lo que se sacó de la barra sigue accesible ahí

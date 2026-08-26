@@ -46,7 +46,6 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   generateQrCode: (text) => ipcRenderer.invoke('utils:generate-qr', text),
 
   getTranslateLanguages: () => ipcRenderer.invoke('translate:get-languages'),
-  getTranslateConfigured: () => ipcRenderer.invoke('translate:get-configured'),
   translatePage: (targetLang) => ipcRenderer.invoke('translate:page', targetLang),
 
   listDownloads: () => ipcRenderer.invoke('downloads:list'),
