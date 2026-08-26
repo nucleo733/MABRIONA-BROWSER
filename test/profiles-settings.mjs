@@ -57,7 +57,9 @@ else bad('panel de Perfil — cantidad de filas', `esperaba 1, encontré ${profi
 await win.locator('[data-close="profile"]').click()
 
 // ---------------- Configuración — General / Búsqueda, capacidades reales por perfil ----------------
-await win.locator('#btn-settings').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-settings').click()
 await win.waitForTimeout(300)
 const activeProfileLine = await win.locator('#settings-active-profile').textContent()
 if (activeProfileLine.includes('Principal')) ok('Configuración → General: muestra el perfil real activo')
@@ -112,7 +114,9 @@ else bad('Modo Invitado — marca privada', `esperaba 1 pestaña .private, encon
 await guestWin.locator('#address').fill('https://es.wikipedia.org/wiki/Merengue')
 await guestWin.locator('#address').press('Enter')
 await guestWin.waitForTimeout(2000)
-await guestWin.locator('#btn-history').click()
+await guestWin.locator('#btn-more').click()
+await guestWin.waitForTimeout(200)
+await guestWin.locator('#more-history').click()
 await guestWin.waitForTimeout(300)
 const guestHistoryText = await guestWin.locator('#history-list').textContent()
 if (guestHistoryText.includes('Sin historial')) ok('Modo Invitado: navegar de verdad NO deja historial (real, no simulado)')
@@ -123,7 +127,9 @@ await new Promise((r) => setTimeout(r, 500))
 
 // La ventana Principal no debe verse afectada por lo que pasó en la ventana de Invitado.
 await win.locator('[data-close="history"]').click().catch(() => {})
-await win.locator('#btn-history').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-history').click()
 await win.waitForTimeout(300)
 const principalHistoryAfterGuest = await win.locator('#history-list li').count()
 if (principalHistoryAfterGuest > 0) ok('la ventana Principal conserva su propio historial real, sin mezcla con Modo Invitado')

@@ -65,8 +65,10 @@ const badgeText = await app.evaluate(async ({ BrowserWindow }) => {
 if (badgeText === 'EXT-OK') ok('el content script real de la extensión corre de verdad sobre una página real')
 else bad('content script real', `esperaba "EXT-OK", encontré ${JSON.stringify(badgeText)}`)
 
-// Panel real: aparece en la lista.
-await win.locator('#btn-extensions').click()
+// Panel real: aparece en la lista (Extensiones ahora vive dentro del menú "Más").
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-extensions').click()
 await win.waitForTimeout(400)
 const listedText = await win.locator('#extensions-list').textContent()
 if (listedText.includes('MABRIONA Test Extension')) ok('panel de Extensiones real: la extensión instalada aparece en la lista')

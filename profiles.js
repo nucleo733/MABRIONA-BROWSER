@@ -14,12 +14,17 @@ const path = require('node:path')
  * archivo de datos (`mabriona-browser-data.json`) y a la MISMA partición de Chromium
  * (`persist:mabriona-browser`) que ya existían — cero riesgo de pérdida de datos, cero copia.
  */
-function createProfileRegistry(registryFilePath, legacyDataFilePath, bundledKeyFilePath = path.join(__dirname, 'brave-api-key.local.json')) {
+function createProfileRegistry(
+  registryFilePath,
+  legacyDataFilePath,
+  bundledKeyFilePath = path.join(__dirname, 'brave-api-key.local.json'),
+  bundledDeeplKeyFilePath = path.join(__dirname, 'deepl-api-key.local.json'),
+) {
   function readAll() {
     try {
       const raw = fs.readFileSync(registryFilePath, 'utf-8')
       const parsed = JSON.parse(raw)
-      return { profiles: [], lastActiveProfileId: 'default', braveApiKey: null, ...parsed }
+      return { profiles: [], lastActiveProfileId: 'default', braveApiKey: null, deeplApiKey: null, ...parsed }
     } catch {
       return null
     }
@@ -42,6 +47,16 @@ function createProfileRegistry(registryFilePath, legacyDataFilePath, bundledKeyF
       return null
     }
   }
+  // Misma idea que la Brave API key — la key real de DeepL (traductor), empaquetada junto al
+  // código para que "Traducir" funcione en el .app distribuido, nunca en el repo público.
+  function readBundledDeeplApiKey() {
+    try {
+      const raw = fs.readFileSync(bundledDeeplKeyFilePath, 'utf-8')
+      return JSON.parse(raw).deeplApiKey || null
+    } catch {
+      return null
+    }
+  }
 
   let data = readAll()
   if (!data) {
@@ -55,6 +70,7 @@ function createProfileRegistry(registryFilePath, legacyDataFilePath, bundledKeyF
       profiles: [{ id: 'default', name: 'Principal', emoji: '👤', createdAt: Date.now() }],
       lastActiveProfileId: 'default',
       braveApiKey: migratedKey,
+      deeplApiKey: null,
     }
     writeAll(data)
   }
@@ -64,6 +80,10 @@ function createProfileRegistry(registryFilePath, legacyDataFilePath, bundledKeyF
   if (!data.braveApiKey) {
     const bundled = readBundledApiKey()
     if (bundled) { data.braveApiKey = bundled; writeAll(data) }
+  }
+  if (!data.deeplApiKey) {
+    const bundledDeepl = readBundledDeeplApiKey()
+    if (bundledDeepl) { data.deeplApiKey = bundledDeepl; writeAll(data) }
   }
 
   function genId() {
@@ -114,6 +134,13 @@ function createProfileRegistry(registryFilePath, legacyDataFilePath, bundledKeyF
       data.braveApiKey = key || null
       writeAll(data)
       return data.braveApiKey
+    },
+
+    getDeeplApiKey: () => data.deeplApiKey || null,
+    setDeeplApiKey(key) {
+      data.deeplApiKey = key || null
+      writeAll(data)
+      return data.deeplApiKey
     },
 
     /** Archivo de datos real de un perfil — 'default' reutiliza el archivo histórico tal cual. */

@@ -135,7 +135,7 @@ await win.waitForTimeout(200)
 // ---- Arrastrar y soltar real (HTML5 DnD): mover el favorito suelto ADENTRO de la carpeta ----
 await win.locator('.fav-bar-item', { hasText: 'Favorito Suelto E2E' })
   .dragTo(win.locator('.fav-bar-folder-btn', { hasText: 'Trabajo E2E' }))
-await win.waitForTimeout(400)
+await win.waitForTimeout(800) // el DnD real de Chromium a veces tarda un poco más en asentar el drop
 const movedFolderId = await win.evaluate(async () => {
   const favs = await window.mabrionaBrowser.listFavorites()
   return favs.find((f) => f.url === 'https://example.com/?e2e-bookmarks-test=suelto')?.folderId || null

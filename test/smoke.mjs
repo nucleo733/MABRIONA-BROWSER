@@ -635,8 +635,9 @@ else bad('navegación a wikipedia.org', `encontré "${addressAfterNav}"`)
 await win.screenshot({ path: path.join(appRoot, 'screenshots', 'smoke-01-wikipedia.png') })
 
 // Zoom real — Electron nativo (setZoomFactor), verificado tanto en la UI (texto del %) como en el
-// webContents real de la pestaña activa.
-await win.locator('#btn-menu').click()
+// webContents real de la pestaña activa. Zoom y ventanas ahora viven adentro del menú "Más" real
+// (consolidado a pedido explícito del usuario — menos íconos sueltos en la barra).
+await win.locator('#btn-more').click()
 await win.waitForTimeout(200)
 const zoomBefore = await win.locator('#zoom-level').textContent()
 await win.locator('#zoom-in').click()
@@ -654,7 +655,7 @@ await win.waitForTimeout(200)
 const zoomReset = await win.locator('#zoom-level').textContent()
 if (zoomReset === '100%') ok('MABRIONA Browser: Restablecer zoom vuelve a 100% real')
 else bad('Zoom — reset', zoomReset)
-await win.locator('[data-close="menu"]').click()
+await win.locator('[data-close="more"]').click()
 
 // Duplicar pestaña real — misma URL, pestaña nueva de verdad.
 const tabCountBeforeDup = await win.locator('.tab').count()
@@ -671,7 +672,7 @@ if (tabCountAfterDup === tabCountBeforeDup + 1) {
 }
 
 // Modo Privado real — sesión en memoria (ver main.js), marcada visualmente distinta.
-await win.locator('#btn-menu').click()
+await win.locator('#btn-more').click()
 await win.waitForTimeout(200)
 await win.locator('#menu-new-private').click()
 await win.waitForTimeout(600)
@@ -689,7 +690,7 @@ await win.waitForTimeout(300)
 
 // Nueva ventana real — una BrowserWindow de Electron de verdad, independiente.
 const windowIdsBefore = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().map((w) => w.id))
-await win.locator('#btn-menu').click()
+await win.locator('#btn-more').click()
 await win.waitForTimeout(200)
 await win.locator('#menu-new-window').click()
 await win.waitForTimeout(800)
@@ -707,8 +708,11 @@ if (newWindowId != null) {
 }
 await win.waitForTimeout(300)
 
-// Filtro real de Historial (client-side, sobre datos reales ya cargados).
-await win.locator('#btn-history').click()
+// Filtro real de Historial (client-side, sobre datos reales ya cargados). Historial ahora se abre
+// desde el menú "Más" — ya no tiene su propio ícono suelto en la barra.
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-history').click()
 await win.waitForTimeout(200)
 const historyCountBefore = await win.locator('#history-list li').count()
 await win.locator('#history-search').fill('wikipedia')
@@ -723,25 +727,20 @@ if (historyCountFiltered > 0 && historyCountFiltered <= historyCountBefore && al
 }
 await win.locator('[data-close="history"]').click()
 
-// Barra responsive — a ventana angosta, los botones secundarios se agrupan en "Más" en vez de
-// superponerse o desaparecer sin alternativa.
+// Barra con pocos íconos a propósito (pedido explícito: menos íconos, solo los relevantes
+// siempre visibles) — todo lo demás vive en un único menú "Más" real, siempre disponible, no solo
+// en ventana angosta.
+const toolbarButtonCount = await win.locator('#toolbar button').count()
+if (toolbarButtonCount <= 9) ok(`MABRIONA Browser: la barra tiene pocos íconos a propósito (${toolbarButtonCount})`)
+else bad('cantidad de íconos en la barra', `esperaba pocos, encontré ${toolbarButtonCount}`)
 await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(800, 700))
 await win.waitForTimeout(300)
-const responsiveInfo = await win.evaluate(() => ({
-  moreVisible: getComputedStyle(document.getElementById('btn-more')).display !== 'none',
-  screenshotHidden: getComputedStyle(document.getElementById('btn-screenshot')).display === 'none',
-}))
-if (responsiveInfo.moreVisible && responsiveInfo.screenshotHidden) {
-  ok('MABRIONA Browser: en ventana angosta, los botones secundarios se agrupan en "Más" real')
-  await win.locator('#btn-more').click()
-  await win.waitForTimeout(200)
-  const morePanelVisible = await win.evaluate(() => !document.getElementById('panel-more').classList.contains('hidden'))
-  if (morePanelVisible) ok('MABRIONA Browser: el panel "Más" real se abre con las mismas acciones')
-  else bad('panel Más', 'no se abrió')
-  await win.locator('[data-close="more"]').click()
-} else {
-  bad('barra responsive', JSON.stringify(responsiveInfo))
-}
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+const morePanelVisible = await win.evaluate(() => !document.getElementById('panel-more').classList.contains('hidden'))
+if (morePanelVisible) ok('MABRIONA Browser: el menú "Más" real se abre también en ventana angosta, sin superponerse')
+else bad('panel Más en ventana angosta', 'no se abrió')
+await win.locator('[data-close="more"]').click()
 await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1400, 900))
 await win.waitForTimeout(300)
 
@@ -828,9 +827,12 @@ if (findbarHiddenAfter === 1) ok('find in page: cerrar la barra funciona')
 else bad('find in page — cerrar', 'sigue visible')
 
 // Captura de pantalla real (Electron capturePage) de la pestaña activa — se limpia después para
-// no dejar basura de test en el Downloads real del usuario.
-await win.locator('#btn-screenshot').click()
+// no dejar basura de test en el Downloads real del usuario. Ahora vive dentro del menú "Más".
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-screenshot').click()
 await win.waitForTimeout(1000)
+await win.locator('[data-close="more"]').click()
 const downloadsDir = await app.evaluate(({ app: electronApp }) => electronApp.getPath('downloads'))
 const capturedFile = fs.readdirSync(downloadsDir).find((f) => f.startsWith('mabriona-browser-captura-'))
 if (capturedFile) {
@@ -845,7 +847,9 @@ if (capturedFile) {
 
 // Historial: borrado puntual — la entrada de wikipedia (recién visitada) debe poder eliminarse
 // sola, sin afectar el resto ni requerir "Vaciar" todo.
-await win.locator('#btn-history').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-history').click()
 await win.waitForTimeout(300)
 const historyBeforeDelete = await win.locator('#history-list li').count()
 if (historyBeforeDelete >= 1) ok(`historial: hay al menos 1 entrada antes de borrar (${historyBeforeDelete})`)
@@ -864,19 +868,23 @@ const tabCountAfterClose = await win.locator('.tab').count()
 if (tabCountAfterClose === 1) ok('cerrar una pestaña funciona (vuelve a 1)')
 else bad('cantidad de pestañas tras cerrar', `esperaba 1, encontré ${tabCountAfterClose}`)
 
-// Favoritos: agregar y ver en el panel
+// Favoritos: agregar y ver en el panel (el panel ahora vive dentro del menú "Más")
 await win.locator('#btn-fav').click()
 await win.waitForTimeout(300)
-await win.locator('#btn-favorites').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-favorites').click()
 await win.waitForTimeout(300)
 const favCount = await win.locator('#favorites-list li').count()
 if (favCount >= 1) ok('agregar a favoritos y verlo en el panel funciona')
 else bad('panel de favoritos', 'no aparece ningún favorito tras agregar uno')
 await win.screenshot({ path: path.join(appRoot, 'screenshots', 'smoke-02-favorites.png') })
 
-// Shields: el panel abre y el toggle existe
+// Shields: el panel abre y el toggle existe (ahora vive dentro del menú "Más")
 await win.locator('[data-close="favorites"]').click()
-await win.locator('#btn-shields').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-shields').click()
 await win.waitForTimeout(300)
 const shieldsToggleVisible = await win.locator('#shields-toggle-input').isVisible()
 if (shieldsToggleVisible) ok('panel de MABRIONA SHIELDS abre con el toggle visible')
@@ -893,7 +901,9 @@ const blockedWithShieldsOn = await win.locator('#shields-count').textContent()
 if (Number(blockedWithShieldsOn) > 0) ok(`MABRIONA SHIELDS real: bloqueó ${blockedWithShieldsOn} pedido(s) reales a rastreadores conocidos (con Shields activo)`)
 else bad('Shields activo — bloqueo real', `esperaba > 0, encontré "${blockedWithShieldsOn}"`)
 
-await win.locator('#btn-shields').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-shields').click()
 await win.waitForTimeout(200)
 await win.locator('#shields-toggle-input').uncheck()
 await win.locator('[data-close="shields"]').click()
@@ -902,13 +912,18 @@ await win.waitForTimeout(1500)
 const blockedWithShieldsOff = await win.locator('#shields-count').textContent()
 if (Number(blockedWithShieldsOff) === 0) ok('MABRIONA SHIELDS real: con Shields desactivado, los mismos pedidos pasan (0 bloqueados) — el toggle controla de verdad el filtro de red')
 else bad('Shields desactivado — no debería bloquear', `esperaba 0, encontré "${blockedWithShieldsOff}"`)
-await win.locator('#btn-shields').click()
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-shields').click()
 await win.waitForTimeout(200)
 await win.locator('#shields-toggle-input').check() // se deja como estaba (activado, default real)
 await win.locator('[data-close="shields"]').click()
 
-// Settings — solo capacidades reales conectadas, nada de switches decorativos.
-await win.locator('#btn-settings').click()
+// Settings — solo capacidades reales conectadas, nada de switches decorativos. Ahora vive dentro
+// del menú "Más".
+await win.locator('#btn-more').click()
+await win.waitForTimeout(200)
+await win.locator('#more-settings').click()
 await win.waitForTimeout(300)
 const downloadsPathText = await win.locator('#settings-downloads-path').textContent()
 if (downloadsPathText.includes('Carpeta actual:') && downloadsPathText.length > 'Carpeta actual:'.length) {

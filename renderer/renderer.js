@@ -8,7 +8,6 @@ const btnBack = document.getElementById('btn-back')
 const btnForward = document.getElementById('btn-forward')
 const btnReload = document.getElementById('btn-reload')
 const btnFav = document.getElementById('btn-fav')
-const btnScreenshot = document.getElementById('btn-screenshot')
 const shieldsCount = document.getElementById('shields-count')
 
 let currentTabs = []
@@ -67,16 +66,23 @@ function render(tabsState) {
   }
   btnBack.disabled = !activeTab?.canGoBack
   btnForward.disabled = !activeTab?.canGoForward
-  btnReload.textContent = activeTab?.loading ? '✕' : '⟳'
+  document.getElementById('icon-reload').classList.toggle('hidden', !!activeTab?.loading)
+  document.getElementById('icon-stop').classList.toggle('hidden', !activeTab?.loading)
   shieldsCount.textContent = String(activeTab?.blockedCount ?? 0)
   document.body.classList.toggle('private-mode', !!activeTab?.isPrivate)
-  if (!document.getElementById('panel-menu').classList.contains('hidden')) refreshZoomLevel()
+  if (!document.getElementById('panel-more').classList.contains('hidden')) refreshZoomLevel()
 
   if (activeTab) {
     mabrionaBrowser.isFavorite(activeTab.url).then((isFav) => {
-      btnFav.textContent = isFav ? '★' : '☆'
+      btnFav.classList.toggle('active', isFav)
     })
   }
+}
+
+/** Solo una página real (http/https) tiene sentido compartir o traducir — la pestaña nueva propia
+ * de MABRIONA o la página de resultados interna no son "un sitio" que compartir. */
+function isShareableUrl(url) {
+  return !!url && /^https?:\/\//i.test(url)
 }
 
 function escapeHtml(str) {
@@ -101,58 +107,64 @@ btnFav.addEventListener('click', async () => {
   const isFav = await mabrionaBrowser.isFavorite(activeTab.url)
   if (isFav) await mabrionaBrowser.removeFavorite(activeTab.url)
   else await mabrionaBrowser.addFavorite({ url: activeTab.url, title: activeTab.title, addedAt: Date.now() })
-  btnFav.textContent = isFav ? '☆' : '★'
+  btnFav.classList.toggle('active', !isFav)
   refreshAllFavoritesUI()
 })
-btnScreenshot.addEventListener('click', async () => {
+async function captureScreenshotAction(button) {
   if (!activeTab) return
-  btnScreenshot.disabled = true
-  const original = btnScreenshot.textContent
+  button.disabled = true
+  const original = button.textContent
   const result = await mabrionaBrowser.captureScreenshot(activeTab.id)
-  btnScreenshot.textContent = result.ok ? '✅' : '⚠️'
-  btnScreenshot.title = result.ok ? `Guardada en ${result.path}` : `No se pudo capturar — ${result.error}`
-  setTimeout(() => { btnScreenshot.textContent = original; btnScreenshot.disabled = false }, 1200)
-})
+  button.textContent = result.ok ? '✅ Capturado' : '⚠️ Error'
+  button.title = result.ok ? `Guardada en ${result.path}` : `No se pudo capturar — ${result.error}`
+  setTimeout(() => { button.textContent = original; button.disabled = false }, 1200)
+}
 
-// ---------------- Paneles (historial / favoritos / descargas / shields) ----------------
+// ---------------- Paneles (historial / favoritos / descargas / shields / compartir / traducir) ----------------
 
-const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'menu', 'profile', 'extensions']
+const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'profile', 'extensions', 'share', 'translate']
+// Solo estos paneles tienen su propio ícono siempre visible en la barra — se "prenden" (misma
+// idea que los botones de mando de DJ IA) mientras su panel está abierto.
+const PANEL_TRIGGER_BTN = { more: 'btn-more', profile: 'btn-profile', share: 'btn-share', translate: 'btn-translate' }
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')
+  for (const btnId of Object.values(PANEL_TRIGGER_BTN)) document.getElementById(btnId).classList.remove('active')
 }
 function togglePanel(name) {
   const el = document.getElementById(`panel-${name}`)
   const wasHidden = el.classList.contains('hidden')
   closeAllPanels()
-  if (wasHidden) el.classList.remove('hidden')
+  if (wasHidden) {
+    el.classList.remove('hidden')
+    const btnId = PANEL_TRIGGER_BTN[name]
+    if (btnId) document.getElementById(btnId).classList.add('active')
+  }
 }
 
-document.getElementById('btn-history').addEventListener('click', () => { togglePanel('history'); refreshHistoryPanel() })
-document.getElementById('btn-favorites').addEventListener('click', () => { togglePanel('favorites'); refreshFavoritesPanel() })
-document.getElementById('btn-downloads').addEventListener('click', () => { togglePanel('downloads'); refreshDownloadsPanel() })
-document.getElementById('btn-shields').addEventListener('click', () => { togglePanel('shields'); refreshShieldsPanel() })
-document.getElementById('btn-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
-document.getElementById('btn-more').addEventListener('click', () => togglePanel('more'))
+// Solo quedan como ícono siempre visible en la barra: atrás/adelante/recargar, favorito, compartir,
+// traducir, perfil, y "Más opciones" con todo lo demás adentro — a pedido explícito, para no
+// abrumar con íconos que casi no se usan a diario.
+document.getElementById('btn-more').addEventListener('click', () => { togglePanel('more'); refreshZoomLevel() })
 document.getElementById('btn-profile').addEventListener('click', () => { togglePanel('profile'); refreshProfilePanel() })
-document.getElementById('more-profile').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-profile').click() })
-document.getElementById('btn-extensions').addEventListener('click', () => { togglePanel('extensions'); refreshExtensionsPanel() })
-document.getElementById('more-extensions').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-extensions').click() })
-document.getElementById('btn-menu').addEventListener('click', () => { togglePanel('menu'); refreshZoomLevel() })
 document.querySelectorAll('.panel-close').forEach((btn) => btn.addEventListener('click', (e) => {
-  document.getElementById(`panel-${e.target.dataset.close}`).classList.add('hidden')
+  const name = e.target.dataset.close
+  document.getElementById(`panel-${name}`).classList.add('hidden')
+  const btnId = PANEL_TRIGGER_BTN[name]
+  if (btnId) document.getElementById(btnId).classList.remove('active')
 }))
 
-// Panel "Más" (responsive — solo visible en ventanas angostas, ver style.css): son las mismas
-// acciones reales de siempre, no una copia — cada botón dispara el botón real correspondiente.
-document.getElementById('more-screenshot').addEventListener('click', () => { togglePanel('more'); btnScreenshot.click() })
-document.getElementById('more-shields').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-shields').click() })
-document.getElementById('more-history').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-history').click() })
-document.getElementById('more-downloads').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-downloads').click() })
-document.getElementById('more-favorites').addEventListener('click', () => { togglePanel('more'); document.getElementById('btn-favorites').click() })
+// Panel "Más opciones" — todo lo que antes eran íconos sueltos en la barra vive acá ahora.
+document.getElementById('more-screenshot').addEventListener('click', () => captureScreenshotAction(document.getElementById('more-screenshot')))
+document.getElementById('more-shields').addEventListener('click', () => { togglePanel('shields'); refreshShieldsPanel() })
+document.getElementById('more-history').addEventListener('click', () => { togglePanel('history'); refreshHistoryPanel() })
+document.getElementById('more-downloads').addEventListener('click', () => { togglePanel('downloads'); refreshDownloadsPanel() })
+document.getElementById('more-favorites').addEventListener('click', () => { togglePanel('favorites'); refreshFavoritesPanel() })
+document.getElementById('more-extensions').addEventListener('click', () => { togglePanel('extensions'); refreshExtensionsPanel() })
+document.getElementById('more-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
 
 // Ventanas reales (Electron nativo) y pestaña privada real (sesión en memoria, ver main.js).
-document.getElementById('menu-new-window').addEventListener('click', () => mabrionaBrowser.newWindow())
-document.getElementById('menu-new-private').addEventListener('click', () => { mabrionaBrowser.createPrivateTab(); togglePanel('menu') })
+document.getElementById('menu-new-window').addEventListener('click', () => { mabrionaBrowser.newWindow(); togglePanel('more') })
+document.getElementById('menu-new-private').addEventListener('click', () => { mabrionaBrowser.createPrivateTab(); togglePanel('more') })
 
 // Zoom real — Electron nativo (setZoomFactor), no un transform de CSS.
 const ZOOM_STEP = 0.1
@@ -276,6 +288,87 @@ async function refreshShieldsPanel() {
 }
 document.getElementById('shields-toggle-input').addEventListener('change', (e) => {
   mabrionaBrowser.setShieldsEnabled(e.target.checked)
+})
+
+// ---------------- Compartir real: copiar link + código QR (100% local) ----------------
+
+document.getElementById('btn-share').addEventListener('click', async () => {
+  togglePanel('share')
+  if (document.getElementById('panel-share').classList.contains('hidden')) return
+  const shareable = isShareableUrl(activeTab?.url)
+  document.getElementById('share-controls').classList.toggle('hidden', !shareable)
+  document.getElementById('share-not-shareable').classList.toggle('hidden', shareable)
+  if (!shareable) return
+  document.getElementById('share-url-note').textContent = activeTab.url
+  document.getElementById('share-copy').textContent = '🔗 Copiar link'
+  const qrDataUrl = await mabrionaBrowser.generateQrCode(activeTab.url)
+  document.getElementById('share-qr-img').src = qrDataUrl || ''
+})
+document.getElementById('share-copy').addEventListener('click', async () => {
+  if (!isShareableUrl(activeTab?.url)) return
+  await mabrionaBrowser.copyText(activeTab.url)
+  const btn = document.getElementById('share-copy')
+  btn.textContent = '✅ Copiado'
+  setTimeout(() => { btn.textContent = '🔗 Copiar link' }, 1200)
+})
+
+// ---------------- Traducir real (DeepL) — nodo de texto por nodo de texto, sin tocar scripts ----------------
+
+let translateLanguagesLoaded = false
+async function ensureTranslateLanguages() {
+  if (translateLanguagesLoaded) return
+  const languages = await mabrionaBrowser.getTranslateLanguages()
+  const select = document.getElementById('translate-lang')
+  select.innerHTML = ''
+  for (const lang of languages) {
+    const option = document.createElement('option')
+    option.value = lang.code
+    option.textContent = lang.name
+    if (lang.code === 'ES') option.selected = true
+    select.appendChild(option)
+  }
+  translateLanguagesLoaded = true
+}
+
+document.getElementById('btn-translate').addEventListener('click', async () => {
+  togglePanel('translate')
+  if (document.getElementById('panel-translate').classList.contains('hidden')) return
+  document.getElementById('translate-status').textContent = ''
+  document.getElementById('translate-restore').classList.add('hidden')
+  const shareable = isShareableUrl(activeTab?.url)
+  document.getElementById('translate-not-shareable').classList.toggle('hidden', shareable)
+  document.getElementById('translate-not-configured').classList.add('hidden')
+  document.getElementById('translate-controls').classList.toggle('hidden', !shareable)
+  if (!shareable) return
+  await ensureTranslateLanguages()
+  const configured = await mabrionaBrowser.getTranslateConfigured()
+  document.getElementById('translate-not-configured').classList.toggle('hidden', configured)
+  document.getElementById('translate-controls').classList.toggle('hidden', !configured)
+})
+document.getElementById('translate-go').addEventListener('click', async () => {
+  if (!isShareableUrl(activeTab?.url)) return
+  const btn = document.getElementById('translate-go')
+  const statusEl = document.getElementById('translate-status')
+  const targetLang = document.getElementById('translate-lang').value
+  btn.disabled = true
+  statusEl.textContent = 'Traduciendo…'
+  const result = await mabrionaBrowser.translatePage(targetLang)
+  btn.disabled = false
+  if (!result.configured) {
+    statusEl.textContent = 'El traductor no está configurado en esta instalación.'
+  } else if (result.error) {
+    statusEl.textContent = `No se pudo traducir: ${result.error}`
+  } else if (result.translatedCount === 0) {
+    statusEl.textContent = 'No encontramos texto real para traducir en esta página.'
+  } else {
+    statusEl.textContent = `Traducido (${result.translatedCount} fragmentos de texto real)${result.truncated ? ' — la página es muy larga, se tradujo una parte' : ''}.`
+    document.getElementById('translate-restore').classList.remove('hidden')
+  }
+})
+document.getElementById('translate-restore').addEventListener('click', () => {
+  if (!activeTab) return
+  mabrionaBrowser.reload(activeTab.id)
+  togglePanel('translate')
 })
 
 // ---------------- Perfiles — cambiar de perfil abre/enfoca una ventana real de ese perfil ----------------

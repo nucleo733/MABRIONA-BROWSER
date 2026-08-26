@@ -113,40 +113,68 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   height: 50px;
 }
 
+/* Vidrio real — mismo material que los botones de mando de MABRIONA DJ IA (RAISED_BTN/
+ * raisedActive en DjIaScreen.tsx): en reposo es vidrio oscuro con un brillo tenue arriba a la
+ * izquierda; "prendido" (.active) agrega una barra de acento volt en el borde izquierdo con el
+ * resplandor sangrando hacia adentro del vidrio, no un relleno plano. Nunca emoji — solo íconos
+ * SVG propios, trazo fino, para que se vea nativo en cualquier sistema operativo. */
 .nav-btn {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  color: var(--text);
-  border-radius: 999px;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  border-left: 3px solid rgba(255, 255, 255, 0.24);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 24%, rgba(0, 0, 0, 0.5) 100%),
+    radial-gradient(140% 200% at 20% -40%, rgba(255, 255, 255, 0.22), transparent 42%),
+    var(--bg-raised);
+  box-shadow:
+    inset 3px 0 12px -8px rgba(255, 255, 255, 0.5),
+    inset 0 1px 1px rgba(255, 255, 255, 0.28),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.6),
+    0 6px 14px rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
-  font-size: 14px;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
-.nav-btn:hover {
-  border-color: rgba(212, 255, 0, 0.5);
-  box-shadow: 0 0 16px rgba(212, 255, 0, 0.35), 0 0 32px rgba(212, 255, 0, 0.18);
-  background: var(--bg-raised-2);
+.nav-btn svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
-.nav-btn:disabled { opacity: 0.35; cursor: default; box-shadow: none; border-color: var(--border); }
-
-#shields-count {
-  position: absolute;
-  bottom: -4px;
-  right: -4px;
-  background: var(--volt);
-  color: #000;
-  font-size: 9px;
-  font-weight: 700;
-  border-radius: 999px;
-  padding: 1px 4px;
-  min-width: 14px;
+.nav-btn:hover { color: #fff; }
+.nav-btn:disabled { opacity: 0.35; cursor: default; color: rgba(255, 255, 255, 0.4); }
+/* "Prendido" real — mismo cálculo de color que raisedActive(color) de DJ IA, con el volt de MABRIONA. */
+.nav-btn.active {
+  border-left: 3px solid var(--volt);
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  color: #fff;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.04) 24%, rgba(0, 0, 0, 0.55) 100%),
+    radial-gradient(140% 200% at 20% -40%, rgba(255, 255, 255, 0.6), transparent 42%),
+    linear-gradient(90deg, rgba(212, 255, 0, 0.33) 0%, transparent 55%),
+    var(--bg-raised);
+  box-shadow:
+    inset 3px 0 22px -6px var(--volt),
+    inset 0 2px 2px rgba(255, 255, 255, 0.55),
+    inset 0 -4px 8px rgba(0, 0, 0, 0.6),
+    0 0 26px rgba(212, 255, 0, 0.63),
+    0 0 50px rgba(212, 255, 0, 0.31),
+    0 6px 14px rgba(0, 0, 0, 0.35);
 }
+#btn-fav.active svg { fill: var(--volt); stroke: var(--volt); }
 
 #address {
   flex: 1;
@@ -252,15 +280,49 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 .zoom-row .nav-btn { width: 28px; height: 28px; font-size: 13px; }
 #zoom-level { font-size: 12px; color: var(--text); min-width: 42px; text-align: center; }
 
-/* ---------------- Responsive — la barra se reorganiza en vez de romperse ---------------- */
-#btn-more { display: none; }
-@media (max-width: 880px) {
-  #btn-screenshot, #btn-shields, #btn-history, #btn-downloads, #btn-favorites, #btn-profile, #btn-extensions { display: none; }
-  #btn-more { display: flex; }
-}
+/* ---------------- Responsive — la barra ya es corta (menos íconos a propósito), solo la marca se achica ---------------- */
 @media (max-width: 520px) {
   #logo-browser { display: none; }
 }
+
+.panel-menu-divider { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+.more-badge {
+  background: var(--volt);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 1px 5px;
+  margin-left: 4px;
+}
+
+/* ---------------- Compartir (copiar link + QR real, 100% local) ---------------- */
+#share-url-note { word-break: break-all; }
+#share-copy { width: 100%; margin-bottom: 12px; }
+#share-qr-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 14px;
+  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+#share-qr-img { width: 180px; height: 180px; display: block; }
+
+/* ---------------- Traducir (DeepL real) ---------------- */
+#translate-controls { display: flex; gap: 8px; }
+#translate-lang {
+  flex: 1;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--text);
+  padding: 0 8px;
+  font-size: 12px;
+}
+#translate-status { min-height: 14px; }
+#translate-restore { width: 100%; margin-top: 8px; }
 
 .panel-list {
   list-style: none;
@@ -640,6 +702,17 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   border-bottom: 1px solid var(--border);
 }
 .bm-title { font-size: 15px; font-weight: 800; margin-right: 6px; }
+.bm-close-btn {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: 15px;
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+.bm-close-btn:hover { color: var(--volt); background: var(--volt-soft); }
 #bm-search {
   flex: 1;
   height: 32px;

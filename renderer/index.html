@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'none';" />
   <title>MABRIONA Browser</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -15,25 +15,20 @@
       <button id="btn-new-tab" title="Nueva pestaña" aria-label="Nueva pestaña">+</button>
     </div>
     <div id="toolbar">
-      <button id="btn-back" class="nav-btn" title="Atrás" aria-label="Atrás">←</button>
-      <button id="btn-forward" class="nav-btn" title="Adelante" aria-label="Adelante">→</button>
-      <button id="btn-reload" class="nav-btn" title="Recargar" aria-label="Recargar">⟳</button>
-      <input id="address" type="text" placeholder="Buscar o escribir una dirección web" aria-label="Barra de direcciones" />
-      <button id="btn-fav" class="nav-btn" title="Agregar a favoritos" aria-label="Agregar a favoritos">☆</button>
-      <button id="btn-screenshot" class="nav-btn" title="Capturar pantalla" aria-label="Capturar pantalla">📷</button>
-      <button id="btn-shields" class="nav-btn" title="MABRIONA SHIELDS" aria-label="MABRIONA SHIELDS">
-        🛡️<span id="shields-count">0</span>
+      <button id="btn-back" class="nav-btn" title="Atrás" aria-label="Atrás"><svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg></button>
+      <button id="btn-forward" class="nav-btn" title="Adelante" aria-label="Adelante"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button id="btn-reload" class="nav-btn" title="Recargar" aria-label="Recargar">
+        <svg id="icon-reload" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.9-6.2"/><path d="M20 4v5h-5"/></svg>
+        <svg id="icon-stop" viewBox="0 0 24 24" class="hidden"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
-      <button id="btn-history" class="nav-btn" title="Historial" aria-label="Historial">🕘</button>
-      <button id="btn-downloads" class="nav-btn" title="Descargas" aria-label="Descargas">⬇︎</button>
-      <button id="btn-favorites" class="nav-btn" title="Favoritos" aria-label="Ver favoritos">★</button>
-      <button id="btn-extensions" class="nav-btn" title="Extensiones" aria-label="Extensiones">🧩</button>
-      <button id="btn-more" class="nav-btn" title="Más opciones" aria-label="Más opciones">⋯</button>
+      <input id="address" type="text" placeholder="Buscar o escribir una dirección web" aria-label="Barra de direcciones" />
+      <button id="btn-fav" class="nav-btn" title="Agregar a favoritos" aria-label="Agregar a favoritos"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z"/></svg></button>
+      <button id="btn-share" class="nav-btn" title="Compartir" aria-label="Compartir"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="5.5" r="2.4"/><circle cx="17" cy="18.5" r="2.4"/><path d="M8.1 10.8l6.8-4.2M8.1 13.2l6.8 4.2"/></svg></button>
+      <button id="btn-translate" class="nav-btn" title="Traducir esta página" aria-label="Traducir esta página"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg></button>
       <button id="btn-profile" class="nav-btn" title="Perfil" aria-label="Perfil">
         <span id="profile-emoji">👤</span>
       </button>
-      <button id="btn-settings" class="nav-btn" title="Configuración" aria-label="Configuración">⚙️</button>
-      <button id="btn-menu" class="nav-btn" title="Ventanas, privado y zoom" aria-label="Ventanas, privado y zoom">☰</button>
+      <button id="btn-more" class="nav-btn" title="Más opciones" aria-label="Más opciones"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg></button>
     </div>
     <div id="favorites-bar" role="toolbar" aria-label="Barra de favoritos">
       <div id="favorites-bar-items"></div>
@@ -74,21 +69,13 @@
     </div>
     <div class="panel-body panel-menu-list">
       <button id="more-screenshot" type="button" class="settings-btn">📷 Capturar pantalla</button>
-      <button id="more-shields" type="button" class="settings-btn">🛡️ MABRIONA SHIELDS</button>
       <button id="more-history" type="button" class="settings-btn">🕘 Historial</button>
       <button id="more-downloads" type="button" class="settings-btn">⬇︎ Descargas</button>
       <button id="more-favorites" type="button" class="settings-btn">★ Favoritos</button>
+      <button id="more-shields" type="button" class="settings-btn">🛡️ MABRIONA SHIELDS <span id="shields-count" class="more-badge">0</span></button>
       <button id="more-extensions" type="button" class="settings-btn">🧩 Extensiones</button>
-      <button id="more-profile" type="button" class="settings-btn">👤 Perfil</button>
-    </div>
-  </div>
-
-  <div id="panel-menu" class="panel hidden" role="dialog" aria-label="Ventanas, privado y zoom">
-    <div class="panel-header">
-      <span>Ventanas y zoom</span>
-      <button class="panel-close" data-close="menu">✕</button>
-    </div>
-    <div class="panel-body panel-menu-list">
+      <button id="more-settings" type="button" class="settings-btn">⚙️ Configuración</button>
+      <hr class="panel-menu-divider" />
       <button id="menu-new-window" type="button" class="settings-btn">🪟 Nueva ventana</button>
       <button id="menu-new-private" type="button" class="settings-btn">🕶️ Nueva pestaña privada</button>
       <p class="settings-note" id="private-note">Modo Privado real: esa pestaña no guarda historial ni cookies en disco — se olvida al cerrar la app. No te vuelve anónimo frente a tu proveedor de internet ni frente a los sitios que visitás.</p>
@@ -98,6 +85,44 @@
         <button id="zoom-in" type="button" class="nav-btn" aria-label="Acercar">+</button>
         <button id="zoom-reset" type="button" class="settings-btn">Restablecer</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Compartir real: copiar link (portapapeles real del sistema) + código QR generado 100% local
+       (sin mandar la URL a ningún servicio externo) — Electron no tiene un panel de "compartir"
+       nativo del sistema operativo, ver docs/MABRIONA-BROWSER-ICONS.md. -->
+  <div id="panel-share" class="panel hidden" role="dialog" aria-label="Compartir">
+    <div class="panel-header">
+      <span>Compartir</span>
+      <button class="panel-close" data-close="share">✕</button>
+    </div>
+    <div class="panel-body" id="share-body">
+      <p id="share-not-shareable" class="settings-note hidden">Esta pantalla no es un sitio real — abrí una página para poder compartirla.</p>
+      <div id="share-controls">
+        <p class="settings-note" id="share-url-note"></p>
+        <button id="share-copy" type="button" class="settings-btn">🔗 Copiar link</button>
+        <div id="share-qr-wrap"><img id="share-qr-img" alt="Código QR con el link de esta página" /></div>
+        <p class="settings-note">Escaneá este código con la cámara de tu celular para abrir esta misma página ahí.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Traductor real (DeepL) — traduce el texto real de la página, nodo por nodo, sin tocar
+       scripts ni el layout. Si no hay una key de DeepL configurada, lo dice, no finge traducir. -->
+  <div id="panel-translate" class="panel hidden" role="dialog" aria-label="Traducir esta página">
+    <div class="panel-header">
+      <span>Traducir</span>
+      <button class="panel-close" data-close="translate">✕</button>
+    </div>
+    <div class="panel-body" id="translate-body">
+      <p id="translate-not-shareable" class="settings-note hidden">Esta pantalla no es un sitio real — abrí una página para poder traducirla.</p>
+      <p id="translate-not-configured" class="settings-note hidden">El traductor todavía no está configurado en esta instalación (falta la credencial real de DeepL).</p>
+      <div id="translate-controls">
+        <select id="translate-lang" aria-label="Idioma de destino"></select>
+        <button id="translate-go" type="button" class="settings-btn">Traducir</button>
+      </div>
+      <p id="translate-status" class="settings-note"></p>
+      <button id="translate-restore" type="button" class="settings-btn hidden">Ver original</button>
     </div>
   </div>
 
@@ -286,7 +311,7 @@
           <option value="name">Nombre (A-Z)</option>
         </select>
         <button id="bm-new-folder" type="button" class="settings-btn">+ Carpeta</button>
-        <button id="bm-close" type="button" class="panel-close" aria-label="Cerrar">✕</button>
+        <button id="bm-close" type="button" class="bm-close-btn" aria-label="Cerrar">✕</button>
       </div>
       <div id="bm-body">
         <nav id="bm-tree" aria-label="Carpetas"></nav>

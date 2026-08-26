@@ -38,6 +38,13 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   captureScreenshot: (id) => ipcRenderer.invoke('tabs:screenshot', id),
 
+  copyText: (text) => ipcRenderer.invoke('utils:copy-text', text),
+  generateQrCode: (text) => ipcRenderer.invoke('utils:generate-qr', text),
+
+  getTranslateLanguages: () => ipcRenderer.invoke('translate:get-languages'),
+  getTranslateConfigured: () => ipcRenderer.invoke('translate:get-configured'),
+  translatePage: (targetLang) => ipcRenderer.invoke('translate:page', targetLang),
+
   listDownloads: () => ipcRenderer.invoke('downloads:list'),
   openDownload: (filePath) => ipcRenderer.invoke('downloads:open', filePath),
   showDownload: (filePath) => ipcRenderer.invoke('downloads:show', filePath),

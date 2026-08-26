@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog } = require('electron')
+const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog, clipboard } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const { createStore, createMemoryStore } = require('./store')
@@ -23,6 +23,8 @@ const {
 const { detectTool } = require('./search/tools')
 const { resolveSpectrum } = require('./search/spectrumResolver')
 const { startDjiaBridge, pickAndOpenExternalCallback } = require('./bridge/djiaBridge')
+const QRCode = require('qrcode')
+const { LANGUAGES: TRANSLATE_LANGUAGES, buildTranslateRequest, normalizeTranslateResponse } = require('./translate/deeplTranslate')
 
 // Integración oficial MABRIONA DJ AI (web, sin app de escritorio) —
 // `mabriona-browser://pick?q=...&back=...`, ver
@@ -639,6 +641,98 @@ ipcMain.handle('folders:rename', (e, id, name) => storeForWindow(windowIdForSend
 ipcMain.handle('folders:move', (e, id, newParentId) => storeForWindow(windowIdForSender(e)).moveFolder(id, newParentId))
 ipcMain.handle('folders:reorder', (e, id, order) => storeForWindow(windowIdForSender(e)).reorderFolder(id, order))
 ipcMain.handle('folders:delete', (e, id) => storeForWindow(windowIdForSender(e)).deleteFolder(id))
+
+// ===================== Compartir real: copiar link + código QR (100% local, sin red) =====================
+// Electron no tiene un panel de "compartir" nativo del sistema (verificado: `shell` no expone esa
+// función, ni en Mac ni en Windows/Linux) — esto es lo real que sí se puede dar: copiar la URL al
+// portapapeles real del sistema operativo, y un código QR generado 100% en esta máquina (sin
+// mandar la URL a ningún servicio externo) para escanear con el celular.
+ipcMain.handle('utils:copy-text', (_e, text) => { clipboard.writeText(text); return true })
+ipcMain.handle('utils:generate-qr', async (_e, text) => {
+  try {
+    return await QRCode.toDataURL(text, { margin: 1, width: 240 })
+  } catch {
+    return null
+  }
+})
+
+// ===================== Traductor real (DeepL) =====================
+// Mismo criterio que la Brave API key: si no hay key configurada, se devuelve `configured:false`
+// real — nunca se finge una traducción. Traduce nodo de texto real por nodo de texto real (no el
+// HTML entero) para no arriesgar corromper <script>/<style> ni romper el layout de la página.
+const TRANSLATE_MAX_NODES = 500 // tope real por página — cuida la cuota mensual real de la cuenta
+const TRANSLATE_CHUNK_SIZE = 50 // máximo real de textos por pedido a la API de DeepL
+
+function extractTranslatableTextScript() {
+  return `(function() {
+    window.__mabrionaTranslateNodes = [];
+    const skipTags = new Set(['SCRIPT','STYLE','NOSCRIPT','TEXTAREA','TITLE']);
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+        let el = node.parentElement;
+        while (el) {
+          if (skipTags.has(el.tagName)) return NodeFilter.FILTER_REJECT;
+          el = el.parentElement;
+        }
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    let n;
+    const texts = [];
+    while ((n = walker.nextNode())) {
+      window.__mabrionaTranslateNodes.push(n);
+      texts.push(n.nodeValue);
+      if (texts.length >= ${TRANSLATE_MAX_NODES}) break;
+    }
+    return texts;
+  })()`
+}
+
+ipcMain.handle('translate:get-languages', () => TRANSLATE_LANGUAGES)
+ipcMain.handle('translate:get-configured', () => !!registry.getDeeplApiKey())
+
+ipcMain.handle('translate:page', async (e, targetLang) => {
+  const apiKey = registry.getDeeplApiKey()
+  if (!apiKey) return { configured: false }
+  const state = windows.get(windowIdForSender(e))
+  const tab = state && state.activeTabId != null ? tabs.get(state.activeTabId) : null
+  if (!tab) return { configured: true, error: 'no hay una pestaña activa real' }
+  const wc = tab.view.webContents
+
+  let originalTexts
+  try {
+    originalTexts = await wc.executeJavaScript(extractTranslatableTextScript())
+  } catch (err) {
+    return { configured: true, error: String(err) }
+  }
+  if (!originalTexts || originalTexts.length === 0) return { configured: true, translatedCount: 0 }
+
+  const translated = []
+  for (let i = 0; i < originalTexts.length; i += TRANSLATE_CHUNK_SIZE) {
+    const chunk = originalTexts.slice(i, i + TRANSLATE_CHUNK_SIZE)
+    try {
+      const { url, headers, body } = buildTranslateRequest(chunk, targetLang, apiKey)
+      const res = await fetch(url, { method: 'POST', headers, body })
+      if (!res.ok) return { configured: true, error: `error ${res.status} de DeepL` }
+      const data = await res.json()
+      const chunkTranslated = normalizeTranslateResponse(data)
+      if (!chunkTranslated) return { configured: true, error: 'respuesta inesperada de DeepL' }
+      translated.push(...chunkTranslated)
+    } catch (err) {
+      return { configured: true, error: String(err) }
+    }
+  }
+
+  const applyScript = `(function(translated) {
+    const nodes = window.__mabrionaTranslateNodes || [];
+    for (let i = 0; i < nodes.length && i < translated.length; i++) nodes[i].nodeValue = translated[i];
+    delete window.__mabrionaTranslateNodes;
+    return nodes.length;
+  })(${JSON.stringify(translated)})`
+  const appliedCount = await wc.executeJavaScript(applyScript)
+  return { configured: true, translatedCount: appliedCount, truncated: originalTexts.length >= TRANSLATE_MAX_NODES }
+})
 
 ipcMain.handle('downloads:list', (e) => storeForWindow(windowIdForSender(e)).listDownloads())
 ipcMain.handle('downloads:open', (_e, filePath) => shell.openPath(filePath))
