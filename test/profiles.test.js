@@ -102,43 +102,20 @@ test('borrar un perfil real que no es el último ni default: funciona y desapare
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('instalación 100% nueva: si viene una key empaquetada junto al código, la usa sola — sin eso la búsqueda queda muerta en producción (bug real 2026-08-25)', () => {
+test('una key propia ya configurada (por el usuario o migrada) se conserva tal cual — Fase 21, ya no existe ninguna key empaquetada de fábrica', () => {
   const dir = tempDir()
-  const bundledKeyFile = path.join(dir, 'brave-api-key.local.json')
-  fs.writeFileSync(bundledKeyFile, JSON.stringify({ braveApiKey: 'BSA-empaquetada-de-verdad' }))
-  const registry = createProfileRegistry(path.join(dir, 'profiles.json'), path.join(dir, 'mabriona-browser-data.json'), bundledKeyFile)
-  assert.equal(registry.getBraveApiKey(), 'BSA-empaquetada-de-verdad')
-  fs.rmSync(dir, { recursive: true, force: true })
-})
-
-test('sin archivo de key empaquetada (build local de un contribuidor sin la credencial), queda sin key — honesto, no inventa una', () => {
-  const dir = tempDir()
-  const registry = createProfileRegistry(path.join(dir, 'profiles.json'), path.join(dir, 'mabriona-browser-data.json'), path.join(dir, 'no-existe.json'))
-  assert.equal(registry.getBraveApiKey(), null)
-  fs.rmSync(dir, { recursive: true, force: true })
-})
-
-test('una key ya configurada (por el usuario o migrada) nunca se pisa con la empaquetada', () => {
-  const dir = tempDir()
-  const bundledKeyFile = path.join(dir, 'brave-api-key.local.json')
-  fs.writeFileSync(bundledKeyFile, JSON.stringify({ braveApiKey: 'BSA-empaquetada' }))
   const regFile = path.join(dir, 'profiles.json')
   const legacy = path.join(dir, 'mabriona-browser-data.json')
   fs.writeFileSync(regFile, JSON.stringify({ profiles: [{ id: 'default', name: 'Principal', emoji: '👤', createdAt: 1 }], lastActiveProfileId: 'default', braveApiKey: 'BSA-ya-configurada-por-el-usuario' }))
-  const registry = createProfileRegistry(regFile, legacy, bundledKeyFile)
+  const registry = createProfileRegistry(regFile, legacy)
   assert.equal(registry.getBraveApiKey(), 'BSA-ya-configurada-por-el-usuario')
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
-test('un registro existente (de antes de que esta key se empezara a empaquetar) igual la recibe al abrir de nuevo — no solo instalaciones nuevas', () => {
+test('sin key propia configurada, queda sin key — honesto, no inventa una (la búsqueda por defecto usa el proxy de mabriona.com, no una key local)', () => {
   const dir = tempDir()
-  const bundledKeyFile = path.join(dir, 'brave-api-key.local.json')
-  fs.writeFileSync(bundledKeyFile, JSON.stringify({ braveApiKey: 'BSA-empaquetada-despues' }))
-  const regFile = path.join(dir, 'profiles.json')
-  const legacy = path.join(dir, 'mabriona-browser-data.json')
-  fs.writeFileSync(regFile, JSON.stringify({ profiles: [{ id: 'default', name: 'Principal', emoji: '👤', createdAt: 1 }], lastActiveProfileId: 'default', braveApiKey: null }))
-  const registry = createProfileRegistry(regFile, legacy, bundledKeyFile)
-  assert.equal(registry.getBraveApiKey(), 'BSA-empaquetada-despues')
+  const registry = createProfileRegistry(path.join(dir, 'profiles.json'), path.join(dir, 'mabriona-browser-data.json'))
+  assert.equal(registry.getBraveApiKey(), null)
   fs.rmSync(dir, { recursive: true, force: true })
 })
 

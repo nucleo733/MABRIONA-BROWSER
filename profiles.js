@@ -6,20 +6,17 @@ const path = require('node:path')
 /**
  * Registro de perfiles — un archivo JSON aparte de los datos de cada perfil (que siguen viviendo
  * en su propio `createStore`, ver store.js). Acá solo vive la lista de perfiles que existen, cuál
- * fue el último activo, y la Brave API key (es una credencial de la app, no un dato de usuario —
- * por eso es global y no por perfil).
+ * fue el último activo, y una Brave/DeepL API key PROPIA que la persona haya configurado ella
+ * misma (global, no por perfil — ver `scripts/set-brave-key.js`). Fase 21: ya NO se empaqueta acá
+ * ninguna key de MABRIONA — sin una key propia configurada, `main.js` usa el proxy real de
+ * `mabriona.com/api/browser-search` (la key de MABRIONA vive solo ahí, server-side).
  *
  * Migración real, sin mover nada: si este archivo no existe todavía (primera vez que corre esta
  * versión), se crea con un único perfil `id: 'default'`. Ese id apunta, a propósito, al MISMO
  * archivo de datos (`mabriona-browser-data.json`) y a la MISMA partición de Chromium
  * (`persist:mabriona-browser`) que ya existían — cero riesgo de pérdida de datos, cero copia.
  */
-function createProfileRegistry(
-  registryFilePath,
-  legacyDataFilePath,
-  bundledKeyFilePath = path.join(__dirname, 'brave-api-key.local.json'),
-  bundledDeeplKeyFilePath = path.join(__dirname, 'deepl-api-key.local.json'),
-) {
+function createProfileRegistry(registryFilePath, legacyDataFilePath) {
   function readAll() {
     try {
       const raw = fs.readFileSync(registryFilePath, 'utf-8')
@@ -33,29 +30,6 @@ function createProfileRegistry(
   function writeAll(d) {
     fs.mkdirSync(path.dirname(registryFilePath), { recursive: true })
     fs.writeFileSync(registryFilePath, JSON.stringify(d, null, 2))
-  }
-
-  // La Brave API key real de MABRIONA Corporation, empaquetada junto al código para que la
-  // búsqueda funcione en el .app que se descarga — nunca en el repo público (ver .gitignore),
-  // se coloca a mano en la máquina que hace el build oficial. Un build local sin ese archivo
-  // simplemente no trae key (mismo estado "no configurado" de siempre, honesto, no fingido).
-  function readBundledApiKey() {
-    try {
-      const raw = fs.readFileSync(bundledKeyFilePath, 'utf-8')
-      return JSON.parse(raw).braveApiKey || null
-    } catch {
-      return null
-    }
-  }
-  // Misma idea que la Brave API key — la key real de DeepL (traductor), empaquetada junto al
-  // código para que "Traducir" funcione en el .app distribuido, nunca en el repo público.
-  function readBundledDeeplApiKey() {
-    try {
-      const raw = fs.readFileSync(bundledDeeplKeyFilePath, 'utf-8')
-      return JSON.parse(raw).deeplApiKey || null
-    } catch {
-      return null
-    }
   }
 
   let data = readAll()
@@ -73,17 +47,6 @@ function createProfileRegistry(
       deeplApiKey: null,
     }
     writeAll(data)
-  }
-  // Cubre tanto la instalación 100% nueva de arriba como una instalación existente cuyo registro
-  // ya se creó antes de que esta key empezara a empaquetarse — en ningún caso pisa una key que
-  // la persona ya haya configurado ella misma.
-  if (!data.braveApiKey) {
-    const bundled = readBundledApiKey()
-    if (bundled) { data.braveApiKey = bundled; writeAll(data) }
-  }
-  if (!data.deeplApiKey) {
-    const bundledDeepl = readBundledDeeplApiKey()
-    if (bundledDeepl) { data.deeplApiKey = bundledDeepl; writeAll(data) }
   }
 
   function genId() {

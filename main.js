@@ -12,6 +12,7 @@ const { resolveAddressInput, HOME_URL } = require('./address-resolver')
 const {
   buildRequest,
   buildImagesRequest,
+  VALID_FRESHNESS,
   normalizeResults,
   normalizeInfobox,
   normalizeVideos,
@@ -940,8 +941,13 @@ ipcMain.handle('extensions:remove', (e, recordId) => {
 })
 
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el
-// diseño de MABRIONA) — la key vive solo acá, nunca llega a la página. Si todavía no hay key
-// configurada, se avisa así de claro (nunca fingir un resultado ni romper la página).
+// diseño de MABRIONA). Fase 21: la key real de MABRIONA ya NO viaja empaquetada dentro del
+// `.app`/`.exe` distribuido (se podía extraer con `asar extract` — hallazgo real de la Fase 20) —
+// vive solo en el servidor (`BRAVE_API_KEY` en Vercel), y este proceso principal llama al proxy
+// real `mabriona.com/api/browser-search` en vez de a Brave directo. Si la persona configuró su
+// PROPIA key (`registry.getBraveApiKey()`, ver `scripts/set-brave-key.js`), esa sigue yendo directo
+// a Brave con su propia cuenta — nunca se manda una key ajena al proxy de MABRIONA.
+const MABRIONA_PROXY_BASE = 'https://www.mabriona.com/api'
 const SEARCH_EMPTY = {
   configured: false,
   web: [],
@@ -959,10 +965,14 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
   // de unidades, hora/fecha del sistema). Se evalúa siempre, incluso si Brave falla después: una
   // herramienta que funciona no debe quedar bloqueada por un problema de la búsqueda web.
   const tool = detectTool(text)
-  const apiKey = registry.getBraveApiKey()
-  if (!apiKey) return { ...SEARCH_EMPTY, tool }
+  const ownApiKey = registry.getBraveApiKey()
   try {
-    const { url, headers } = buildRequest(text, apiKey, { freshness })
+    const { url, headers } = ownApiKey
+      ? buildRequest(text, ownApiKey, { freshness })
+      : {
+          url: `${MABRIONA_PROXY_BASE}/browser-search?q=${encodeURIComponent(text)}${VALID_FRESHNESS.has(freshness) ? `&freshness=${freshness}` : ''}`,
+          headers: { Accept: 'application/json' },
+        }
     const res = await fetch(url, { headers })
     if (!res.ok) {
       // 429 real (límite de la cuenta, confirmado con cabeceras x-ratelimit-* en Etapa 4) es un caso
@@ -1003,10 +1013,11 @@ ipcMain.handle('search:query', async (_e, { text, freshness } = {}) => {
 // (ver renderer/results.js). No se pide en cada búsqueda: la mayoría de búsquedas nunca abren esa
 // pestaña, así que pedirla siempre sería gastar cupo de la cuenta sin necesidad.
 ipcMain.handle('search:images', async (_e, text) => {
-  const apiKey = registry.getBraveApiKey()
-  if (!apiKey) return { configured: false, images: [] }
+  const ownApiKey = registry.getBraveApiKey()
   try {
-    const { url, headers } = buildImagesRequest(text, apiKey)
+    const { url, headers } = ownApiKey
+      ? buildImagesRequest(text, ownApiKey)
+      : { url: `${MABRIONA_PROXY_BASE}/browser-images?q=${encodeURIComponent(text)}`, headers: { Accept: 'application/json' } }
     const res = await fetch(url, { headers })
     if (!res.ok) return { configured: true, error: `error ${res.status}`, images: [] }
     const data = await res.json()
