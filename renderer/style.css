@@ -7,6 +7,14 @@
   --text-dim: rgba(242, 242, 242, 0.55);
   --volt: #d4ff00;
   --volt-soft: rgba(212, 255, 0, 0.14);
+  /* Vidrio real de MABRIONA — todo panel/menú/overlay propio lo usa, para que la identidad sea
+   * consistente en toda la app (nunca un fondo plano/opaco genérico). El contenido real de una
+   * pestaña vive en una capa nativa aparte (BrowserView) que este blur no puede alcanzar — el
+   * vidrio se aplica sobre el resto del propio chrome de MABRIONA, no finge ver la página a través. */
+  --glass-bg: rgba(19, 19, 19, 0.55);
+  --glass-bg-2: rgba(26, 26, 26, 0.6);
+  --glass-blur: blur(24px) saturate(160%);
+  --glass-border-top: rgba(255, 255, 255, 0.14);
 }
 
 * { box-sizing: border-box; }
@@ -35,6 +43,9 @@ body {
   padding: 0 12px;
   -webkit-app-region: drag;
 }
+/* Espacio real para los botones de semáforo nativos de macOS (titleBarStyle: 'hidden', ver
+ * main.js) — sin esto el logo quedaría tapado por ellos. */
+body.platform-darwin #brandbar { padding-left: 78px; }
 #logo { font-size: 13px; letter-spacing: 0.02em; -webkit-app-region: no-drag; }
 #logo-mabriona { font-weight: 800; color: var(--text); }
 #logo-browser { font-weight: 700; color: var(--volt); }
@@ -198,8 +209,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   right: 12px;
   width: 340px;
   max-height: 60vh;
-  background: var(--bg-raised);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   z-index: 50;
@@ -378,8 +392,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  background: var(--bg-raised-2);
+  background: var(--glass-bg-2);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   z-index: 55;
@@ -419,8 +436,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: var(--bg-raised-2);
+  background: var(--glass-bg-2);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   z-index: 60;
@@ -492,8 +512,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   width: min(480px, calc(100vw - 48px));
   max-height: calc(100vh - 96px);
   overflow-y: auto;
-  background: var(--bg-raised);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 20px;
   padding: 32px 28px;
   text-align: center;
@@ -593,8 +616,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   max-width: 280px;
   max-height: 60vh;
   overflow-y: auto;
-  background: var(--bg-raised);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 12px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   padding: 6px;
@@ -643,8 +669,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   max-width: 260px;
   max-height: 70vh;
   overflow-y: auto;
-  background: var(--bg-raised-2);
+  background: var(--glass-bg-2);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 10px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
   padding: 6px;
@@ -687,8 +716,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 #bm-card {
   width: min(880px, calc(100vw - 48px));
   height: min(620px, calc(100vh - 96px));
-  background: var(--bg-raised);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 20px;
   display: flex;
   flex-direction: column;
@@ -841,8 +873,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 #text-prompt-overlay.hidden { display: none; }
 #text-prompt-card {
   width: min(360px, calc(100vw - 48px));
-  background: var(--bg-raised);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   border: 1px solid var(--border);
+  border-top-color: var(--glass-border-top);
   border-radius: 16px;
   padding: 20px;
 }

@@ -447,6 +447,14 @@ function createWindow(options = {}) {
     minWidth: 760,
     minHeight: 480,
     title: 'MABRIONA Browser',
+    backgroundColor: '#060606',
+    // La franja blanca real que se veía arriba de todo era la barra de título nativa del sistema
+    // operativo — nunca se le había dicho a Electron que la ocultara, aunque el brandbar propio
+    // (con su logo y `-webkit-app-region: drag`) ya estaba diseñado para reemplazarla entera.
+    // `hidden` en macOS deja los botones de semáforo reales pero saca el resto de la barra nativa.
+    // En Windows/Linux `titleBarStyle` no tiene efecto — ahí se sigue usando el marco nativo tal
+    // cual, para no romper minimizar/cerrar sin construir controles propios de reemplazo.
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 14, y: 11 } } : {}),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,

@@ -9,6 +9,7 @@ const btnForward = document.getElementById('btn-forward')
 const btnReload = document.getElementById('btn-reload')
 const btnFav = document.getElementById('btn-fav')
 const shieldsCount = document.getElementById('shields-count')
+document.body.classList.add(`platform-${mabrionaBrowser.platform}`)
 
 let currentTabs = []
 let activeTab = null

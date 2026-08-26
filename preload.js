@@ -3,6 +3,10 @@
 const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('mabrionaBrowser', {
+  // Valor real, no un IPC — sirve para que el chrome deje espacio real para los botones de
+  // semáforo nativos de macOS (titleBarStyle: 'hidden', ver main.js) sin tapar el logo.
+  platform: process.platform,
+
   createTab: (url) => ipcRenderer.invoke('tabs:create', url),
   createPrivateTab: () => ipcRenderer.invoke('tabs:new-private'),
   duplicateTab: (id) => ipcRenderer.invoke('tabs:duplicate', id),
