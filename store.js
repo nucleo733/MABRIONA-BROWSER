@@ -35,6 +35,13 @@ function freshDefaults() {
     // Extensiones reales de Chrome de este perfil — ver extensions.js. Cada entrada:
     // { recordId, origin: 'unpacked'|'imported'|'webstore', path, name, version, manifestVersion, enabled }.
     extensions: [],
+    // Contraseñas guardadas de este perfil — cada entrada: { id, origin, username,
+    // encryptedPassword (base64, ya cifrado con safeStorage real por main.js), createdAt }.
+    passwords: [],
+    // Idiomas reales del corrector ortográfico de Chromium para este perfil — se validan contra
+    // `session.availableSpellCheckerLanguages` real en main.js antes de aplicarlos, nunca se
+    // asume que un idioma existe solo porque está en esta lista guardada.
+    spellcheckLanguages: ['es', 'en-US'],
     // Se pone en true la primera vez que este perfil termina (o se salta) el asistente real de
     // "Importar datos del navegador" — ver browserImport.js. Perfil "default" migrado de una
     // instalación anterior a este sistema nace en true (nunca se le muestra el asistente a un
@@ -343,6 +350,28 @@ function buildStore(readAll, writeAll) {
       data.extensions = (data.extensions || []).map((e) => (e.recordId === recordId ? { ...e, pinned } : e))
       writeAll(data)
       return data.extensions
+    },
+
+    // Contraseñas reales — este store NUNCA ve la contraseña en texto plano: main.js la cifra con
+    // `safeStorage` (real, del sistema operativo — Keychain en macOS) ANTES de llamar acá, y esto
+    // solo persiste el blob ya cifrado (base64) tal cual, como cualquier otro dato de perfil.
+    listPasswords: () => data.passwords || [],
+    addPasswordRecord(record) {
+      data.passwords = [...(data.passwords || []), record]
+      writeAll(data)
+      return data.passwords
+    },
+    removePasswordRecord(id) {
+      data.passwords = (data.passwords || []).filter((p) => p.id !== id)
+      writeAll(data)
+      return data.passwords
+    },
+
+    getSpellcheckLanguages: () => data.spellcheckLanguages || ['es', 'en-US'],
+    setSpellcheckLanguages(langs) {
+      data.spellcheckLanguages = langs
+      writeAll(data)
+      return data.spellcheckLanguages
     },
 
     getHasCompletedOnboarding: () => data.hasCompletedOnboarding === true,

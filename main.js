@@ -1,6 +1,6 @@
 'use strict'
 
-const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog, clipboard } = require('electron')
+const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog, clipboard, safeStorage } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const { createStore, createMemoryStore } = require('./store')
@@ -168,6 +168,44 @@ function layoutActiveView(windowId) {
   active.view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: Math.max(0, w - reservedPx), height: Math.max(0, h - TOOLBAR_HEIGHT) })
 }
 
+function activeTabForWindow(windowId) {
+  const state = windows.get(windowId)
+  if (!state || state.activeTabId == null) return null
+  return tabs.get(state.activeTabId) || null
+}
+
+/** Para mensajes que llegan del webContents de una pestaña (una BrowserView, ver
+ * search-preload.js) en vez del chrome — `windowIdForSender` no sirve ahí (BrowserWindow.
+ * fromWebContents no resuelve una BrowserView), así que se busca directo cuál pestaña es. */
+function windowIdForSenderFromBrowserView(webContents) {
+  const tab = Array.from(tabs.values()).find((t) => t.view.webContents.id === webContents.id)
+  return tab ? tab.windowId : null
+}
+
+// Accesos directos reales de la Nueva Pestaña — no hay ningún conteo de visitas guardado aparte
+// (el historial ya deduplica por URL exacta), así que se agrupa el historial real por origen: la
+// cantidad de páginas distintas visitadas de un mismo sitio es una señal real de qué tan seguido
+// se usa, sin inventar ningún dato que no exista.
+function computeTopSites(profileStore, limit = 8) {
+  const byOrigin = new Map()
+  for (const entry of profileStore.getState().history) {
+    let origin
+    try { origin = new URL(entry.url).origin } catch { continue }
+    if (!origin.startsWith('http')) continue
+    const existing = byOrigin.get(origin)
+    if (existing) {
+      existing.count++
+      if ((entry.visitedAt || 0) > existing.lastVisitedAt) { existing.lastVisitedAt = entry.visitedAt || 0; existing.title = entry.title || existing.title; existing.url = entry.url }
+    } else {
+      byOrigin.set(origin, { origin, url: entry.url, title: entry.title || origin, count: 1, lastVisitedAt: entry.visitedAt || 0 })
+    }
+  }
+  return Array.from(byOrigin.values())
+    .sort((a, b) => b.count - a.count || b.lastVisitedAt - a.lastVisitedAt)
+    .slice(0, limit)
+    .map(({ origin, url, title }) => ({ origin, url, title }))
+}
+
 // Recuperación de sesión real: se guarda (con un pequeño debounce, para no escribir en disco en
 // cada tecla) la lista de URLs reales abiertas — nunca pestañas privadas, esas no dejan rastro a
 // propósito — y se reabren la próxima vez que arranca la app.
@@ -213,6 +251,10 @@ function createTab(initialUrl, windowId, options = {}) {
       // Inofensivo en cualquier otro sitio: contextBridge no le da nada a la página, la key nunca
       // sale del proceso principal.
       preload: path.join(__dirname, 'search-preload.js'),
+      // Visor real de PDF de Chromium (PDFium, ya viene adentro de Electron) — sin esto, cualquier
+      // PDF se trataba como una descarga en vez de mostrarse adentro de la pestaña, como en
+      // Chrome/Brave real.
+      plugins: true,
     },
   })
   const id = nextTabId++
@@ -251,6 +293,23 @@ function createTab(initialUrl, windowId, options = {}) {
     tab.title = 'Página no disponible — recargando…'
     broadcastTabs(windowId)
     if (!wc.isDestroyed()) wc.loadURL(tab.url).catch(() => {})
+  })
+
+  // DevTools/Imprimir tienen que funcionar aunque el foco esté adentro de la página (el caso más
+  // común — inspeccionar algo de la página real), no solo cuando el foco está en el chrome propio
+  // (barra de direcciones). `before-input-event` es el evento real de Electron para esto, se
+  // dispara ANTES que la página lo vea, así que no hace falta que el sitio coopere ni lo sepa.
+  wc.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+    const key = input.key.toLowerCase()
+    const cmdOrCtrl = input.meta || input.control
+    if (key === 'f12' || (cmdOrCtrl && input.alt && key === 'i')) {
+      event.preventDefault()
+      wc.toggleDevTools()
+    } else if (cmdOrCtrl && key === 'p') {
+      event.preventDefault()
+      wc.print({}, (ok, err) => { if (!ok && err) console.error('[MABRIONA Browser] no se pudo imprimir:', err) })
+    }
   })
 
   wc.setWindowOpenHandler(({ url }) => {
@@ -386,6 +445,10 @@ function installPermissionsFor(sess, persistent, profileStore) {
       kinds = ['location']
     } else if (permission === 'notifications') {
       kinds = ['notifications']
+    } else if (permission === 'clipboard-read') {
+      kinds = ['clipboard']
+    } else if (permission === 'midi' || permission === 'midiSysex') {
+      kinds = ['midi']
     }
     if (kinds.length === 0) { callback(false); return }
 
@@ -435,6 +498,17 @@ function ensureProfileSession(profileId) {
   installDownloadsFor(sess, profileStore)
   installPermissionsFor(sess, true, profileStore)
   loadEnabledExtensionsInto(sess, profileStore)
+  applySpellcheckLanguages(sess, profileStore)
+}
+
+// Solo se aplican idiomas que Chromium de verdad tiene instalados en esta máquina
+// (`session.availableSpellCheckerLanguages`, lista real) — un idioma guardado que ya no está
+// disponible (se cambió de sistema operativo, por ejemplo) se descarta en silencio en vez de
+// tirar un error real al arrancar.
+function applySpellcheckLanguages(sess, profileStore) {
+  const available = new Set(sess.availableSpellCheckerLanguages)
+  const wanted = profileStore.getSpellcheckLanguages().filter((l) => available.has(l))
+  sess.setSpellCheckerLanguages(wanted)
 }
 
 // Extensiones reales de Chrome (session.loadExtension, API oficial de Electron) — se cargan al
@@ -613,6 +687,15 @@ ipcMain.handle('tabs:back', (_e, id) => tabs.get(id)?.view.webContents.goBack())
 ipcMain.handle('tabs:forward', (_e, id) => tabs.get(id)?.view.webContents.goForward())
 ipcMain.handle('tabs:reload', (_e, id) => tabs.get(id)?.view.webContents.reload())
 ipcMain.handle('tabs:stop', (_e, id) => tabs.get(id)?.view.webContents.stop())
+ipcMain.handle('tabs:toggle-devtools', (e) => {
+  const tab = activeTabForWindow(windowIdForSender(e))
+  if (tab) tab.view.webContents.toggleDevTools()
+})
+ipcMain.handle('tabs:print', (e) => {
+  const tab = activeTabForWindow(windowIdForSender(e))
+  if (!tab) return
+  tab.view.webContents.print({}, (ok, err) => { if (!ok && err) console.error('[MABRIONA Browser] no se pudo imprimir:', err) })
+})
 
 // Find in Page — capacidad real de Chromium (webContents.findInPage), no una simulación sobre el
 // DOM: funciona contra cualquier página real, con el mismo contador de coincidencias que usa
@@ -654,6 +737,18 @@ ipcMain.handle('windows:new', (e, initialUrl) => {
 ipcMain.handle('windows:new-guest', () => { createWindow({ guest: true }); return true })
 
 ipcMain.handle('history:list', (e) => storeForWindow(windowIdForSender(e)).getState().history)
+
+// Verificación real del lado seguro: el sender de esta llamada es el webContents de la propia
+// pestaña (una BrowserView, no la ventana de chrome), así que `windowIdForSender` no sirve acá —
+// se busca directamente cuál pestaña es. Solo responde con datos reales si esa pestaña está
+// realmente mostrando `newtab.html` en este momento — cualquier otro sitio que intente llamar a
+// este mismo puente (expuesto sin querer en todas las pestañas, ver search-preload.js) recibe una
+// lista vacía, nunca el historial real de la persona.
+ipcMain.handle('newtab:top-sites', (e) => {
+  const tab = Array.from(tabs.values()).find((t) => t.view.webContents.id === e.sender.id)
+  if (!tab || tab.isPrivate || e.sender.getURL() !== HOME_URL) return []
+  return computeTopSites(storeForWindow(tab.windowId))
+})
 ipcMain.handle('history:clear', (e) => storeForWindow(windowIdForSender(e)).clearHistory())
 ipcMain.handle('history:remove', (e, url) => storeForWindow(windowIdForSender(e)).removeHistoryEntry(url))
 
@@ -832,6 +927,18 @@ ipcMain.handle('settings:choose-downloads-dir', async (e) => {
 // su propia carpeta de descargas o sus propios permisos).
 ipcMain.handle('settings:get-search-engine', (e) => storeForWindow(windowIdForSender(e)).getSearchEngine())
 ipcMain.handle('settings:set-search-engine', (e, engine) => storeForWindow(windowIdForSender(e)).setSearchEngine(engine))
+
+ipcMain.handle('settings:get-spellcheck-languages', (e) => {
+  const { profileStore, sess } = profileStoreAndSessionFor(windowIdForSender(e))
+  return { available: sess.availableSpellCheckerLanguages, selected: profileStore.getSpellcheckLanguages() }
+})
+ipcMain.handle('settings:set-spellcheck-languages', (e, langs) => {
+  const windowId = windowIdForSender(e)
+  const { profileStore, sess } = profileStoreAndSessionFor(windowId)
+  profileStore.setSpellcheckLanguages(langs)
+  applySpellcheckLanguages(sess, profileStore)
+  return { ok: true }
+})
 ipcMain.handle('settings:get-restore-session', (e) => storeForWindow(windowIdForSender(e)).getRestoreSessionOnStartup())
 ipcMain.handle('settings:set-restore-session', (e, enabled) => storeForWindow(windowIdForSender(e)).setRestoreSessionOnStartup(enabled))
 
@@ -1012,6 +1119,110 @@ ipcMain.handle('extensions:remove', (e, recordId) => {
   extensionsLib.removeExtensionFiles(record)
   profileStore.removeExtensionRecord(recordId)
   return { ok: true }
+})
+
+// ===================== Contraseñas reales =====================
+// Cifradas con `safeStorage` (API real de Electron — usa el Keychain real en macOS, DPAPI en
+// Windows, libsecret/kwallet en Linux vía el sistema operativo, nunca una clave propia inventada
+// acá). Nunca en texto plano en disco. El texto plano solo existe en memoria del proceso
+// principal, jamás se guarda ni se manda de vuelta al renderer salvo que la persona pida
+// explícitamente "mostrar" una contraseña puntual, o para autocompletar el origen exacto que la
+// pidió.
+
+function genPasswordId() {
+  return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+}
+
+// Capturas pendientes de confirmación real del usuario (el banner "¿Guardar la contraseña?") —
+// el texto plano vive acá, en memoria, nunca se lo mandamos al renderer hasta que haya que cifrar
+// y guardar de verdad. Una por ventana (la última capturada pisa a la anterior — no hace falta más
+// de un banner pendiente a la vez en la práctica real).
+const pendingPasswordCapture = new Map() // windowId -> { origin, username, password }
+
+ipcMain.on('passwords:capture', (e, { url, username, password }) => {
+  const windowId = windowIdForSenderFromBrowserView(e.sender)
+  if (windowId == null || !url || !password) return
+  let origin
+  try { origin = new URL(url).origin } catch { return }
+  const state = windows.get(windowId)
+  if (!state || state.isGuest) return // Modo Invitado: nunca ofrece guardar nada, mismo criterio que historial/favoritos
+  const profileStore = storeForWindow(windowId)
+  // Si ya existe exactamente el mismo origen+usuario+contraseña guardado, no hay nada nuevo que
+  // ofrecer — evita mostrar el banner en cada login normal a un sitio ya guardado.
+  const already = profileStore.listPasswords().find((p) => p.origin === origin && p.username === username)
+  if (already && safeStorage.isEncryptionAvailable()) {
+    try {
+      if (safeStorage.decryptString(Buffer.from(already.encryptedPassword, 'base64')) === password) return
+    } catch { /* no se pudo descifrar la guardada — seguir y ofrecer guardar la nueva igual */ }
+  }
+  pendingPasswordCapture.set(windowId, { origin, username, password })
+  sendToWindow(windowId, 'passwords:save-prompt', { origin, username })
+})
+
+ipcMain.handle('passwords:confirm-save', (e) => {
+  const windowId = windowIdForSender(e)
+  const pending = windowId != null ? pendingPasswordCapture.get(windowId) : null
+  if (!pending) return { ok: false, error: 'no hay ninguna contraseña real pendiente de guardar' }
+  pendingPasswordCapture.delete(windowId)
+  if (!safeStorage.isEncryptionAvailable()) {
+    return { ok: false, error: 'el sistema operativo no tiene disponible el cifrado real (Keychain/credential store) en esta máquina — no se guarda nada sin cifrar' }
+  }
+  const profileStore = storeForWindow(windowId)
+  const encryptedPassword = safeStorage.encryptString(pending.password).toString('base64')
+  // Si ya había una guardada para el mismo origen+usuario, se reemplaza (actualizar contraseña),
+  // no se duplica.
+  const existing = profileStore.listPasswords().find((p) => p.origin === pending.origin && p.username === pending.username)
+  if (existing) profileStore.removePasswordRecord(existing.id)
+  profileStore.addPasswordRecord({ id: genPasswordId(), origin: pending.origin, username: pending.username, encryptedPassword, createdAt: Date.now() })
+  return { ok: true }
+})
+
+ipcMain.on('passwords:dismiss-prompt', (e) => {
+  const windowId = windowIdForSender(e)
+  if (windowId != null) pendingPasswordCapture.delete(windowId)
+})
+
+// Lista real para el panel de Contraseñas — nunca incluye la contraseña descifrada, solo
+// origen/usuario/fecha. "Mostrar" una puntual es un pedido aparte (passwords:reveal).
+ipcMain.handle('passwords:list', (e) => {
+  return storeForWindow(windowIdForSender(e)).listPasswords().map(({ id, origin, username, createdAt }) => ({ id, origin, username, createdAt }))
+})
+
+ipcMain.handle('passwords:reveal', (e, id) => {
+  const record = storeForWindow(windowIdForSender(e)).listPasswords().find((p) => p.id === id)
+  if (!record) return { ok: false, error: 'esa contraseña ya no existe' }
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false, error: 'no se puede descifrar en esta máquina' }
+  try {
+    return { ok: true, password: safeStorage.decryptString(Buffer.from(record.encryptedPassword, 'base64')) }
+  } catch {
+    return { ok: false, error: 'no se pudo descifrar esta contraseña real (¿se movió el perfil a otra máquina? el cifrado real está atado a esta computadora)' }
+  }
+})
+
+ipcMain.handle('passwords:remove', (e, id) => {
+  storeForWindow(windowIdForSender(e)).removePasswordRecord(id)
+  return { ok: true }
+})
+
+// Autocompletar real — solo si hay EXACTAMENTE una credencial guardada para este origen exacto (si
+// hay más de una, no adivina cuál: mejor no autocompletar nada que completar la cuenta
+// equivocada). El origen se calcula acá, del lado seguro, directo de la URL real del propio
+// sender (`e.sender.getURL()`) — nunca se le pide a la página que diga cuál es su origen, así no
+// hay forma de que un valor mal calculado o falsificado del lado de la página cause un descarte o
+// un autocompletado en el origen equivocado.
+ipcMain.handle('passwords:for-autofill', (e) => {
+  const tab = Array.from(tabs.values()).find((t) => t.view.webContents.id === e.sender.id)
+  if (!tab || tab.isPrivate) return null
+  let realOrigin
+  try { realOrigin = new URL(e.sender.getURL()).origin } catch { return null }
+  const profileStore = storeForWindow(tab.windowId)
+  const matches = profileStore.listPasswords().filter((p) => p.origin === realOrigin)
+  if (matches.length !== 1 || !safeStorage.isEncryptionAvailable()) return null
+  try {
+    return { username: matches[0].username, password: safeStorage.decryptString(Buffer.from(matches[0].encryptedPassword, 'base64')) }
+  } catch {
+    return null
+  }
 })
 
 // Búsqueda propia de MABRIONA (Brave Search API por atrás, resultados mostrados 100% con el

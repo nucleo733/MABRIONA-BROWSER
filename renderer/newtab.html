@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'none'; style-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none';" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; form-action 'self'; object-src 'none'; base-uri 'none';" />
   <title>Nueva pestaña</title>
   <link rel="stylesheet" href="newtab.css" />
 </head>
@@ -12,6 +12,8 @@
     <form action="results.html" method="get">
       <input type="text" name="q" placeholder="Buscar de forma privada…" autofocus />
     </form>
+    <div id="top-sites" class="top-sites"></div>
   </main>
+  <script src="newtab.js"></script>
 </body>
 </html>

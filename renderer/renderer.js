@@ -167,7 +167,7 @@ function overlayClosed(name) {
   mabrionaBrowser.setPanelOpen(currentOverlaySpec())
 }
 
-const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'profile', 'extensions', 'share', 'translate']
+const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'profile', 'extensions', 'share', 'translate', 'passwords']
 // Solo estos paneles tienen su propio ícono siempre visible en la barra — se "prenden" (misma
 // idea que los botones de mando de DJ IA) mientras su panel está abierto.
 const PANEL_TRIGGER_BTN = { more: 'btn-more', profile: 'btn-profile', share: 'btn-share', translate: 'btn-translate' }
@@ -209,6 +209,74 @@ document.getElementById('more-downloads').addEventListener('click', () => { togg
 document.getElementById('more-favorites').addEventListener('click', () => { togglePanel('favorites'); refreshFavoritesPanel() })
 document.getElementById('more-extensions').addEventListener('click', () => { togglePanel('extensions'); refreshExtensionsPanel() })
 document.getElementById('more-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
+document.getElementById('more-print').addEventListener('click', () => { closeAllPanels(); mabrionaBrowser.print() })
+document.getElementById('more-devtools').addEventListener('click', () => { closeAllPanels(); mabrionaBrowser.toggleDevTools() })
+document.getElementById('more-passwords').addEventListener('click', () => { togglePanel('passwords'); refreshPasswordsPanel() })
+
+// ---------------- Contraseñas reales — guardadas cifradas con safeStorage (Keychain real en
+// macOS), nunca en texto plano. Ver main.js. ----------------
+
+async function refreshPasswordsPanel() {
+  const passwords = await mabrionaBrowser.listPasswords()
+  const ul = document.getElementById('passwords-list')
+  ul.innerHTML = ''
+  if (passwords.length === 0) {
+    const li = document.createElement('li')
+    li.className = 'empty'
+    li.textContent = 'Sin contraseñas guardadas todavía'
+    ul.appendChild(li)
+  }
+  for (const pw of passwords) {
+    const li = document.createElement('li')
+    const valueId = `pw-value-${pw.id}`
+    li.innerHTML = `<span class="item-title">${escapeHtml(pw.username || '(sin usuario)')}</span><span class="item-url">${escapeHtml(pw.origin)} — <span id="${valueId}" class="pw-value">••••••••</span></span>`
+    const reveal = document.createElement('button')
+    reveal.type = 'button'
+    reveal.className = 'pw-reveal'
+    reveal.textContent = 'Mostrar'
+    let revealed = false
+    reveal.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      const valueEl = document.getElementById(valueId)
+      if (revealed) { valueEl.textContent = '••••••••'; reveal.textContent = 'Mostrar'; revealed = false; return }
+      const result = await mabrionaBrowser.revealPassword(pw.id)
+      if (!result.ok) { alert(result.error); return }
+      valueEl.textContent = result.password
+      reveal.textContent = 'Ocultar'
+      revealed = true
+    })
+    li.appendChild(reveal)
+    const del = document.createElement('button')
+    del.className = 'item-delete'
+    del.type = 'button'
+    del.title = 'Borrar esta contraseña'
+    del.textContent = '✕'
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      if (!confirm(`¿Borrar la contraseña guardada de ${pw.origin}?`)) return
+      await mabrionaBrowser.removePassword(pw.id)
+      refreshPasswordsPanel()
+    })
+    li.appendChild(del)
+    ul.appendChild(li)
+  }
+}
+
+const passwordSaveBanner = document.getElementById('password-save-banner')
+mabrionaBrowser.onPasswordSavePrompt(({ origin, username }) => {
+  document.getElementById('password-save-text').textContent = username
+    ? `¿Guardar la contraseña de ${username} en ${origin}?`
+    : `¿Guardar esta contraseña de ${origin}?`
+  passwordSaveBanner.classList.remove('hidden')
+})
+document.getElementById('password-save-yes').addEventListener('click', async () => {
+  passwordSaveBanner.classList.add('hidden')
+  await mabrionaBrowser.confirmSavePassword()
+})
+document.getElementById('password-save-no').addEventListener('click', () => {
+  passwordSaveBanner.classList.add('hidden')
+  mabrionaBrowser.dismissPasswordPrompt()
+})
 
 // Ventanas reales (Electron nativo) y pestaña privada real (sesión en memoria, ver main.js).
 document.getElementById('menu-new-window').addEventListener('click', () => { mabrionaBrowser.newWindow(); togglePanel('more') })
@@ -648,6 +716,34 @@ async function refreshSettingsPanel() {
   document.getElementById('settings-restore-session').checked = await mabrionaBrowser.getRestoreSession()
   document.getElementById('settings-search-engine').value = await mabrionaBrowser.getSearchEngine()
   await refreshSettingsPermissions()
+  await refreshSpellcheckSettings()
+}
+
+const LANGUAGE_LABEL = { es: 'Español', 'es-419': 'Español (Latinoamérica)', 'en-US': 'Inglés (EE. UU.)', 'en-GB': 'Inglés (Reino Unido)', 'pt-BR': 'Portugués (Brasil)', fr: 'Francés', de: 'Alemán', it: 'Italiano' }
+async function refreshSpellcheckSettings() {
+  const { available, selected } = await mabrionaBrowser.getSpellcheckLanguages()
+  const container = document.getElementById('settings-spellcheck-list')
+  container.innerHTML = ''
+  if (!available || available.length === 0) {
+    container.innerHTML = '<p class="settings-note">Esta computadora no tiene ningún diccionario de corrector instalado.</p>'
+    return
+  }
+  for (const lang of available) {
+    const label = document.createElement('label')
+    label.className = 'shields-toggle'
+    const input = document.createElement('input')
+    input.type = 'checkbox'
+    input.checked = selected.includes(lang)
+    input.addEventListener('change', async () => {
+      const current = new Set(selected)
+      if (input.checked) current.add(lang); else current.delete(lang)
+      await mabrionaBrowser.setSpellcheckLanguages(Array.from(current))
+      refreshSpellcheckSettings()
+    })
+    label.appendChild(input)
+    label.append(` ${LANGUAGE_LABEL[lang] || lang}`)
+    container.appendChild(label)
+  }
 }
 document.getElementById('settings-restore-session').addEventListener('change', (e) => {
   mabrionaBrowser.setRestoreSession(e.target.checked)
@@ -671,7 +767,7 @@ async function refreshSettingsPermissions() {
     ul.appendChild(li)
     return
   }
-  const kindLabel = { camera: 'Cámara', microphone: 'Micrófono', location: 'Ubicación', notifications: 'Notificaciones' }
+  const kindLabel = { camera: 'Cámara', microphone: 'Micrófono', location: 'Ubicación', notifications: 'Notificaciones', clipboard: 'Portapapeles', midi: 'MIDI' }
   for (const row of rows) {
     const li = document.createElement('li')
     li.innerHTML = `<span class="item-title">${escapeHtml(row.origin)} — ${kindLabel[row.kind] || row.kind}</span><span class="item-url">${row.decision === 'allow' ? 'Permitido' : 'Bloqueado'}</span>`
@@ -800,7 +896,7 @@ refreshExtToolbarIcons()
 
 // Permisos por sitio (cámara/micrófono) — pedido real de un sitio real, el usuario decide de
 // verdad; nunca se asume "permitir" ni "bloquear" sin que la persona lo haya tocado.
-const KIND_LABEL = { camera: 'la cámara', microphone: 'el micrófono', location: 'tu ubicación', notifications: 'mostrarte notificaciones' }
+const KIND_LABEL = { camera: 'la cámara', microphone: 'el micrófono', location: 'tu ubicación', notifications: 'mostrarte notificaciones', clipboard: 'leer el portapapeles', midi: 'dispositivos MIDI' }
 const permissionQueue = []
 let permissionShowing = null
 const permissionBanner = document.getElementById('permission-banner')
@@ -1366,6 +1462,8 @@ window.addEventListener('keydown', (e) => {
   else if (cmdOrCtrl && (key === '=' || key === '+')) { e.preventDefault(); document.getElementById('zoom-in').click() }
   else if (cmdOrCtrl && key === '-') { e.preventDefault(); document.getElementById('zoom-out').click() }
   else if (cmdOrCtrl && key === '0') { e.preventDefault(); document.getElementById('zoom-reset').click() }
+  else if (key === 'f12' || (cmdOrCtrl && e.altKey && key === 'i')) { e.preventDefault(); mabrionaBrowser.toggleDevTools() }
+  else if (cmdOrCtrl && key === 'p') { e.preventDefault(); mabrionaBrowser.print() }
 })
 
 mabrionaBrowser.onFindResult(({ tabId, activeMatchOrdinal, matches }) => {

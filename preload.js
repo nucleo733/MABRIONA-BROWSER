@@ -17,6 +17,8 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   forward: (id) => ipcRenderer.invoke('tabs:forward', id),
   reload: (id) => ipcRenderer.invoke('tabs:reload', id),
   stop: (id) => ipcRenderer.invoke('tabs:stop', id),
+  toggleDevTools: () => ipcRenderer.invoke('tabs:toggle-devtools'),
+  print: () => ipcRenderer.invoke('tabs:print'),
   getTabsState: () => ipcRenderer.invoke('tabs:get-state'),
   onTabsState: (cb) => ipcRenderer.on('tabs:state', (_e, tabsState) => cb(tabsState)),
 
@@ -69,6 +71,16 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   onPermissionRequest: (cb) => ipcRenderer.on('permissions:request', (_e, req) => cb(req)),
   respondPermission: (requestId, allow) => ipcRenderer.invoke('permissions:respond', { requestId, allow }),
+
+  onPasswordSavePrompt: (cb) => ipcRenderer.on('passwords:save-prompt', (_e, req) => cb(req)),
+  confirmSavePassword: () => ipcRenderer.invoke('passwords:confirm-save'),
+  dismissPasswordPrompt: () => ipcRenderer.send('passwords:dismiss-prompt'),
+  listPasswords: () => ipcRenderer.invoke('passwords:list'),
+  revealPassword: (id) => ipcRenderer.invoke('passwords:reveal', id),
+  removePassword: (id) => ipcRenderer.invoke('passwords:remove', id),
+
+  getSpellcheckLanguages: () => ipcRenderer.invoke('settings:get-spellcheck-languages'),
+  setSpellcheckLanguages: (langs) => ipcRenderer.invoke('settings:set-spellcheck-languages', langs),
   listPermissions: () => ipcRenderer.invoke('permissions:list'),
   setPermission: (origin, kind, decision) => ipcRenderer.invoke('permissions:set', { origin, kind, decision }),
   clearPermission: (origin, kind) => ipcRenderer.invoke('permissions:clear', { origin, kind }),

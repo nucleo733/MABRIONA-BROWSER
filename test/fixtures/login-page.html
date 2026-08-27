@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="es">
+<head><meta charset="utf-8" /><title>Fixture real de login para probar el gestor de contraseñas</title></head>
+<body>
+  <h1>Formulario de login real (fixture de prueba)</h1>
+  <form id="login-form" onsubmit="document.getElementById('result').textContent = 'enviado'; return false;">
+    <input type="text" name="username" id="username" />
+    <input type="password" name="password" id="password" />
+    <button type="submit">Entrar</button>
+  </form>
+  <p id="result"></p>
+</body>
+</html>
