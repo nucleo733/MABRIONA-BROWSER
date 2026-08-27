@@ -19,6 +19,14 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   stop: (id) => ipcRenderer.invoke('tabs:stop', id),
   toggleDevTools: () => ipcRenderer.invoke('tabs:toggle-devtools'),
   print: () => ipcRenderer.invoke('tabs:print'),
+  toggleReader: () => ipcRenderer.invoke('tabs:toggle-reader'),
+
+  listGroups: () => ipcRenderer.invoke('tabs:list-groups'),
+  createGroup: (tabId, name, color) => ipcRenderer.invoke('tabs:create-group', { tabId, name, color }),
+  addToGroup: (tabId, groupId) => ipcRenderer.invoke('tabs:add-to-group', { tabId, groupId }),
+  removeFromGroup: (tabId) => ipcRenderer.invoke('tabs:remove-from-group', tabId),
+  toggleGroupCollapse: (groupId) => ipcRenderer.invoke('tabs:toggle-group-collapse', groupId),
+  onGroupsState: (cb) => ipcRenderer.on('tabs:groups-state', (_e, groups) => cb(groups)),
   getTabsState: () => ipcRenderer.invoke('tabs:get-state'),
   onTabsState: (cb) => ipcRenderer.on('tabs:state', (_e, tabsState) => cb(tabsState)),
 
@@ -81,6 +89,10 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   getSpellcheckLanguages: () => ipcRenderer.invoke('settings:get-spellcheck-languages'),
   setSpellcheckLanguages: (langs) => ipcRenderer.invoke('settings:set-spellcheck-languages', langs),
+
+  listAutofillProfiles: () => ipcRenderer.invoke('autofill:list'),
+  addAutofillProfile: (type, fields, cardNumber) => ipcRenderer.invoke('autofill:add', { type, fields, cardNumber }),
+  removeAutofillProfile: (id) => ipcRenderer.invoke('autofill:remove', id),
   listPermissions: () => ipcRenderer.invoke('permissions:list'),
   setPermission: (origin, kind, decision) => ipcRenderer.invoke('permissions:set', { origin, kind, decision }),
   clearPermission: (origin, kind) => ipcRenderer.invoke('permissions:clear', { origin, kind }),

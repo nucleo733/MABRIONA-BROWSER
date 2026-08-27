@@ -54,18 +54,47 @@ document.addEventListener('submit', (e) => {
   })
 }, true)
 
+function findField(selectors) {
+  for (const sel of selectors) {
+    const el = document.querySelector(sel)
+    if (el) return el
+  }
+  return null
+}
+function fillField(el, value) {
+  if (!el || !value) return
+  el.value = value
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+  el.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
   const passwordInput = document.querySelector('input[type="password"]')
-  if (!passwordInput) return
-  const creds = await ipcRenderer.invoke('passwords:for-autofill').catch(() => null)
-  if (!creds) return
-  passwordInput.value = creds.password
-  passwordInput.dispatchEvent(new Event('input', { bubbles: true }))
-  if (creds.username) {
-    const usernameInput = document.querySelector('input[type="email"], input[type="text"]')
-    if (usernameInput) {
-      usernameInput.value = creds.username
-      usernameInput.dispatchEvent(new Event('input', { bubbles: true }))
+  if (passwordInput) {
+    const creds = await ipcRenderer.invoke('passwords:for-autofill').catch(() => null)
+    if (creds) {
+      fillField(passwordInput, creds.password)
+      if (creds.username) fillField(document.querySelector('input[type="email"], input[type="text"]'), creds.username)
     }
+  }
+
+  // Direcciones/tarjetas — se buscan por el atributo real `autocomplete` (el estándar HTML que
+  // los sitios usan para esto) primero, con un respaldo por `name`/`type` para sitios que no lo
+  // declaran. No adivina qué campo es sin ninguna de las dos señales — mejor no llenar nada que
+  // llenar el campo equivocado.
+  const { address, card } = await ipcRenderer.invoke('autofill:for-fill').catch(() => ({ address: null, card: null }))
+  if (address) {
+    fillField(findField(['[autocomplete="name"]', 'input[name*="name" i]:not([type="password"])']), address.name)
+    fillField(findField(['[autocomplete="email"]', 'input[type="email"]']), address.email)
+    fillField(findField(['[autocomplete="tel"]', 'input[type="tel"]']), address.phone)
+    fillField(findField(['[autocomplete="street-address"]', '[autocomplete="address-line1"]', 'input[name*="address" i]']), address.address)
+    fillField(findField(['[autocomplete="address-level2"]', 'input[name*="city" i]']), address.city)
+    fillField(findField(['[autocomplete="postal-code"]', 'input[name*="zip" i]', 'input[name*="postal" i]']), address.zip)
+    fillField(findField(['[autocomplete="country"]', 'input[name*="country" i]']), address.country)
+  }
+  if (card) {
+    fillField(findField(['[autocomplete="cc-name"]']), card.cardholder)
+    fillField(findField(['[autocomplete="cc-number"]', 'input[name*="card" i][name*="number" i]']), card.number)
+    fillField(findField(['[autocomplete="cc-exp"]', 'input[name*="expiry" i]', 'input[name*="exp" i]']), card.expiry)
   }
 })

@@ -42,6 +42,11 @@ function freshDefaults() {
     // `session.availableSpellCheckerLanguages` real en main.js antes de aplicarlos, nunca se
     // asume que un idioma existe solo porque está en esta lista guardada.
     spellcheckLanguages: ['es', 'en-US'],
+    // Autocompletar real de direcciones/tarjetas — cada entrada: { id, type: 'address'|'card',
+    // fields: {...} }. El número de tarjeta viaja cifrado (encryptedNumber, safeStorage real,
+    // igual que las contraseñas) — el CVC NUNCA se guarda, ni siquiera cifrado (mismo criterio de
+    // seguridad que Chrome/Brave real: pedirlo siempre de nuevo en cada compra).
+    autofillProfiles: [],
     // Se pone en true la primera vez que este perfil termina (o se salta) el asistente real de
     // "Importar datos del navegador" — ver browserImport.js. Perfil "default" migrado de una
     // instalación anterior a este sistema nace en true (nunca se le muestra el asistente a un
@@ -372,6 +377,18 @@ function buildStore(readAll, writeAll) {
       data.spellcheckLanguages = langs
       writeAll(data)
       return data.spellcheckLanguages
+    },
+
+    listAutofillProfiles: () => data.autofillProfiles || [],
+    addAutofillProfile(record) {
+      data.autofillProfiles = [...(data.autofillProfiles || []), record]
+      writeAll(data)
+      return data.autofillProfiles
+    },
+    removeAutofillProfile(id) {
+      data.autofillProfiles = (data.autofillProfiles || []).filter((p) => p.id !== id)
+      writeAll(data)
+      return data.autofillProfiles
     },
 
     getHasCompletedOnboarding: () => data.hasCompletedOnboarding === true,

@@ -13,6 +13,9 @@ document.body.classList.add(`platform-${mabrionaBrowser.platform}`)
 
 let currentTabs = []
 let activeTab = null
+let currentGroups = []
+const GROUP_COLORS = ['#d4ff00', '#5ac8fa', '#ff9f43', '#ff5a5a', '#b48cff', '#4ade80']
+mabrionaBrowser.onGroupsState((groups) => { currentGroups = groups; render(currentTabs) })
 
 /** Barra de direcciones limpia para las páginas propias de MABRIONA — nunca la ruta interna
  * cruda del archivo (`.../app.asar/renderer/results.html?q=...`), eso no se ve como navegación real. */
@@ -35,18 +38,33 @@ function render(tabsState) {
   if (activeTab && activeTab.id !== lastActiveTabId && lastActiveTabId !== null) closeFindbar()
   lastActiveTabId = activeTab ? activeTab.id : null
 
-  tabstrip.querySelectorAll('.tab').forEach((el) => el.remove())
+  tabstrip.querySelectorAll('.tab, .tab-group-pill').forEach((el) => el.remove())
+  const renderedGroupPills = new Set()
   for (const tab of tabsState) {
+    const group = tab.groupId ? currentGroups.find((g) => g.id === tab.groupId) : null
+    if (group && !renderedGroupPills.has(group.id)) {
+      renderedGroupPills.add(group.id)
+      const pill = document.createElement('div')
+      pill.className = 'tab-group-pill'
+      pill.style.setProperty('--group-color', group.color)
+      pill.title = group.collapsed ? 'Expandir grupo' : 'Colapsar grupo'
+      pill.textContent = `${group.collapsed ? '▸' : '▾'} ${group.name}`
+      pill.addEventListener('click', () => mabrionaBrowser.toggleGroupCollapse(group.id))
+      tabstrip.insertBefore(pill, newTabBtn)
+    }
+    if (group && group.collapsed) continue // pestaña real, pero oculta mientras el grupo está colapsado — sigue existiendo
     const el = document.createElement('div')
     el.className = 'tab' + (tab.isActive ? ' active' : '') + (tab.isPrivate ? ' private' : '')
     el.setAttribute('role', 'tab')
     el.setAttribute('aria-selected', String(tab.isActive))
+    if (group) el.style.setProperty('--group-color', group.color)
     const privateMark = tab.isPrivate ? '<span class="tab-private-mark" title="Pestaña privada">🕶️</span>' : ''
     el.innerHTML = `${privateMark}<span class="tab-title">${escapeHtml(tab.title)}</span><span class="tab-duplicate" data-duplicate-tab="${tab.id}" title="Duplicar pestaña">⧉</span><span class="tab-close" data-close-tab="${tab.id}">✕</span>`
     el.addEventListener('click', (e) => {
       if (e.target.dataset.closeTab || e.target.dataset.duplicateTab) return
       mabrionaBrowser.switchTab(tab.id)
     })
+    el.addEventListener('contextmenu', (e) => { e.preventDefault(); openTabContextMenu(e.clientX, e.clientY, tab) })
     tabstrip.insertBefore(el, newTabBtn)
   }
   tabstrip.querySelectorAll('[data-duplicate-tab]').forEach((el) => {
@@ -78,6 +96,27 @@ function render(tabsState) {
       btnFav.classList.toggle('active', isFav)
     })
   }
+}
+
+function openTabContextMenu(x, y, tab) {
+  openContextMenuAt(x, y, (menu) => {
+    if (tab.groupId) {
+      const group = currentGroups.find((g) => g.id === tab.groupId)
+      addMenuButton(menu, `✕ Sacar de "${group ? group.name : 'grupo'}"`, () => mabrionaBrowser.removeFromGroup(tab.id))
+      addMenuDivider(menu)
+    }
+    for (const group of currentGroups) {
+      if (group.id === tab.groupId) continue
+      addMenuButton(menu, `● Agregar a "${group.name}"`, () => mabrionaBrowser.addToGroup(tab.id, group.id))
+    }
+    if (currentGroups.length > 0) addMenuDivider(menu)
+    addMenuButton(menu, '+ Nuevo grupo…', async () => {
+      const name = await showTextPrompt('Nombre del grupo', '')
+      if (!name || !name.trim()) return
+      const color = GROUP_COLORS[currentGroups.length % GROUP_COLORS.length]
+      await mabrionaBrowser.createGroup(tab.id, name.trim(), color)
+    })
+  })
 }
 
 /** Solo una página real (http/https) tiene sentido compartir o traducir — la pestaña nueva propia
@@ -209,6 +248,11 @@ document.getElementById('more-downloads').addEventListener('click', () => { togg
 document.getElementById('more-favorites').addEventListener('click', () => { togglePanel('favorites'); refreshFavoritesPanel() })
 document.getElementById('more-extensions').addEventListener('click', () => { togglePanel('extensions'); refreshExtensionsPanel() })
 document.getElementById('more-settings').addEventListener('click', () => { togglePanel('settings'); refreshSettingsPanel() })
+document.getElementById('more-reader').addEventListener('click', async () => {
+  closeAllPanels()
+  const result = await mabrionaBrowser.toggleReader()
+  if (!result.ok) alert(result.error)
+})
 document.getElementById('more-print').addEventListener('click', () => { closeAllPanels(); mabrionaBrowser.print() })
 document.getElementById('more-devtools').addEventListener('click', () => { closeAllPanels(); mabrionaBrowser.toggleDevTools() })
 document.getElementById('more-passwords').addEventListener('click', () => { togglePanel('passwords'); refreshPasswordsPanel() })
@@ -717,7 +761,83 @@ async function refreshSettingsPanel() {
   document.getElementById('settings-search-engine').value = await mabrionaBrowser.getSearchEngine()
   await refreshSettingsPermissions()
   await refreshSpellcheckSettings()
+  await refreshAutofillLists()
 }
+
+// ---------------- Autocompletar real (direcciones/tarjetas) — ver main.js para el cifrado real
+// del número de tarjeta. ----------------
+
+function autofillDeleteRow(ul, id, remover) {
+  const li = ul.lastElementChild
+  const del = document.createElement('button')
+  del.className = 'item-delete'
+  del.type = 'button'
+  del.title = 'Borrar'
+  del.textContent = '✕'
+  del.addEventListener('click', async (e) => {
+    e.stopPropagation()
+    await remover(id)
+    refreshAutofillLists()
+  })
+  li.appendChild(del)
+}
+
+async function refreshAutofillLists() {
+  const profiles = await mabrionaBrowser.listAutofillProfiles()
+  const addrList = document.getElementById('autofill-address-list')
+  const cardList = document.getElementById('autofill-card-list')
+  addrList.innerHTML = ''
+  cardList.innerHTML = ''
+  const addresses = profiles.filter((p) => p.type === 'address')
+  const cards = profiles.filter((p) => p.type === 'card')
+  if (addresses.length === 0) {
+    const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Sin direcciones guardadas'; addrList.appendChild(li)
+  }
+  for (const p of addresses) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span class="item-title">${escapeHtml(p.fields.name || '(sin nombre)')}</span><span class="item-url">${escapeHtml([p.fields.address, p.fields.city].filter(Boolean).join(', '))}</span>`
+    addrList.appendChild(li)
+    autofillDeleteRow(addrList, p.id, mabrionaBrowser.removeAutofillProfile)
+  }
+  if (cards.length === 0) {
+    const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'Sin tarjetas guardadas'; cardList.appendChild(li)
+  }
+  for (const p of cards) {
+    const li = document.createElement('li')
+    li.innerHTML = `<span class="item-title">${escapeHtml(p.fields.cardholder || '(sin nombre)')}</span><span class="item-url">···· ···· ···· ${escapeHtml(p.fields.last4 || '····')} — vence ${escapeHtml(p.fields.expiry || '')}</span>`
+    cardList.appendChild(li)
+    autofillDeleteRow(cardList, p.id, mabrionaBrowser.removeAutofillProfile)
+  }
+}
+
+document.getElementById('af-addr-save').addEventListener('click', async () => {
+  const fields = {
+    name: document.getElementById('af-addr-name').value.trim(),
+    email: document.getElementById('af-addr-email').value.trim(),
+    phone: document.getElementById('af-addr-phone').value.trim(),
+    address: document.getElementById('af-addr-address').value.trim(),
+    city: document.getElementById('af-addr-city').value.trim(),
+    zip: document.getElementById('af-addr-zip').value.trim(),
+    country: document.getElementById('af-addr-country').value.trim(),
+  }
+  if (!fields.name && !fields.address) return
+  await mabrionaBrowser.addAutofillProfile('address', fields)
+  for (const id of ['af-addr-name', 'af-addr-email', 'af-addr-phone', 'af-addr-address', 'af-addr-city', 'af-addr-zip', 'af-addr-country']) document.getElementById(id).value = ''
+  refreshAutofillLists()
+})
+
+document.getElementById('af-card-save').addEventListener('click', async () => {
+  const cardholder = document.getElementById('af-card-name').value.trim()
+  const number = document.getElementById('af-card-number').value.replace(/\s+/g, '')
+  const expiry = document.getElementById('af-card-expiry').value.trim()
+  if (!number) return
+  const result = await mabrionaBrowser.addAutofillProfile('card', { cardholder, expiry }, number)
+  if (!result.ok) { alert(result.error); return }
+  document.getElementById('af-card-name').value = ''
+  document.getElementById('af-card-number').value = ''
+  document.getElementById('af-card-expiry').value = ''
+  refreshAutofillLists()
+})
 
 const LANGUAGE_LABEL = { es: 'Español', 'es-419': 'Español (Latinoamérica)', 'en-US': 'Inglés (EE. UU.)', 'en-GB': 'Inglés (Reino Unido)', 'pt-BR': 'Portugués (Brasil)', fr: 'Francés', de: 'Alemán', it: 'Italiano' }
 async function refreshSpellcheckSettings() {

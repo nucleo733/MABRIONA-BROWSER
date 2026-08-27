@@ -94,6 +94,7 @@
       <button id="more-extensions" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg> Extensiones</button>
       <button id="more-settings" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle cx="15" cy="7" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="9" cy="12" r="2"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="17" cy="17" r="2"/></svg> Configuración</button>
       <button id="more-passwords" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><rect x="5" y="10.5" width="14" height="9" rx="1.8"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="14.5" r="1.4"/></svg> Contraseñas</button>
+      <button id="more-reader" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5"/><line x1="7" y1="9" x2="17" y2="9"/><line x1="7" y1="12.5" x2="17" y2="12.5"/><line x1="7" y1="16" x2="13" y2="16"/></svg> Modo lectura</button>
       <button id="more-print" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M7 8.5V4.5h10v4"/><rect x="4.5" y="8.5" width="15" height="7.5" rx="1.5"/><path d="M7 14.5h10v5H7z"/></svg> Imprimir</button>
       <button id="more-devtools" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M8 8.5 4.5 12l3.5 3.5"/><path d="M16 8.5l3.5 3.5-3.5 3.5"/><path d="M13 6l-2 12"/></svg> Inspeccionar (DevTools)</button>
       <hr class="panel-menu-divider" />
@@ -250,6 +251,33 @@
           <option value="duckduckgo">DuckDuckGo</option>
           <option value="brave">Brave Search</option>
         </select>
+      </section>
+
+      <section class="settings-section">
+        <h3>Autocompletar — Direcciones</h3>
+        <ul id="autofill-address-list" class="panel-list"></ul>
+        <div class="autofill-form">
+          <input id="af-addr-name" type="text" placeholder="Nombre completo" />
+          <input id="af-addr-email" type="text" placeholder="Email" />
+          <input id="af-addr-phone" type="text" placeholder="Teléfono" />
+          <input id="af-addr-address" type="text" placeholder="Dirección" />
+          <input id="af-addr-city" type="text" placeholder="Ciudad" />
+          <input id="af-addr-zip" type="text" placeholder="Código postal" />
+          <input id="af-addr-country" type="text" placeholder="País" />
+          <button id="af-addr-save" type="button" class="settings-btn">+ Guardar dirección</button>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h3>Autocompletar — Tarjetas</h3>
+        <p class="settings-note">El CVC nunca se guarda — se lo va a seguir pidiendo cada sitio en cada compra, como en cualquier navegador real.</p>
+        <ul id="autofill-card-list" class="panel-list"></ul>
+        <div class="autofill-form">
+          <input id="af-card-name" type="text" placeholder="Nombre en la tarjeta" />
+          <input id="af-card-number" type="text" placeholder="Número de tarjeta" />
+          <input id="af-card-expiry" type="text" placeholder="Vencimiento (MM/AA)" />
+          <button id="af-card-save" type="button" class="settings-btn">+ Guardar tarjeta</button>
+        </div>
       </section>
 
       <section class="settings-section">

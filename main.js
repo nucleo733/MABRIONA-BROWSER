@@ -126,7 +126,7 @@ function serializeTab(tab, activeTabId) {
   // El webContents puede no estar listo todavía (arranque) o ya estar destruido (pestaña
   // cerrándose justo en este instante) — nunca crashear la app entera por una foto de estado.
   if (!wc || wc.isDestroyed()) {
-    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId, isPrivate: tab.isPrivate }
+    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId, isPrivate: tab.isPrivate, groupId: tab.groupId || null }
   }
   return {
     id: tab.id,
@@ -138,6 +138,7 @@ function serializeTab(tab, activeTabId) {
     blockedCount: tab.blockedCount,
     isActive: tab.id === activeTabId,
     isPrivate: tab.isPrivate,
+    groupId: tab.groupId || null,
   }
 }
 
@@ -172,6 +173,24 @@ function activeTabForWindow(windowId) {
   const state = windows.get(windowId)
   if (!state || state.activeTabId == null) return null
   return tabs.get(state.activeTabId) || null
+}
+
+// Grupos de pestañas reales — por ventana (no se guardan en disco, igual que las pestañas mismas:
+// se recrean con la sesión real la próxima vez que hace falta, ver recuperación de sesión).
+const tabGroups = new Map() // windowId -> [{ id, name, color, collapsed }]
+function groupsForWindow(windowId) {
+  if (!tabGroups.has(windowId)) tabGroups.set(windowId, [])
+  return tabGroups.get(windowId)
+}
+function broadcastGroups(windowId) {
+  sendToWindow(windowId, 'tabs:groups-state', groupsForWindow(windowId))
+}
+function removeGroupIfEmpty(windowId, groupId) {
+  const stillHasTabs = Array.from(tabs.values()).some((t) => t.windowId === windowId && t.groupId === groupId)
+  if (stillHasTabs) return
+  const groups = groupsForWindow(windowId)
+  const idx = groups.findIndex((g) => g.id === groupId)
+  if (idx !== -1) { groups.splice(idx, 1); broadcastGroups(windowId) }
 }
 
 /** Para mensajes que llegan del webContents de una pestaña (una BrowserView, ver
@@ -258,7 +277,7 @@ function createTab(initialUrl, windowId, options = {}) {
     },
   })
   const id = nextTabId++
-  const tab = { view, id, windowId, title: 'Nueva pestaña', url: initialUrl, blockedCount: 0, isPrivate }
+  const tab = { view, id, windowId, title: 'Nueva pestaña', url: initialUrl, blockedCount: 0, isPrivate, groupId: null }
   tabs.set(id, tab)
 
   const wc = view.webContents
@@ -346,10 +365,13 @@ function closeTab(id) {
   const windowId = tab.windowId
   const state = windows.get(windowId)
   const wasActive = !!state && id === state.activeTabId
+  const oldGroupId = tab.groupId
   if (state) state.window.removeBrowserView(tab.view)
   if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
   tabs.delete(id)
   saveSessionSoon(windowId)
+  // Un grupo sin ninguna pestaña real adentro no queda como fantasma en la barra.
+  if (oldGroupId) removeGroupIfEmpty(windowId, oldGroupId)
   if (!state) return
   if (wasActive) {
     const remaining = Array.from(tabs.values()).filter((t) => t.windowId === windowId)
@@ -687,6 +709,44 @@ ipcMain.handle('tabs:back', (_e, id) => tabs.get(id)?.view.webContents.goBack())
 ipcMain.handle('tabs:forward', (_e, id) => tabs.get(id)?.view.webContents.goForward())
 ipcMain.handle('tabs:reload', (_e, id) => tabs.get(id)?.view.webContents.reload())
 ipcMain.handle('tabs:stop', (_e, id) => tabs.get(id)?.view.webContents.stop())
+
+ipcMain.handle('tabs:list-groups', (e) => groupsForWindow(windowIdForSender(e)))
+ipcMain.handle('tabs:create-group', (_e, { tabId, name, color }) => {
+  const tab = tabs.get(tabId)
+  if (!tab) return { ok: false }
+  const groups = groupsForWindow(tab.windowId)
+  const id = `g${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
+  groups.push({ id, name: name || 'Grupo', color: color || '#d4ff00', collapsed: false })
+  const oldGroupId = tab.groupId
+  tab.groupId = id
+  if (oldGroupId) removeGroupIfEmpty(tab.windowId, oldGroupId)
+  broadcastGroups(tab.windowId)
+  broadcastTabs(tab.windowId)
+  return { ok: true, groupId: id }
+})
+ipcMain.handle('tabs:add-to-group', (_e, { tabId, groupId }) => {
+  const tab = tabs.get(tabId)
+  if (!tab) return
+  const oldGroupId = tab.groupId
+  tab.groupId = groupId
+  broadcastTabs(tab.windowId)
+  if (oldGroupId && oldGroupId !== groupId) removeGroupIfEmpty(tab.windowId, oldGroupId)
+})
+ipcMain.handle('tabs:remove-from-group', (_e, tabId) => {
+  const tab = tabs.get(tabId)
+  if (!tab) return
+  const oldGroupId = tab.groupId
+  tab.groupId = null
+  broadcastTabs(tab.windowId)
+  if (oldGroupId) removeGroupIfEmpty(tab.windowId, oldGroupId)
+})
+ipcMain.handle('tabs:toggle-group-collapse', (e, groupId) => {
+  const windowId = windowIdForSender(e)
+  const group = groupsForWindow(windowId).find((g) => g.id === groupId)
+  if (!group) return
+  group.collapsed = !group.collapsed
+  broadcastGroups(windowId)
+})
 ipcMain.handle('tabs:toggle-devtools', (e) => {
   const tab = activeTabForWindow(windowIdForSender(e))
   if (tab) tab.view.webContents.toggleDevTools()
@@ -695,6 +755,61 @@ ipcMain.handle('tabs:print', (e) => {
   const tab = activeTabForWindow(windowIdForSender(e))
   if (!tab) return
   tab.view.webContents.print({}, (ok, err) => { if (!ok && err) console.error('[MABRIONA Browser] no se pudo imprimir:', err) })
+})
+
+// Modo lectura real — extrae el artículo real de la página (heurística real: el contenedor con
+// más texto real en párrafos, no una lista fija de sitios conocidos) y reemplaza el DOM de esa
+// pestaña por una vista limpia. "Salir" recarga la URL real — no hay estado que journalear, la
+// página original nunca se pierde.
+function readerExtractScript() {
+  function extract() {
+    const candidates = Array.from(document.querySelectorAll('article, main, [role="main"], body'))
+    let best = null
+    let bestScore = 0
+    for (const el of candidates) {
+      const paragraphs = Array.from(el.querySelectorAll('p'))
+      const score = paragraphs.reduce((sum, p) => sum + (p.textContent || '').trim().length, 0)
+      if (score > bestScore) { bestScore = score; best = el }
+    }
+    if (!best || bestScore < 200) return null
+    const title = (document.querySelector('h1')?.textContent || document.title || '').trim()
+    const paragraphs = Array.from(best.querySelectorAll('p'))
+      .map((p) => p.textContent.trim())
+      .filter((t) => t.length > 20)
+    return { title, paragraphs }
+  }
+  return extract()
+}
+
+ipcMain.handle('tabs:toggle-reader', async (e) => {
+  const tab = activeTabForWindow(windowIdForSender(e))
+  if (!tab) return { ok: false }
+  const wc = tab.view.webContents
+  if (tab.readerActive) {
+    tab.readerActive = false
+    wc.loadURL(tab.url).catch(() => {})
+    return { ok: true, active: false }
+  }
+  let article
+  try {
+    article = await wc.executeJavaScript(`(${readerExtractScript.toString()})()`)
+  } catch {
+    return { ok: false, error: 'no se pudo leer la página real' }
+  }
+  if (!article) return { ok: false, error: 'esta página no parece tener un artículo real para leer — poco texto real en párrafos' }
+  const escapeHtmlServer = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+  const bodyHtml = `
+    <div id="mabriona-reader" style="max-width:680px;margin:0 auto;padding:64px 24px 96px;font-family:Georgia,'Times New Roman',serif;color:#f2f2f2;line-height:1.7;font-size:18px;background:#0a0a0a;min-height:100vh;">
+      <h1 style="font-family:-apple-system,sans-serif;font-size:32px;font-weight:800;margin-bottom:28px;color:#fff;">${escapeHtmlServer(article.title)}</h1>
+      ${article.paragraphs.map((p) => `<p style="margin:0 0 20px;">${escapeHtmlServer(p)}</p>`).join('')}
+    </div>`
+  try {
+    await wc.executeJavaScript(`document.documentElement.innerHTML = ${JSON.stringify(`<head><meta charset="utf-8"></head><body style="margin:0;background:#0a0a0a;">${bodyHtml}</body>`)}`)
+  } catch {
+    return { ok: false, error: 'no se pudo mostrar la vista de lectura' }
+  }
+  tab.readerActive = true
+  return { ok: true, active: true }
 })
 
 // Find in Page — capacidad real de Chromium (webContents.findInPage), no una simulación sobre el
@@ -1202,6 +1317,63 @@ ipcMain.handle('passwords:reveal', (e, id) => {
 ipcMain.handle('passwords:remove', (e, id) => {
   storeForWindow(windowIdForSender(e)).removePasswordRecord(id)
   return { ok: true }
+})
+
+// ===================== Autocompletar real de direcciones/tarjetas =====================
+// Mismo criterio de seguridad que las contraseñas: el número de tarjeta se cifra con safeStorage
+// real antes de guardarse — nunca en texto plano. El CVC nunca se pide para guardar, ni acá ni en
+// ningún lado: se sigue pidiendo siempre de nuevo en cada compra, igual que Chrome/Brave real.
+
+function genAutofillId() {
+  return `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+}
+
+ipcMain.handle('autofill:list', (e) => {
+  return storeForWindow(windowIdForSender(e)).listAutofillProfiles().map((p) => {
+    if (p.type !== 'card') return p
+    // Nunca se manda el número real completo de vuelta salvo que haga falta llenar un formulario
+    // real — para la lista alcanza con los últimos 4 dígitos, como cualquier resumen de tarjeta.
+    let last4 = '····'
+    if (safeStorage.isEncryptionAvailable()) {
+      try { last4 = safeStorage.decryptString(Buffer.from(p.encryptedNumber, 'base64')).slice(-4) } catch { /* no se pudo, se muestra genérico */ }
+    }
+    return { id: p.id, type: p.type, fields: { ...p.fields, last4 } }
+  })
+})
+
+ipcMain.handle('autofill:add', (e, { type, fields, cardNumber }) => {
+  const profileStore = storeForWindow(windowIdForSender(e))
+  if (type === 'card') {
+    if (!cardNumber || !safeStorage.isEncryptionAvailable()) return { ok: false, error: 'el sistema operativo no tiene disponible el cifrado real en esta máquina — no se guarda una tarjeta sin cifrar' }
+    const encryptedNumber = safeStorage.encryptString(cardNumber).toString('base64')
+    profileStore.addAutofillProfile({ id: genAutofillId(), type: 'card', fields, encryptedNumber, createdAt: Date.now() })
+  } else {
+    profileStore.addAutofillProfile({ id: genAutofillId(), type: 'address', fields, createdAt: Date.now() })
+  }
+  return { ok: true }
+})
+
+ipcMain.handle('autofill:remove', (e, id) => {
+  storeForWindow(windowIdForSender(e)).removeAutofillProfile(id)
+  return { ok: true }
+})
+
+// Para llenar un formulario real — la primera dirección y la primera tarjeta guardadas (a
+// diferencia de las contraseñas, esto no está atado a un origen: los datos personales de la
+// persona son los mismos en cualquier sitio, así que no hace falta desambiguar por dominio).
+ipcMain.handle('autofill:for-fill', (e) => {
+  const tab = Array.from(tabs.values()).find((t) => t.view.webContents.id === e.sender.id)
+  if (!tab || tab.isPrivate) return { address: null, card: null }
+  const profiles = storeForWindow(tab.windowId).listAutofillProfiles()
+  const address = profiles.find((p) => p.type === 'address') || null
+  const cardRecord = profiles.find((p) => p.type === 'card') || null
+  let card = null
+  if (cardRecord && safeStorage.isEncryptionAvailable()) {
+    try {
+      card = { ...cardRecord.fields, number: safeStorage.decryptString(Buffer.from(cardRecord.encryptedNumber, 'base64')) }
+    } catch { /* no se pudo descifrar — no se autocompleta tarjeta */ }
+  }
+  return { address: address ? address.fields : null, card }
 })
 
 // Autocompletar real — solo si hay EXACTAMENTE una credencial guardada para este origen exacto (si
