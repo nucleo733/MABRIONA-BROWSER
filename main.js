@@ -3,6 +3,8 @@
 const { app, BrowserWindow, BrowserView, ipcMain, session, shell, dialog, clipboard, safeStorage } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
+const os = require('node:os')
+const { spawnSync } = require('node:child_process')
 const { createStore, createMemoryStore } = require('./store')
 const { createProfileRegistry } = require('./profiles')
 const extensionsLib = require('./extensions')
@@ -57,6 +59,64 @@ function handleDjiaProtocolUrl(rawUrl) {
     },
     shellOpenExternal: (url) => shell.openExternal(url),
   })
+}
+
+// "Instalar" un sitio con manifest real (PWA) como app de escritorio — el
+// atajo que se crea en el Escritorio no ejecuta el sitio por su cuenta,
+// llama de vuelta a este mismo navegador vía `mabriona-pwa://open?...`
+// (mismo patrón que la integración de DJ AI de arriba) para abrir una
+// ventana propia sin el chrome de pestañas/barra de direcciones.
+const PWA_PROTOCOL = 'mabriona-pwa'
+function handlePwaProtocolUrl(rawUrl) {
+  let parsed
+  try {
+    parsed = new URL(rawUrl)
+  } catch {
+    return
+  }
+  const isOpen = parsed.hostname === 'open' || parsed.pathname.replace(/^\/+/, '') === 'open'
+  if (!isOpen) return
+  const url = parsed.searchParams.get('url')
+  const name = parsed.searchParams.get('name') || 'App'
+  if (!url) return
+  openAppModeWindow({ url, name })
+}
+
+/** @type {Map<string, BrowserWindow>} */
+const appModeWindows = new Map()
+
+function openAppModeWindow({ url, name }) {
+  const existing = appModeWindows.get(url)
+  if (existing && !existing.isDestroyed()) {
+    if (existing.isMinimized()) existing.restore()
+    existing.focus()
+    return
+  }
+  const win = new BrowserWindow({
+    width: 1280,
+    height: 860,
+    minWidth: 480,
+    minHeight: 360,
+    title: name,
+    backgroundColor: '#060606',
+    ...(process.platform === 'darwin' ? { titleBarStyle: 'hiddenInset' } : {}),
+    webPreferences: {
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+    },
+  })
+  win.setMenuBarVisibility(false)
+  win.webContents.on('page-title-updated', (_e, title) => win.setTitle(title || name))
+  // Un sitio instalado como app no debe poder abrirse pestañas nuevas adentro de esta ventana sin
+  // chrome — un link "abrir en pestaña nueva" real termina afuera, en el navegador de siempre.
+  win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+    shell.openExternal(targetUrl)
+    return { action: 'deny' }
+  })
+  win.on('closed', () => appModeWindows.delete(url))
+  win.loadURL(url)
+  appModeWindows.set(url, win)
 }
 
 const TOOLBAR_HEIGHT = 118
@@ -126,7 +186,7 @@ function serializeTab(tab, activeTabId) {
   // El webContents puede no estar listo todavía (arranque) o ya estar destruido (pestaña
   // cerrándose justo en este instante) — nunca crashear la app entera por una foto de estado.
   if (!wc || wc.isDestroyed()) {
-    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId, isPrivate: tab.isPrivate, groupId: tab.groupId || null }
+    return { id: tab.id, title: tab.title || 'Nueva pestaña', url: tab.url, loading: false, canGoBack: false, canGoForward: false, blockedCount: tab.blockedCount, isActive: tab.id === activeTabId, isPrivate: tab.isPrivate, groupId: tab.groupId || null, installable: !!tab.installable }
   }
   return {
     id: tab.id,
@@ -139,6 +199,39 @@ function serializeTab(tab, activeTabId) {
     isActive: tab.id === activeTabId,
     isPrivate: tab.isPrivate,
     groupId: tab.groupId || null,
+    installable: !!tab.installable,
+  }
+}
+
+// Detecta si la página real que acaba de terminar de cargar es una PWA
+// instalable (tiene `<link rel="manifest">` con un manifest.json real y
+// válido) — mismo criterio mínimo que usa Chrome: manifest + al menos un
+// ícono. Nunca rompe la navegación si algo falla (sitio sin manifest,
+// fetch bloqueado por CORS, JSON inválido, etc.), solo deja `installable`
+// en `false`.
+async function detectInstallability(tab) {
+  const wc = tab.view.webContents
+  if (wc.isDestroyed()) return
+  try {
+    const manifestHref = await wc.executeJavaScript(
+      `(() => { const l = document.querySelector('link[rel="manifest"]'); return l ? l.href : null })()`,
+    )
+    if (!manifestHref) return
+    const manifest = await wc.executeJavaScript(
+      `fetch(${JSON.stringify(manifestHref)}).then((r) => r.ok ? r.json() : null).catch(() => null)`,
+    )
+    if (wc.isDestroyed() || tab.url !== wc.getURL()) return // la pestaña ya navegó a otra cosa mientras esto corría
+    if (!manifest || !Array.isArray(manifest.icons) || manifest.icons.length === 0) return
+    tab.installable = true
+    tab.appManifest = {
+      name: String(manifest.name || manifest.short_name || tab.title || 'App').trim(),
+      icons: manifest.icons,
+      startUrl: new URL(manifest.start_url || '/', manifestHref).href,
+      manifestUrl: manifestHref,
+    }
+    broadcastTabs(tab.windowId)
+  } catch {
+    // silencioso a propósito — la instalabilidad es un extra, nunca debe verse como un error de la página
   }
 }
 
@@ -277,7 +370,7 @@ function createTab(initialUrl, windowId, options = {}) {
     },
   })
   const id = nextTabId++
-  const tab = { view, id, windowId, title: 'Nueva pestaña', url: initialUrl, blockedCount: 0, isPrivate, groupId: null }
+  const tab = { view, id, windowId, title: 'Nueva pestaña', url: initialUrl, blockedCount: 0, isPrivate, groupId: null, installable: false, appManifest: null }
   tabs.set(id, tab)
 
   const wc = view.webContents
@@ -291,13 +384,14 @@ function createTab(initialUrl, windowId, options = {}) {
         storeForWindow(windowId).addHistoryEntry({ url, title: tab.title, visitedAt: Date.now() })
       }
     }
+    detectInstallability(tab)
     saveSessionSoon(windowId)
   })
   // El contador de Shields refleja la página actual (igual que Brave/uBlock Origin) — una
   // navegación real a otra página empieza de cero, si no el número solo crecería para siempre y
   // dejaría de significar nada. `did-navigate-in-page` (anchors/rutas de una SPA, misma página) no
   // cuenta como navegación nueva a propósito.
-  wc.on('did-navigate', (_e, url) => { tab.url = url; tab.blockedCount = 0; broadcastTabs(windowId); saveSessionSoon(windowId) })
+  wc.on('did-navigate', (_e, url) => { tab.url = url; tab.blockedCount = 0; tab.installable = false; tab.appManifest = null; broadcastTabs(windowId); saveSessionSoon(windowId) })
   wc.on('did-navigate-in-page', (_e, url) => { tab.url = url; broadcastTabs(windowId) })
   wc.on('page-title-updated', (_e, title) => { tab.title = title; broadcastTabs(windowId) })
   wc.on('found-in-page', (_e, result) => {
@@ -612,11 +706,13 @@ function findWindowForProfile(profileId) {
 // es lo que de verdad asocia el esquema con esta app a nivel del
 // sistema operativo real (no un valor cosmético).
 if (!app.isDefaultProtocolClient(DJIA_PROTOCOL)) app.setAsDefaultProtocolClient(DJIA_PROTOCOL)
+if (!app.isDefaultProtocolClient(PWA_PROTOCOL)) app.setAsDefaultProtocolClient(PWA_PROTOCOL)
 
 // macOS entrega la URL vía `open-url` sin necesitar single-instance-lock.
 app.on('open-url', (event, url) => {
   event.preventDefault()
-  handleDjiaProtocolUrl(url)
+  if (url.startsWith(`${PWA_PROTOCOL}://`)) handlePwaProtocolUrl(url)
+  else handleDjiaProtocolUrl(url)
 })
 
 // Windows/Linux entregan la URL como argumento de una segunda
@@ -634,6 +730,8 @@ if (process.platform !== 'darwin') {
     app.on('second-instance', (_event, argv) => {
       const urlArg = argv.find((a) => a.startsWith(`${DJIA_PROTOCOL}://`))
       if (urlArg) handleDjiaProtocolUrl(urlArg)
+      const pwaArg = argv.find((a) => a.startsWith(`${PWA_PROTOCOL}://`))
+      if (pwaArg) handlePwaProtocolUrl(pwaArg)
       const [, state] = windows.entries().next().value || []
       if (state && !state.window.isDestroyed()) {
         if (state.window.isMinimized()) state.window.restore()
@@ -652,6 +750,8 @@ app.whenReady().then(() => {
   if (process.platform !== 'darwin') {
     const coldStartUrl = process.argv.find((a) => a.startsWith(`${DJIA_PROTOCOL}://`))
     if (coldStartUrl) handleDjiaProtocolUrl(coldStartUrl)
+    const coldStartPwaUrl = process.argv.find((a) => a.startsWith(`${PWA_PROTOCOL}://`))
+    if (coldStartPwaUrl) handlePwaProtocolUrl(coldStartPwaUrl)
   }
 
   app.on('activate', () => {
@@ -981,6 +1081,117 @@ ipcMain.handle('translate:page', async (e, targetLang) => {
   })(${JSON.stringify(translated)})`
   const appliedCount = await wc.executeJavaScript(applyScript)
   return { configured: true, translatedCount: appliedCount, truncated: originalTexts.length >= TRANSLATE_MAX_NODES }
+})
+
+function slugifyAppName(str) {
+  return String(str)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '') || 'app'
+}
+
+function pickBestManifestIcon(icons, baseUrl) {
+  const candidates = icons
+    .filter((ic) => !ic.purpose || /(^|\s)any(\s|$)/.test(ic.purpose))
+    .map((ic) => {
+      const widthStr = (ic.sizes || '').split(' ')[0] || '0x0'
+      const width = Number(widthStr.split('x')[0]) || 0
+      let href
+      try {
+        href = new URL(ic.src, baseUrl).href
+      } catch {
+        return null
+      }
+      return { width, href }
+    })
+    .filter(Boolean)
+  candidates.sort((a, b) => b.width - a.width)
+  return candidates[0] || null
+}
+
+/** Mismo procedimiento real de `sips`/`iconutil` que ya se usa para armar el ícono de las apps de
+ * escritorio nativas (DJ AI, CEO) — acá se arma al vuelo a partir del ícono real del manifest del
+ * sitio que se está instalando, no de un archivo fijo del repo. */
+function buildIcnsFromPng(pngPath, outIcnsPath) {
+  const iconsetPath = outIcnsPath.replace(/\.icns$/, '.iconset')
+  fs.mkdirSync(iconsetPath, { recursive: true })
+  for (const size of [16, 32, 64, 128, 256, 512, 1024]) {
+    spawnSync('sips', ['-z', String(size), String(size), pngPath, '--out', path.join(iconsetPath, `icon_${size}x${size}.png`)])
+  }
+  for (const [srcSize, name] of [[32, '16x16@2x'], [64, '32x32@2x'], [256, '128x128@2x'], [512, '256x256@2x'], [1024, '512x512@2x']]) {
+    fs.copyFileSync(path.join(iconsetPath, `icon_${srcSize}x${srcSize}.png`), path.join(iconsetPath, `icon_${name}.png`))
+  }
+  spawnSync('iconutil', ['-c', 'icns', iconsetPath, '-o', outIcnsPath])
+  fs.rmSync(iconsetPath, { recursive: true, force: true })
+}
+
+// "Instalar" un sitio PWA como app de escritorio real — arma un `.app` de verdad en el Escritorio
+// (con el ícono real del sitio) cuyo único trabajo es reabrir este navegador en modo app
+// (`openAppModeWindow`, vía el protocolo `mabriona-pwa://`). No es un atajo cosmético: es un
+// bundle real con Info.plist propio, igual que el patrón ya usado en MABRIONA DJ AI/CEO.
+ipcMain.handle('pwa:install', async (e, tabId) => {
+  if (process.platform !== 'darwin') {
+    return { ok: false, error: 'Instalar a escritorio todavía solo está construido para Mac.' }
+  }
+  const tab = tabs.get(tabId)
+  if (!tab || !tab.installable || !tab.appManifest) {
+    return { ok: false, error: 'Esta página no tiene un manifest instalable.' }
+  }
+  const { name, icons, startUrl, manifestUrl } = tab.appManifest
+  const appName = name.slice(0, 60)
+  const appDir = path.join(app.getPath('desktop'), `${appName}.app`)
+  if (fs.existsSync(appDir)) {
+    return { ok: false, error: `Ya existe "${appName}.app" en el Escritorio.` }
+  }
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mabriona-pwa-'))
+  try {
+    let hasIcon = false
+    const icon = pickBestManifestIcon(icons, manifestUrl)
+    if (icon) {
+      try {
+        const res = await fetch(icon.href)
+        if (res.ok) {
+          const pngPath = path.join(tmpDir, 'icon-src.png')
+          fs.writeFileSync(pngPath, Buffer.from(await res.arrayBuffer()))
+          buildIcnsFromPng(pngPath, path.join(tmpDir, 'icon.icns'))
+          hasIcon = fs.existsSync(path.join(tmpDir, 'icon.icns'))
+        }
+      } catch {
+        // sin ícono real disponible — se instala igual, con el ícono genérico de app de macOS
+      }
+    }
+    fs.mkdirSync(path.join(appDir, 'Contents', 'MacOS'), { recursive: true })
+    fs.mkdirSync(path.join(appDir, 'Contents', 'Resources'), { recursive: true })
+    if (hasIcon) fs.copyFileSync(path.join(tmpDir, 'icon.icns'), path.join(appDir, 'Contents', 'Resources', 'icon.icns'))
+    const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>${appName}</string>
+  <key>CFBundleDisplayName</key><string>${appName}</string>
+  <key>CFBundleIdentifier</key><string>com.mabriona.pwa.${slugifyAppName(appName)}</string>
+  <key>CFBundleExecutable</key><string>launcher</string>
+  ${hasIcon ? '<key>CFBundleIconFile</key><string>icon.icns</string>' : ''}
+  <key>CFBundleVersion</key><string>1.0</string>
+  <key>CFBundleShortVersionString</key><string>1.0</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>LSMinimumSystemVersion</key><string>10.13</string>
+</dict>
+</plist>`
+    fs.writeFileSync(path.join(appDir, 'Contents', 'Info.plist'), plist)
+    const protoUrl = `${PWA_PROTOCOL}://open?url=${encodeURIComponent(startUrl)}&name=${encodeURIComponent(appName)}`
+    const launcherPath = path.join(appDir, 'Contents', 'MacOS', 'launcher')
+    fs.writeFileSync(launcherPath, `#!/bin/sh\nopen "${protoUrl}"\n`)
+    fs.chmodSync(launcherPath, 0o755)
+    return { ok: true, path: appDir }
+  } catch (err) {
+    fs.rmSync(appDir, { recursive: true, force: true })
+    return { ok: false, error: String((err && err.message) || err) }
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true })
+  }
 })
 
 ipcMain.handle('downloads:list', (e) => storeForWindow(windowIdForSender(e)).listDownloads())

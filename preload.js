@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   captureScreenshot: (id) => ipcRenderer.invoke('tabs:screenshot', id),
 
+  installCurrentPageAsApp: (id) => ipcRenderer.invoke('pwa:install', id),
+
   copyText: (text) => ipcRenderer.invoke('utils:copy-text', text),
   generateQrCode: (text) => ipcRenderer.invoke('utils:generate-qr', text),
 

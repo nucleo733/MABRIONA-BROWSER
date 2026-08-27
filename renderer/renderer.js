@@ -8,6 +8,7 @@ const btnBack = document.getElementById('btn-back')
 const btnForward = document.getElementById('btn-forward')
 const btnReload = document.getElementById('btn-reload')
 const btnFav = document.getElementById('btn-fav')
+const btnInstall = document.getElementById('btn-install')
 const shieldsCount = document.getElementById('shields-count')
 document.body.classList.add(`platform-${mabrionaBrowser.platform}`)
 
@@ -89,6 +90,7 @@ function render(tabsState) {
   document.getElementById('icon-stop').classList.toggle('hidden', !activeTab?.loading)
   shieldsCount.textContent = String(activeTab?.blockedCount ?? 0)
   document.body.classList.toggle('private-mode', !!activeTab?.isPrivate)
+  btnInstall.classList.toggle('hidden', !activeTab?.installable)
   if (!document.getElementById('panel-more').classList.contains('hidden')) refreshZoomLevel()
 
   if (activeTab) {
@@ -149,6 +151,14 @@ btnFav.addEventListener('click', async () => {
   else await mabrionaBrowser.addFavorite({ url: activeTab.url, title: activeTab.title, addedAt: Date.now() })
   btnFav.classList.toggle('active', !isFav)
   refreshAllFavoritesUI()
+})
+btnInstall.addEventListener('click', async () => {
+  if (!activeTab || btnInstall.disabled) return
+  btnInstall.disabled = true
+  const result = await mabrionaBrowser.installCurrentPageAsApp(activeTab.id)
+  btnInstall.disabled = false
+  if (result.ok) alert(`Se instaló en tu Escritorio.\n${result.path}`)
+  else alert(result.error || 'No se pudo instalar.')
 })
 async function captureScreenshotAction(button) {
   if (!activeTab) return
