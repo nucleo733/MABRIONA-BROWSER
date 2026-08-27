@@ -45,6 +45,11 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   copyText: (text) => ipcRenderer.invoke('utils:copy-text', text),
   generateQrCode: (text) => ipcRenderer.invoke('utils:generate-qr', text),
 
+  // Le avisa al proceso principal que un panel del chrome está abierto/cerrado, para que le haga
+  // lugar de verdad al BrowserView (la página real siempre se dibuja por encima del HTML del
+  // chrome — si no le resta ancho, tapa el panel aunque el panel tenga z-index más alto en CSS).
+  setPanelOpen: (isOpen) => ipcRenderer.send('view:panel-open', isOpen),
+
   getTranslateLanguages: () => ipcRenderer.invoke('translate:get-languages'),
   translatePage: (targetLang) => ipcRenderer.invoke('translate:page', targetLang),
 
@@ -96,6 +101,8 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   importExtension: (sourcePath) => ipcRenderer.invoke('extensions:import', sourcePath),
   installExtensionFromWebStore: (idOrUrl) => ipcRenderer.invoke('extensions:install-from-webstore', idOrUrl),
   setExtensionEnabled: (recordId, enabled) => ipcRenderer.invoke('extensions:set-enabled', { recordId, enabled }),
+  setExtensionPinned: (recordId, pinned) => ipcRenderer.invoke('extensions:set-pinned', { recordId, pinned }),
+  openExtensionPopup: (recordId, x, y) => ipcRenderer.invoke('extensions:open-popup', { recordId, x, y }),
   removeExtension: (recordId) => ipcRenderer.invoke('extensions:remove', recordId),
 
   getOnboardingStatus: () => ipcRenderer.invoke('onboarding:get-status'),

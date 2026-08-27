@@ -148,13 +148,24 @@ function broadcastTabs(windowId) {
   sendToWindow(windowId, 'tabs:state', windowTabs.map((t) => serializeTab(t, state.activeTabId)))
 }
 
+// Los paneles/overlays del chrome (Compartir/Más/Traducir/menú contextual/Gestor de favoritos/etc.)
+// son HTML propio, pero el BrowserView de la pestaña activa es una capa nativa aparte que Electron
+// dibuja SIEMPRE por encima — ningún z-index de CSS la tapa. Si el BrowserView ocupa el ancho
+// completo mientras un overlay está abierto, la página real queda arriba y el overlay queda
+// invisible detrás. `state.viewReserve` llega desde el renderer (ver OVERLAY_RESERVE en
+// renderer.js): `false` (nada abierto), un número de px a restarle desde la derecha (paneles chicos
+// anclados, la página sigue visible a la izquierda), o `'full'` (modales grandes/centrados — el
+// BrowserView se oculta del todo, no hay ancho fijo que alcance para algo que puede estar en
+// cualquier posición).
 function layoutActiveView(windowId) {
   const state = windows.get(windowId)
   if (!state) return
   const active = state.activeTabId != null ? tabs.get(state.activeTabId) : null
   if (!active) return
   const [w, h] = state.window.getContentSize()
-  active.view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: w, height: Math.max(0, h - TOOLBAR_HEIGHT) })
+  const reserve = state.viewReserve
+  const reservedPx = reserve === 'full' ? w : (typeof reserve === 'number' ? reserve : 0)
+  active.view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: Math.max(0, w - reservedPx), height: Math.max(0, h - TOOLBAR_HEIGHT) })
 }
 
 // Recuperación de sesión real: se guarda (con un pequeño debounce, para no escribir en disco en
@@ -467,7 +478,7 @@ function createWindow(options = {}) {
     },
   })
   const windowId = nextWindowId++
-  windows.set(windowId, { window: win, activeTabId: null, profileId, isGuest })
+  windows.set(windowId, { window: win, activeTabId: null, profileId, isGuest, viewReserve: false })
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
   win.on('resize', () => layoutActiveView(windowId))
   win.on('closed', () => {
@@ -575,6 +586,14 @@ app.on('window-all-closed', () => {
 })
 
 // ===================== IPC =====================
+
+ipcMain.on('view:panel-open', (e, reserve) => {
+  const windowId = windowIdForSender(e)
+  const state = windows.get(windowId)
+  if (!state) return
+  state.viewReserve = reserve
+  layoutActiveView(windowId)
+})
 
 ipcMain.handle('tabs:create', (e, url) => createAndSwitchTab(url, windowIdForSender(e)))
 ipcMain.handle('tabs:new-private', (e) => createAndSwitchTab(HOME_URL, windowIdForSender(e), { private: true }))
@@ -870,7 +889,11 @@ function profileStoreAndSessionFor(windowId) {
 
 async function loadAndRecord(profileStore, sess, record) {
   const loaded = await sess.loadExtension(record.path, { allowFileAccess: true })
-  const fullRecord = { ...record, chromeExtensionId: loaded.id }
+  const manifest = extensionsLib.readManifestSafe(record.path)
+  const actionInfo = manifest ? extensionsLib.resolveActionInfo(record.path, manifest) : { icon: null, popup: null }
+  // "pinned: true" por defecto — igual que Chrome real, una extensión recién instalada aparece
+  // de entrada en la barra; la persona la puede sacar después sin desinstalarla.
+  const fullRecord = { ...record, chromeExtensionId: loaded.id, actionIcon: actionInfo.icon, actionPopup: actionInfo.popup, pinned: true }
   profileStore.addExtensionRecord(fullRecord)
   return fullRecord
 }
@@ -935,6 +958,46 @@ ipcMain.handle('extensions:set-enabled', (e, { recordId, enabled }) => {
   } else if (record.chromeExtensionId) {
     try { sess.removeExtension(record.chromeExtensionId) } catch { /* ya no estaba cargada */ }
   }
+  return { ok: true }
+})
+
+ipcMain.handle('extensions:set-pinned', (e, { recordId, pinned }) => {
+  const { profileStore } = profileStoreAndSessionFor(windowIdForSender(e))
+  const record = profileStore.listExtensions().find((x) => x.recordId === recordId)
+  if (!record) return { ok: false, error: 'esa extensión ya no existe' }
+  profileStore.setExtensionPinned(recordId, pinned)
+  return { ok: true }
+})
+
+// Popup real de la extensión (manifest.action/browser_action.default_popup) — Electron carga
+// `session.loadExtension` (background/content scripts/APIs reales) pero NO dibuja un ícono ni un
+// popup nativo solo, a diferencia de Chrome — así que se abre una ventana real, chica, sin marco,
+// cargando la página real de la extensión (`chrome-extension://<id>/<popup>`) en la MISMA sesión
+// del perfil (comparte cookies/storage con el resto de la extensión). Se cierra sola al perder el
+// foco, como un popup real. Si la extensión no declara ningún popup, se informa honesto en vez de
+// abrir una ventana vacía fingiendo que hay algo.
+ipcMain.handle('extensions:open-popup', (e, { recordId, x, y }) => {
+  const winId = windowIdForSender(e)
+  const { profileStore, sess } = profileStoreAndSessionFor(winId)
+  const record = profileStore.listExtensions().find((r) => r.recordId === recordId)
+  if (!record) return { ok: false, error: 'esa extensión ya no existe' }
+  if (!record.actionPopup || !record.chromeExtensionId) return { ok: false, error: 'no-popup' }
+  const popup = new BrowserWindow({
+    width: 380,
+    height: 520,
+    x: Math.round(x),
+    y: Math.round(y),
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    frame: false,
+    show: false,
+    webPreferences: { session: sess, contextIsolation: true, sandbox: true },
+  })
+  popup.loadURL(`chrome-extension://${record.chromeExtensionId}/${record.actionPopup}`)
+  popup.once('ready-to-show', () => popup.show())
+  popup.on('blur', () => { if (!popup.isDestroyed()) popup.close() })
   return { ok: true }
 })
 

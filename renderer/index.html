@@ -25,6 +25,7 @@
       <button id="btn-fav" class="nav-btn" title="Agregar a favoritos" aria-label="Agregar a favoritos"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z"/></svg></button>
       <button id="btn-share" class="nav-btn" title="Compartir" aria-label="Compartir"><svg viewBox="0 0 24 24"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="5.5" r="2.4"/><circle cx="17" cy="18.5" r="2.4"/><path d="M8.1 10.8l6.8-4.2M8.1 13.2l6.8 4.2"/></svg></button>
       <button id="btn-translate" class="nav-btn" title="Traducir esta página" aria-label="Traducir esta página"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15 15 0 0 1 0 18"/><path d="M12 3a15 15 0 0 0 0 18"/></svg></button>
+      <div id="ext-icons" role="toolbar" aria-label="Extensiones fijadas"></div>
       <button id="btn-profile" class="nav-btn" title="Perfil" aria-label="Perfil">
         <span id="profile-emoji">👤</span>
       </button>
@@ -68,16 +69,16 @@
       <button class="panel-close" data-close="more">✕</button>
     </div>
     <div class="panel-body panel-menu-list">
-      <button id="more-screenshot" type="button" class="settings-btn">📷 Capturar pantalla</button>
-      <button id="more-history" type="button" class="settings-btn">🕘 Historial</button>
-      <button id="more-downloads" type="button" class="settings-btn">⬇︎ Descargas</button>
-      <button id="more-favorites" type="button" class="settings-btn">★ Favoritos</button>
-      <button id="more-shields" type="button" class="settings-btn">🛡️ MABRIONA SHIELDS <span id="shields-count" class="more-badge">0</span></button>
-      <button id="more-extensions" type="button" class="settings-btn">🧩 Extensiones</button>
-      <button id="more-settings" type="button" class="settings-btn">⚙️ Configuración</button>
+      <button id="more-screenshot" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.3"/></svg> Capturar pantalla</button>
+      <button id="more-history" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3.2 2"/></svg> Historial</button>
+      <button id="more-downloads" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7.5 11.5 12 16l4.5-4.5"/><path d="M4.5 19.5h15"/></svg> Descargas</button>
+      <button id="more-favorites" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.8 1-5.9-4.3-4.2 5.9-.8L12 3.5z"/></svg> Favoritos</button>
+      <button id="more-shields" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 3.5l7 2.6v5.4c0 4.8-3 8.3-7 9.5-4-1.2-7-4.7-7-9.5V6.1l7-2.6z"/></svg> MABRIONA SHIELDS <span id="shields-count" class="more-badge">0</span></button>
+      <button id="more-extensions" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/></svg> Extensiones</button>
+      <button id="more-settings" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><circle cx="15" cy="7" r="2"/><line x1="4" y1="12" x2="20" y2="12"/><circle cx="9" cy="12" r="2"/><line x1="4" y1="17" x2="20" y2="17"/><circle cx="17" cy="17" r="2"/></svg> Configuración</button>
       <hr class="panel-menu-divider" />
-      <button id="menu-new-window" type="button" class="settings-btn">🪟 Nueva ventana</button>
-      <button id="menu-new-private" type="button" class="settings-btn">🕶️ Nueva pestaña privada</button>
+      <button id="menu-new-window" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="2"/><line x1="4" y1="9" x2="20" y2="9"/><circle cx="6.6" cy="7" r="0.55" fill="currentColor" stroke="none"/><circle cx="8.4" cy="7" r="0.55" fill="currentColor" stroke="none"/><circle cx="10.2" cy="7" r="0.55" fill="currentColor" stroke="none"/></svg> Nueva ventana</button>
+      <button id="menu-new-private" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.8 10.8 0 0 1 12 5c5 0 9 4 10 7-.4 1.2-1.3 2.7-2.6 4"/><path d="M6.6 6.6C4.5 8 3 10 2 12c1 3 5 7 10 7 1.5 0 2.9-.4 4.1-1"/><path d="M9.5 9.8a3 3 0 0 0 4.2 4.2"/></svg> Nueva pestaña privada</button>
       <p class="settings-note" id="private-note">Modo Privado real: esa pestaña no guarda historial ni cookies en disco — se olvida al cerrar la app. No te vuelve anónimo frente a tu proveedor de internet ni frente a los sitios que visitás.</p>
       <div class="zoom-row">
         <button id="zoom-out" type="button" class="nav-btn" aria-label="Alejar">−</button>
@@ -100,7 +101,7 @@
       <p id="share-not-shareable" class="settings-note hidden">Esta pantalla no es un sitio real — abrí una página para poder compartirla.</p>
       <div id="share-controls">
         <p class="settings-note" id="share-url-note"></p>
-        <button id="share-copy" type="button" class="settings-btn">🔗 Copiar link</button>
+        <button id="share-copy" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M9 15l6-6"/><path d="M8 12.5a3.5 3.5 0 0 1 0-5l2-2a3.5 3.5 0 0 1 5 5l-1 1"/><path d="M16 11.5a3.5 3.5 0 0 1 0 5l-2 2a3.5 3.5 0 0 1-5-5l1-1"/></svg> Copiar link</button>
         <div id="share-qr-wrap"><img id="share-qr-img" alt="Código QR con el link de esta página" /></div>
         <p class="settings-note">Escaneá este código con la cámara de tu celular para abrir esta misma página ahí.</p>
       </div>
@@ -133,7 +134,7 @@
     <div class="panel-body">
       <p class="settings-note" id="profile-active-note"></p>
       <ul id="profile-list" class="panel-list"></ul>
-      <button id="profile-guest" type="button" class="settings-btn">🕶️ Modo invitado</button>
+      <button id="profile-guest" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.2A10.8 10.8 0 0 1 12 5c5 0 9 4 10 7-.4 1.2-1.3 2.7-2.6 4"/><path d="M6.6 6.6C4.5 8 3 10 2 12c1 3 5 7 10 7 1.5 0 2.9-.4 4.1-1"/><path d="M9.5 9.8a3 3 0 0 0 4.2 4.2"/></svg> Modo invitado</button>
       <p class="settings-note">Una ventana nueva, sin guardar nada — ni historial, ni favoritos, ni cookies. Se olvida todo al cerrarla.</p>
       <div class="profile-create-row">
         <input id="profile-new-name" type="text" placeholder="Nombre del perfil nuevo" aria-label="Nombre del perfil nuevo" maxlength="40" />
@@ -154,10 +155,10 @@
 
       <section class="settings-section">
         <h3>Agregar extensión</h3>
-        <button id="ext-load-unpacked" type="button" class="settings-btn">📁 Cargar desde una carpeta</button>
+        <button id="ext-load-unpacked" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><path d="M4 6.5a1.5 1.5 0 0 1 1.5-1.5h4l2 2h7A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5v-11z"/></svg> Cargar desde una carpeta</button>
         <p class="settings-note">Para una extensión que ya tenés descomprimida en tu computadora (modo desarrollador).</p>
 
-        <button id="ext-scan-browsers" type="button" class="settings-btn">🔎 Importar de Chrome / Edge / Brave</button>
+        <button id="ext-scan-browsers" type="button" class="settings-btn"><svg class="btn-icon" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.3" y1="15.3" x2="20" y2="20"/></svg> Importar de Chrome / Edge / Brave</button>
         <ul id="ext-scan-results" class="panel-list hidden"></ul>
 
         <div class="profile-create-row">

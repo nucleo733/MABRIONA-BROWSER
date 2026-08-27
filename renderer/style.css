@@ -10,11 +10,17 @@
   /* Vidrio real de MABRIONA — todo panel/menú/overlay propio lo usa, para que la identidad sea
    * consistente en toda la app (nunca un fondo plano/opaco genérico). El contenido real de una
    * pestaña vive en una capa nativa aparte (BrowserView) que este blur no puede alcanzar — el
-   * vidrio se aplica sobre el resto del propio chrome de MABRIONA, no finge ver la página a través. */
-  --glass-bg: rgba(19, 19, 19, 0.55);
-  --glass-bg-2: rgba(26, 26, 26, 0.6);
-  --glass-blur: blur(24px) saturate(160%);
-  --glass-border-top: rgba(255, 255, 255, 0.14);
+   * vidrio se aplica sobre el resto del propio chrome de MABRIONA, no finge ver la página a través.
+   * Más transparente que la primera versión — a pedido explícito ("cristal real", "todo dentro de
+   * un cristal"): se ve más el fondo real detrás, con más blur/saturación para que lea como vidrio
+   * de verdad y no como un panel oscuro casi opaco. */
+  --glass-bg: rgba(20, 20, 20, 0.38);
+  --glass-bg-2: rgba(24, 24, 24, 0.3);
+  --glass-blur: blur(30px) saturate(200%);
+  --glass-border-top: rgba(255, 255, 255, 0.22);
+  /* Vidrio muy claro — la barra de herramientas entera y sus botones lo usan, para que se sientan
+   * parte de UNA sola lámina de cristal (no cajas opacas separadas flotando encima). */
+  --glass-thin: rgba(255, 255, 255, 0.045);
 }
 
 * { box-sizing: border-box; }
@@ -116,83 +122,97 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 }
 #btn-new-tab:hover { color: var(--volt); background: var(--volt-soft); }
 
+/* La barra entera es UNA sola lámina de vidrio real (blur + tinte muy claro) — los botones y la
+ * barra de direcciones adentro son parte de ese mismo cristal, no cajas opacas separadas. */
 #toolbar {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
   height: 50px;
+  background: var(--glass-thin);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-top: 1px solid var(--glass-border-top);
+  border-bottom: 1px solid var(--border);
 }
 
-/* Vidrio real — mismo material que los botones de mando de MABRIONA DJ IA (RAISED_BTN/
- * raisedActive en DjIaScreen.tsx): en reposo es vidrio oscuro con un brillo tenue arriba a la
- * izquierda; "prendido" (.active) agrega una barra de acento volt en el borde izquierdo con el
- * resplandor sangrando hacia adentro del vidrio, no un relleno plano. Nunca emoji — solo íconos
- * SVG propios, trazo fino, para que se vea nativo en cualquier sistema operativo. */
+/* Vidrio puro — a pedido explícito, sin relieve/metal ni gradientes: mismo material que los
+ * paneles (--glass-bg-2/--glass-blur), esquinas cuadradas (no la píldora del resto de la barra).
+ * "Prendido" (.active) mientras su panel está abierto, con acento volt, pero sigue siendo vidrio —
+ * nunca un relleno plano/opaco. Nunca emoji — solo íconos SVG propios, trazo fino. */
 .nav-btn {
   width: 34px;
   height: 34px;
-  border-radius: 9px;
-  border-left: 3px solid rgba(255, 255, 255, 0.24);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  border-right: 1px solid rgba(255, 255, 255, 0.06);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.02) 24%, rgba(0, 0, 0, 0.5) 100%),
-    radial-gradient(140% 200% at 20% -40%, rgba(255, 255, 255, 0.22), transparent 42%),
-    var(--bg-raised);
-  box-shadow:
-    inset 3px 0 12px -8px rgba(255, 255, 255, 0.5),
-    inset 0 1px 1px rgba(255, 255, 255, 0.28),
-    inset 0 -4px 8px rgba(0, 0, 0, 0.6),
-    0 6px 14px rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--glass-border-top);
+  background: var(--glass-thin);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
 }
 .nav-btn svg {
   width: 17px;
   height: 17px;
   fill: none;
   stroke: currentColor;
-  stroke-width: 1.8;
+  stroke-width: 1.4;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.nav-btn:hover { color: #fff; }
+.nav-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.22); }
 .nav-btn:disabled { opacity: 0.35; cursor: default; color: rgba(255, 255, 255, 0.4); }
-/* "Prendido" real — mismo cálculo de color que raisedActive(color) de DJ IA, con el volt de MABRIONA. */
 .nav-btn.active {
-  border-left: 3px solid var(--volt);
-  border-top: 1px solid rgba(255, 255, 255, 0.16);
-  border-right: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: 1px solid rgba(0, 0, 0, 0.4);
+  border-color: var(--volt);
+  background: linear-gradient(180deg, rgba(212, 255, 0, 0.16), rgba(212, 255, 0, 0.04)), var(--glass-thin);
   color: #fff;
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.26) 0%, rgba(255, 255, 255, 0.04) 24%, rgba(0, 0, 0, 0.55) 100%),
-    radial-gradient(140% 200% at 20% -40%, rgba(255, 255, 255, 0.6), transparent 42%),
-    linear-gradient(90deg, rgba(212, 255, 0, 0.33) 0%, transparent 55%),
-    var(--bg-raised);
-  box-shadow:
-    inset 3px 0 22px -6px var(--volt),
-    inset 0 2px 2px rgba(255, 255, 255, 0.55),
-    inset 0 -4px 8px rgba(0, 0, 0, 0.6),
-    0 0 26px rgba(212, 255, 0, 0.63),
-    0 0 50px rgba(212, 255, 0, 0.31),
-    0 6px 14px rgba(0, 0, 0, 0.35);
 }
 #btn-fav.active svg { fill: var(--volt); stroke: var(--volt); }
+
+/* Íconos reales de extensiones fijadas — mismo vidrio cuadrado que el resto de la barra, un poco
+ * más chicos porque puede haber varios al mismo tiempo (igual que Chrome real). Vacío = display:
+ * none real vía :empty, para no dejar un hueco en la barra cuando no hay ninguna fijada. */
+#ext-icons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#ext-icons:empty { display: none; }
+.ext-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-top-color: var(--glass-border-top);
+  background: var(--glass-thin);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.ext-icon-btn:hover { border-color: rgba(255, 255, 255, 0.22); }
+.ext-icon-btn img { width: 17px; height: 17px; display: block; object-fit: contain; }
+.ext-icon-btn .btn-icon { color: rgba(255, 255, 255, 0.7); }
 
 #address {
   flex: 1;
   height: 32px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: var(--bg-raised);
+  border-top-color: var(--glass-border-top);
+  background: var(--glass-thin);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
   color: var(--text);
   padding: 0 16px;
   font-size: 13px;
@@ -260,6 +280,9 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 }
 .settings-note { color: var(--text-dim); font-size: 11px; line-height: 1.5; margin: 6px 0 0; word-break: break-all; }
 .settings-btn {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   background: var(--bg-raised);
   border: 1px solid var(--border);
   color: var(--text);
@@ -270,6 +293,21 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   cursor: pointer;
 }
 .settings-btn:hover { border-color: var(--volt); color: var(--volt); }
+/* Íconos de línea propios, simples y consistentes — nunca emoji, que se ven distinto en cada
+ * sistema operativo y rompen la identidad visual refinada del resto de la barra. */
+.btn-icon {
+  width: 15px;
+  height: 15px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Variantes de tamaño/posición — nunca style="" inline (CSP style-src 'self' lo bloquea). */
+.btn-icon-lg { width: 17px; height: 17px; }
+.btn-icon-inline { width: 13px; height: 13px; vertical-align: -2px; }
 .settings-btn:disabled { opacity: 0.6; cursor: default; }
 #settings-permissions-list { max-height: 160px; padding: 0; }
 
@@ -373,15 +411,29 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 .panel-list .item-delete:hover { color: var(--volt); background: rgba(212, 255, 0, 0.12); }
 
 /* ---------------- Extensiones ---------------- */
-#extensions-list li { padding-right: 56px; }
+#extensions-list li { padding-right: 82px; }
 .ext-version { color: var(--text-dim); font-weight: 400; }
 .ext-toggle {
   position: absolute;
   top: 10px;
-  right: 30px;
+  right: 56px;
   accent-color: var(--volt);
   cursor: pointer;
 }
+.ext-pin {
+  position: absolute;
+  top: 4px;
+  right: 28px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 999px;
+}
+.ext-pin:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
+.ext-pin.pinned { color: var(--volt); }
+.ext-pin.pinned:hover { background: rgba(212, 255, 0, 0.12); }
 #ext-scan-results { max-height: 160px; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
 
 #findbar {

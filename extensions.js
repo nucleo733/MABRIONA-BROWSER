@@ -260,6 +260,59 @@ function removeExtensionFiles(record) {
   try { fs.rmSync(record.path, { recursive: true, force: true }) } catch { /* ya no estaba */ }
 }
 
+// ---------------- Ícono + popup real del botón de la extensión — para poder mostrarla en la
+// barra (como el ícono de una extensión real en Chrome), no solo en la lista de "Extensiones". ----
+
+const ACTION_MANIFEST_KEYS = ['action', 'browser_action'] // MV3 usa "action", MV2 usa "browser_action"
+const ICON_MIME_BY_EXT = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.gif': 'image/gif' }
+
+function pickBestIconSize(iconMap) {
+  const sizes = Object.keys(iconMap).map(Number).filter((n) => !Number.isNaN(n)).sort((a, b) => b - a)
+  if (sizes.length === 0) return null
+  return sizes.find((s) => s <= 48) ?? sizes[sizes.length - 1]
+}
+
+function resolveActionIconPath(dir, manifest) {
+  for (const key of ACTION_MANIFEST_KEYS) {
+    const iconField = manifest[key] && manifest[key].default_icon
+    if (typeof iconField === 'string') return path.join(dir, iconField)
+    if (iconField && typeof iconField === 'object') {
+      const size = pickBestIconSize(iconField)
+      if (size != null) return path.join(dir, iconField[size])
+    }
+  }
+  // Sin ícono de acción propio — Chrome real cae de vuelta a los íconos generales del manifest.
+  if (manifest.icons && typeof manifest.icons === 'object') {
+    const size = pickBestIconSize(manifest.icons)
+    if (size != null) return path.join(dir, manifest.icons[size])
+  }
+  return null
+}
+
+function resolveActionPopup(manifest) {
+  for (const key of ACTION_MANIFEST_KEYS) {
+    const popup = manifest[key] && manifest[key].default_popup
+    if (popup) return popup
+  }
+  return null
+}
+
+/** Real: lee el ícono de verdad desde disco y lo devuelve como data URI (no depende de un
+ * protocolo `chrome-extension://` propio en el renderer) y la ruta real del popup (si la
+ * extensión define uno) — nunca inventa ninguno de los dos si el manifest no los declara. */
+function resolveActionInfo(dir, manifest) {
+  let icon = null
+  const iconPath = resolveActionIconPath(dir, manifest)
+  if (iconPath) {
+    try {
+      const buf = fs.readFileSync(iconPath)
+      const mime = ICON_MIME_BY_EXT[path.extname(iconPath).toLowerCase()] || 'image/png'
+      icon = `data:${mime};base64,${buf.toString('base64')}`
+    } catch { /* el ícono declarado en el manifest no existe de verdad en disco — sin ícono, no rompe nada */ }
+  }
+  return { icon, popup: resolveActionPopup(manifest) }
+}
+
 module.exports = {
   loadUnpacked,
   importFromFolder,
@@ -270,5 +323,6 @@ module.exports = {
   extensionsDirFor,
   readManifestSafe,
   resolveDisplayName,
+  resolveActionInfo,
   crxToZipBuffer,
 }

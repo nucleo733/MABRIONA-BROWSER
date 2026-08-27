@@ -123,6 +123,50 @@ async function captureScreenshotAction(button) {
 
 // ---------------- Paneles (historial / favoritos / descargas / shields / compartir / traducir) ----------------
 
+// El BrowserView de la pestaña activa es una capa nativa que Electron dibuja SIEMPRE por encima
+// del HTML del chrome (z-index de CSS no lo puede tapar). Cualquier overlay propio de MABRIONA
+// (paneles, findbar, menú contextual, banner de permisos, gestor de favoritos, prompt de texto)
+// tiene que avisarle al proceso principal para que le achique (o le oculte del todo) el BrowserView
+// mientras está abierto — si no, con una página real cargada, el overlay queda invisible detrás de
+// la página. Se cuenta con un Set (no un booleano) porque más de un overlay puede estar abierto al
+// mismo tiempo (ej. un menú contextual dentro del Gestor de favoritos).
+//
+// Los paneles chicos, anclados a la derecha (Compartir/Más/Traducir/Perfil/findbar/dropdown de
+// favoritos), solo necesitan que se le reste ese ancho real al BrowserView — la página sigue viva
+// y visible a la izquierda, igual que en Chrome/Brave. Los modales grandes y centrados (menú
+// contextual, que puede aparecer en cualquier punto de la pantalla; permisos, prompt de texto,
+// onboarding/importar, Gestor de favoritos) necesitan que el BrowserView se oculte del todo — no
+// hay forma de "restarle" un ancho fijo a algo que puede estar en cualquier posición o ser ancho.
+const OVERLAY_RESERVE = {
+  panel: 372,
+  findbar: 372,
+  'fav-dropdown': 372,
+  'context-menu': 'full',
+  permission: 'full',
+  'text-prompt': 'full',
+  onboarding: 'full',
+  'bookmarks-manager': 'full',
+}
+const openChromeOverlays = new Set()
+function currentOverlaySpec() {
+  if (openChromeOverlays.size === 0) return false
+  let widestPx = 0
+  for (const name of openChromeOverlays) {
+    const reserve = OVERLAY_RESERVE[name] ?? 'full'
+    if (reserve === 'full') return 'full'
+    widestPx = Math.max(widestPx, reserve)
+  }
+  return widestPx
+}
+function overlayOpened(name) {
+  openChromeOverlays.add(name)
+  mabrionaBrowser.setPanelOpen(currentOverlaySpec())
+}
+function overlayClosed(name) {
+  openChromeOverlays.delete(name)
+  mabrionaBrowser.setPanelOpen(currentOverlaySpec())
+}
+
 const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'profile', 'extensions', 'share', 'translate']
 // Solo estos paneles tienen su propio ícono siempre visible en la barra — se "prenden" (misma
 // idea que los botones de mando de DJ IA) mientras su panel está abierto.
@@ -130,6 +174,7 @@ const PANEL_TRIGGER_BTN = { more: 'btn-more', profile: 'btn-profile', share: 'bt
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')
   for (const btnId of Object.values(PANEL_TRIGGER_BTN)) document.getElementById(btnId).classList.remove('active')
+  overlayClosed('panel')
 }
 function togglePanel(name) {
   const el = document.getElementById(`panel-${name}`)
@@ -139,6 +184,7 @@ function togglePanel(name) {
     el.classList.remove('hidden')
     const btnId = PANEL_TRIGGER_BTN[name]
     if (btnId) document.getElementById(btnId).classList.add('active')
+    overlayOpened('panel')
   }
 }
 
@@ -152,6 +198,7 @@ document.querySelectorAll('.panel-close').forEach((btn) => btn.addEventListener(
   document.getElementById(`panel-${name}`).classList.add('hidden')
   const btnId = PANEL_TRIGGER_BTN[name]
   if (btnId) document.getElementById(btnId).classList.remove('active')
+  overlayClosed('panel')
 }))
 
 // Panel "Más opciones" — todo lo que antes eran íconos sueltos en la barra vive acá ahora.
@@ -368,15 +415,31 @@ document.getElementById('translate-restore').addEventListener('click', () => {
 
 // ---------------- Perfiles — cambiar de perfil abre/enfoca una ventana real de ese perfil ----------------
 
+// El emoji de perfil es una identidad real que la persona puede elegir (ver profiles.js) — se
+// respeta tal cual si lo cambió. Pero el valor por defecto de todo perfil nuevo es el emoji
+// genérico 👤, que en el ícono siempre visible de la barra desentona con el resto de íconos de
+// línea, simples y monocromos — ahí se usa un SVG propio en vez del emoji por defecto.
+const DEFAULT_PROFILE_EMOJI = '👤'
+const PROFILE_DEFAULT_ICON_SVG = '<svg class="btn-icon btn-icon-lg" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.3"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></svg>'
+// Un ícono de línea propio en vez del emoji genérico por defecto — el mismo criterio en todo lado
+// donde se muestra el perfil (botón de la barra, panel, lista). Si la persona eligió otro emoji
+// para su perfil, se respeta tal cual.
+function profileGlyphHtml(emoji) {
+  if (emoji !== DEFAULT_PROFILE_EMOJI) return escapeHtml(emoji)
+  return '<svg class="btn-icon btn-icon-inline" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.3"/><path d="M5 20c1-4 4-6 7-6s6 2 7 6"/></svg>'
+}
 async function refreshProfileButton() {
   const p = await mabrionaBrowser.getActiveProfile()
-  document.getElementById('profile-emoji').textContent = p ? p.emoji : '👤'
+  const emoji = p ? p.emoji : DEFAULT_PROFILE_EMOJI
+  const el = document.getElementById('profile-emoji')
+  if (emoji === DEFAULT_PROFILE_EMOJI) el.innerHTML = PROFILE_DEFAULT_ICON_SVG
+  else el.textContent = emoji
 }
 
 async function refreshProfilePanel() {
   const [profiles, active] = await Promise.all([mabrionaBrowser.listProfiles(), mabrionaBrowser.getActiveProfile()])
-  document.getElementById('profile-active-note').textContent = active
-    ? `Perfil activo en esta ventana: ${active.emoji} ${active.name}${active.isGuest ? ' — nada de esto se guarda' : ''}`
+  document.getElementById('profile-active-note').innerHTML = active
+    ? `Perfil activo en esta ventana: ${profileGlyphHtml(active.emoji)} ${escapeHtml(active.name)}${active.isGuest ? ' — nada de esto se guarda' : ''}`
     : ''
 
   const ul = document.getElementById('profile-list')
@@ -384,7 +447,7 @@ async function refreshProfilePanel() {
   for (const p of profiles) {
     const li = document.createElement('li')
     const isActive = active && !active.isGuest && p.id === active.id
-    li.innerHTML = `<span class="item-title">${p.emoji} ${escapeHtml(p.name)}</span><span class="item-url">${isActive ? 'Activo en esta ventana' : 'Cambiar →'}</span>`
+    li.innerHTML = `<span class="item-title">${profileGlyphHtml(p.emoji)} ${escapeHtml(p.name)}</span><span class="item-url">${isActive ? 'Activo en esta ventana' : 'Cambiar →'}</span>`
     if (!isActive) {
       li.addEventListener('click', async () => {
         await mabrionaBrowser.switchToProfile(p.id)
@@ -452,6 +515,20 @@ async function refreshExtensionsPanel() {
       refreshExtensionsPanel()
     })
     li.appendChild(toggle)
+    // Fijar/sacar de la barra — igual que el pin de Chrome real: no desinstala nada, solo decide
+    // si su ícono aparece como acceso directo en la barra de herramientas o no.
+    const pin = document.createElement('button')
+    pin.type = 'button'
+    pin.className = 'ext-pin' + (ext.pinned ? ' pinned' : '')
+    pin.title = ext.pinned ? 'Sacar de la barra' : 'Fijar en la barra'
+    pin.setAttribute('aria-label', pin.title)
+    pin.innerHTML = '<svg class="btn-icon" viewBox="0 0 24 24"><path d="M12 3v6.5M8 9.5h8l1.5 5H6.5l1.5-5z"/><path d="M12 15.5V21"/></svg>'
+    pin.addEventListener('click', async (e) => {
+      e.stopPropagation()
+      await mabrionaBrowser.setExtensionPinned(ext.recordId, !ext.pinned)
+      refreshExtensionsPanel()
+    })
+    li.appendChild(pin)
     const del = document.createElement('button')
     del.className = 'item-delete'
     del.type = 'button'
@@ -465,6 +542,47 @@ async function refreshExtensionsPanel() {
     })
     li.appendChild(del)
     ul.appendChild(li)
+  }
+  refreshExtToolbarIcons()
+}
+
+// SVG de respaldo (pieza de rompecabezas simple) para una extensión que no declaró ningún ícono
+// real en su manifest — nunca se inventa un ícono con la imagen real de otra cosa.
+const EXT_FALLBACK_ICON_SVG = '<svg class="btn-icon" viewBox="0 0 24 24"><path d="M9 4.5h4v2.6a2 2 0 1 0 0 3.8V13H9.8a2.2 2.2 0 1 1 0 4.4H15V21H5v-4.6a2.2 2.2 0 1 0 0-4.4V8h4V4.5z"/></svg>'
+
+/** Íconos reales de las extensiones fijadas, en la barra — se recalcula cada vez que cambia algo
+ * en el panel de Extensiones (instalar/quitar/activar/fijar). Clic real abre el popup real de la
+ * extensión (ver extensions:open-popup en main.js); si no declara popup, lo dice honesto en vez
+ * de abrir una ventana vacía. */
+async function refreshExtToolbarIcons() {
+  const extensions = await mabrionaBrowser.listExtensions()
+  const container = document.getElementById('ext-icons')
+  container.innerHTML = ''
+  for (const ext of extensions) {
+    if (!ext.enabled || !ext.pinned) continue
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'ext-icon-btn'
+    btn.title = ext.name
+    btn.setAttribute('aria-label', ext.name)
+    if (ext.actionIcon) {
+      const img = document.createElement('img')
+      img.src = ext.actionIcon
+      img.alt = ''
+      btn.appendChild(img)
+    } else {
+      btn.innerHTML = EXT_FALLBACK_ICON_SVG
+    }
+    btn.addEventListener('click', async () => {
+      const rect = btn.getBoundingClientRect()
+      const x = window.screenX + rect.left
+      const y = window.screenY + rect.bottom + 6
+      const result = await mabrionaBrowser.openExtensionPopup(ext.recordId, x, y)
+      if (!result.ok && result.error === 'no-popup') {
+        alert(`"${ext.name}" no tiene una ventana propia — corre en segundo plano, sin nada para mostrar acá.`)
+      }
+    })
+    container.appendChild(btn)
   }
 }
 
@@ -526,7 +644,7 @@ async function refreshSettingsPanel() {
   const dir = await mabrionaBrowser.getDownloadsDir()
   document.getElementById('settings-downloads-path').textContent = `Carpeta actual: ${dir}`
   const active = await mabrionaBrowser.getActiveProfile()
-  document.getElementById('settings-active-profile').textContent = active ? `Perfil: ${active.emoji} ${active.name}` : ''
+  document.getElementById('settings-active-profile').innerHTML = active ? `Perfil: ${profileGlyphHtml(active.emoji)} ${escapeHtml(active.name)}` : ''
   document.getElementById('settings-restore-session').checked = await mabrionaBrowser.getRestoreSession()
   document.getElementById('settings-search-engine').value = await mabrionaBrowser.getSearchEngine()
   await refreshSettingsPermissions()
@@ -600,6 +718,7 @@ async function openOnboarding(firstRun) {
   selectedImportSource = null
   closeAllPanels()
   document.getElementById('onboarding-overlay').classList.remove('hidden')
+  overlayOpened('onboarding')
   showOnboardingStep('onboarding-step-welcome')
 
   const sourcesEl = document.getElementById('onboarding-sources')
@@ -640,6 +759,7 @@ async function openOnboarding(firstRun) {
 async function finishOnboarding() {
   if (importIsFirstRun) await mabrionaBrowser.setOnboardingCompleted()
   document.getElementById('onboarding-overlay').classList.add('hidden')
+  overlayClosed('onboarding')
 }
 
 document.getElementById('onboarding-skip-1').addEventListener('click', finishOnboarding)
@@ -676,6 +796,7 @@ mabrionaBrowser.onDownloadsState(() => {
 })
 mabrionaBrowser.getTabsState().then(render)
 refreshProfileButton()
+refreshExtToolbarIcons()
 
 // Permisos por sitio (cámara/micrófono) — pedido real de un sitio real, el usuario decide de
 // verdad; nunca se asume "permitir" ni "bloquear" sin que la persona lo haya tocado.
@@ -691,6 +812,7 @@ function showNextPermissionRequest() {
   const labels = permissionShowing.kinds.map((k) => KIND_LABEL[k] || k).join(' y ')
   permissionText.textContent = `${permissionShowing.origin} solicita acceso a ${labels}.`
   permissionBanner.classList.remove('hidden')
+  overlayOpened('permission')
 }
 
 function resolvePermission(allow) {
@@ -698,6 +820,7 @@ function resolvePermission(allow) {
   mabrionaBrowser.respondPermission(permissionShowing.requestId, allow)
   permissionShowing = null
   permissionBanner.classList.add('hidden')
+  overlayClosed('permission')
   showNextPermissionRequest()
 }
 
@@ -722,10 +845,12 @@ function showTextPrompt(label, defaultValue = '') {
     document.getElementById('text-prompt-label').textContent = label
     input.value = defaultValue
     overlay.classList.remove('hidden')
+    overlayOpened('text-prompt')
     input.focus()
     input.select()
     function cleanup(result) {
       overlay.classList.add('hidden')
+      overlayClosed('text-prompt')
       okBtn.removeEventListener('click', onOk)
       cancelBtn.removeEventListener('click', onCancel)
       input.removeEventListener('keydown', onKeydown)
@@ -830,11 +955,12 @@ async function reorderAfterDrop(payload, siblingsBeforeMove, targetId) {
 // ---- Menú contextual real (clic derecho) — favoritos y carpetas, en la barra y en el gestor ----
 
 const contextMenuEl = document.getElementById('context-menu')
-function closeContextMenu() { contextMenuEl.classList.add('hidden'); contextMenuEl.innerHTML = '' }
+function closeContextMenu() { contextMenuEl.classList.add('hidden'); contextMenuEl.innerHTML = ''; overlayClosed('context-menu') }
 function openContextMenuAt(x, y, buildFn) {
   contextMenuEl.innerHTML = ''
   buildFn(contextMenuEl)
   contextMenuEl.classList.remove('hidden')
+  overlayOpened('context-menu')
   const rect = contextMenuEl.getBoundingClientRect()
   const maxX = window.innerWidth - rect.width - 8
   const maxY = window.innerHeight - rect.height - 8
@@ -957,6 +1083,7 @@ function openFolderContextMenu(x, y, folder) {
 
 function closeAllFavDropdowns(exceptEl) {
   document.querySelectorAll('.fav-bar-dropdown').forEach((el) => { if (el !== exceptEl) el.classList.add('hidden') })
+  if (!exceptEl) overlayClosed('fav-dropdown')
 }
 document.addEventListener('click', () => closeAllFavDropdowns())
 
@@ -1002,6 +1129,7 @@ function buildFavBarNode(kind, item, { nested } = {}) {
     const willOpen = dropdown.classList.contains('hidden')
     closeAllFavDropdowns(willOpen ? dropdown : null)
     dropdown.classList.toggle('hidden', !willOpen)
+    if (willOpen) overlayOpened('fav-dropdown')
   })
   btn.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); openFolderContextMenu(e.clientX, e.clientY, item) })
   makeDraggable(btn, { type: 'folder', id: item.id })
@@ -1034,10 +1162,12 @@ function openBookmarksManager(initialFolderId) {
   closeAllPanels()
   closeContextMenu()
   document.getElementById('bookmarks-manager-overlay').classList.remove('hidden')
+  overlayOpened('bookmarks-manager')
   loadFavoritesData().then(renderBookmarksManager)
 }
 function closeBookmarksManager() {
   document.getElementById('bookmarks-manager-overlay').classList.add('hidden')
+  overlayClosed('bookmarks-manager')
 }
 document.getElementById('bm-close').addEventListener('click', closeBookmarksManager)
 
@@ -1199,11 +1329,13 @@ const findCount = document.getElementById('find-count')
 function openFindbar() {
   if (!activeTab) return
   findbar.classList.remove('hidden')
+  overlayOpened('findbar')
   findInput.focus()
   findInput.select()
 }
 function closeFindbar() {
   findbar.classList.add('hidden')
+  overlayClosed('findbar')
   findCount.textContent = '0/0'
   if (activeTab) mabrionaBrowser.stopFind(activeTab.id)
 }

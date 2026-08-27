@@ -336,6 +336,14 @@ function buildStore(readAll, writeAll) {
       writeAll(data)
       return data.extensions
     },
+    // "Fijada" al ícono de la barra — igual que "pin" en Chrome real. Por defecto true al
+    // instalarla (ver addExtensionRecord real en extensions.js/main.js), para que se vea de
+    // inmediato; desde acá se puede sacar de la barra sin desinstalarla.
+    setExtensionPinned(recordId, pinned) {
+      data.extensions = (data.extensions || []).map((e) => (e.recordId === recordId ? { ...e, pinned } : e))
+      writeAll(data)
+      return data.extensions
+    },
 
     getHasCompletedOnboarding: () => data.hasCompletedOnboarding === true,
     setHasCompletedOnboarding(done) {
