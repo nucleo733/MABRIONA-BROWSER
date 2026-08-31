@@ -10,9 +10,9 @@ Pedido explícito del usuario: la barra tenía demasiados íconos, algunos con u
 
 Solo quedan siempre visibles: Atrás, Adelante, Recargar, Favorito, **Compartir**, **Traducir**, Perfil, y **Más opciones** (un solo menú con todo lo demás: Captura, Historial, Descargas, Favoritos, MABRIONA SHIELDS, Extensiones, Configuración, Nueva ventana, Nueva pestaña privada, Zoom). Antes "Más" solo aparecía en ventana angosta — ahora está siempre, a propósito, para no repetir íconos.
 
-## Material — vidrio real, mismo que MABRIONA DJ IA
+## Material — vidrio real, mismo que Matoko DJ
 
-Los botones ya no son emoji sobre una píldora genérica — son íconos SVG propios (trazo fino, sin depender de ninguna fuente de emoji del sistema) sobre el mismo material "vidrio" real que usan los botones de mando de MABRIONA DJ IA (`RAISED_BTN`/`raisedActive` en `DjIaScreen.tsx`): vidrio oscuro con un brillo tenue arriba a la izquierda en reposo, y una barra de acento volt con resplandor real sangrando hacia adentro cuando el botón está "prendido" (favorito activo, o el panel de ese botón está abierto) — los valores de gradiente/sombra se tomaron literalmente del código real de DJ IA, no se inventaron de nuevo.
+Los botones ya no son emoji sobre una píldora genérica — son íconos SVG propios (trazo fino, sin depender de ninguna fuente de emoji del sistema) sobre el mismo material "vidrio" real que usan los botones de mando de Matoko DJ (`RAISED_BTN`/`raisedActive` en `DjIaScreen.tsx`): vidrio oscuro con un brillo tenue arriba a la izquierda en reposo, y una barra de acento volt con resplandor real sangrando hacia adentro cuando el botón está "prendido" (favorito activo, o el panel de ese botón está abierto) — los valores de gradiente/sombra se tomaron literalmente del código real de Matoko DJ, no se inventaron de nuevo.
 
 ## Bug real encontrado y corregido
 

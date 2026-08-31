@@ -218,7 +218,7 @@ function overlayClosed(name) {
 
 const panels = ['history', 'favorites', 'downloads', 'shields', 'settings', 'more', 'profile', 'extensions', 'share', 'translate', 'passwords']
 // Solo estos paneles tienen su propio ícono siempre visible en la barra — se "prenden" (misma
-// idea que los botones de mando de DJ IA) mientras su panel está abierto.
+// idea que los botones de mando de Matoko DJ) mientras su panel está abierto.
 const PANEL_TRIGGER_BTN = { more: 'btn-more', profile: 'btn-profile', share: 'btn-share', translate: 'btn-translate' }
 function closeAllPanels() {
   for (const name of panels) document.getElementById(`panel-${name}`).classList.add('hidden')

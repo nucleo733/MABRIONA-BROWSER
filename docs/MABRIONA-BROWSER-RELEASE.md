@@ -14,7 +14,7 @@ Fecha: 2026-08-25. Primera versión pensada para descarga pública real desde `h
 | macOS Intel (x64) | **REAL** — compilado y verificado end-to-end (launch + búsqueda real) | `electron-builder --mac zip` |
 | Linux x64 (AppImage) | **REAL** — compilado, correcto tamaño/formato | `electron-builder --linux AppImage`, sin herramientas extra desde Mac |
 | Linux (.deb) | **DESCARTADO** — el binario `fpm` que usa electron-builder produjo un archivo corrupto en este entorno (96 bytes, formato `ar` de macOS en vez de un `.deb` real) — mismo problema de incompatibilidad de binarios visto con `gh`/`brew` en esta máquina. Se prefirió no distribuirlo roto antes que fingir que funciona. | — |
-| Windows x64 | **PENDIENTE** — el target NSIS de electron-builder necesita Wine (o una máquina Windows real) para compilar cross-platform; no hay Wine instalable en este entorno (Homebrew también está roto acá: `Bad CPU type in executable`). Mismo criterio ya establecido para MABRIONA DJ IA y MABRIONA CIELO — la landing dice "Próximamente", no un link roto ni un instalador desactualizado. | — |
+| Windows x64 | **PENDIENTE** — el target NSIS de electron-builder necesita Wine (o una máquina Windows real) para compilar cross-platform; no hay Wine instalable en este entorno (Homebrew también está roto acá: `Bad CPU type in executable`). Mismo criterio ya establecido para Matoko DJ y Burbuja — la landing dice "Próximamente", no un link roto ni un instalador desactualizado. | — |
 
 ## 3. Firma de código y notarización
 

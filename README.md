@@ -83,5 +83,5 @@ panel del escudo (🛡️ en la barra de herramientas).
 
 - ✅ Fase 1 (esta): navegador real standalone — pestañas, navegación,
   historial, favoritos, descargas, MABRIONA SHIELDS, tests reales.
-- ⏳ Integración con DJ IA (MABRIONA STUDIO): pendiente, fase aparte,
+- ⏳ Integración con Matoko DJ (MABRIONA STUDIO): pendiente, fase aparte,
   a definir cuando esta base esté aprobada.
