@@ -1,40 +1,47 @@
+/* Tema MABRIONA Browser — cristal de navegador (TEMA-NAVEGADOR.md). Un navegador se usa
+ * ocho horas al día: cristal sobrio, movimiento lento, la página del usuario es la
+ * protagonista — el chrome desaparece. Regla de oro: el filo va en box-shadow interior,
+ * nunca en border (con border + transición de color el valor viejo queda pegado al
+ * cambiar de estado). Luz radial, nunca degradado lineal como fondo de superficie. */
 :root {
-  --bg: #060606;
-  --bg-raised: #131313;
+  --bg: #24262c;
+  --bg-raised: #1c1f26;
   --bg-raised-2: #1a1a1a;
   --border: rgba(255, 255, 255, 0.3);
   --text: #ffffff;
-  --text-dim: rgba(255, 255, 255, 0.78);
-  --volt: #28d0f8;
-  --volt-soft: rgba(40, 208, 248, 0.14);
-  /* Tema MABRIONA — Cristal Líquido v1: vidrio incoloro (blanco translúcido, nunca gris ni
-   * teñido) en niveles — Panel (--glass-bg), Fila (--glass-bg-2), Nota/barra fina (--glass-thin).
-   * El contenido real de una pestaña vive en una capa nativa aparte (BrowserView) que este blur
-   * no puede alcanzar — el vidrio se aplica sobre el resto del propio chrome de MABRIONA. */
-  --glass-bg: rgba(255, 255, 255, 0.085);
-  --glass-bg-2: rgba(255, 255, 255, 0.06);
-  --glass-blur: blur(18px);
-  --glass-border-top: rgba(255, 255, 255, 0.6);
-  /* Vidrio muy claro — la barra de herramientas entera y sus botones lo usan, para que se sientan
-   * parte de UNA sola lámina de cristal (no cajas opacas separadas flotando encima). */
-  --glass-thin: rgba(255, 255, 255, 0.055);
+  --text-dim: rgba(255, 255, 255, 0.6);
+  --volt: #4da6ff;
+  --volt-soft: rgba(77, 166, 255, 0.14);
+  --ease: cubic-bezier(.2,.8,.2,1);
+  /* Vidrio del cromo — relleno casi a cero, desenfoque alto (regla 13.2). --glass-bg = menús y
+   * diálogos, --glass-thin = barra de pestañas/dirección (una sola lámina fina), --glass-border-top
+   * queda solo por compatibilidad de nombre — el filo real va en box-shadow inset, no en border. */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-2: rgba(255, 255, 255, 0.045);
+  --glass-blur: blur(18px) brightness(1.06);
+  --glass-border-top: rgba(255, 255, 255, 0.4);
+  --glass-thin: rgba(255, 255, 255, 0.03);
 }
 
 * { box-sizing: border-box; }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: var(--bg);
   color: var(--text);
   overflow: hidden;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
 #chrome {
   display: flex;
   flex-direction: column;
-  /* Mismo fondo que MABRIONA STUDIO: glow radial bien visible sobre negro, no un negro plano. */
-  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(40, 208, 248, 0.30) 0%, rgba(40, 208, 248, 0.12) 28%, rgba(24, 16, 38, 0.65) 50%, var(--bg) 78%);
+  /* Fondo plano del escritorio del navegador — sin degradados (regla 2 del tema). */
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
 }
 
@@ -61,33 +68,42 @@ body.platform-darwin #brandbar { padding-left: 78px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 0 8px;
-  height: 34px;
+  padding: 8px 12px 0;
+  height: 40px;
   overflow-x: auto;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(12px) brightness(1.05);
+  -webkit-backdrop-filter: blur(12px) brightness(1.05);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.16);
 }
 
+/* Pestaña inactiva — solo contorno, sin fondo (regla del tema: nunca dos "activas" a la vez,
+   por eso el filo vive en box-shadow y no en border). */
 .tab {
   display: flex;
   align-items: center;
   gap: 6px;
   max-width: 200px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: var(--bg-raised);
-  color: var(--text-dim);
-  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 11px 11px 0 0;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.22);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  border: 1px solid transparent;
+  transition: box-shadow 0.3s var(--ease), background 0.3s var(--ease), color 0.3s var(--ease);
 }
 
+/* Pestaña activa — filo de luz arriba, se funde con el contenido de abajo. */
 .tab.active {
-  background: var(--volt-soft);
-  color: var(--text);
-  border-color: rgba(40, 208, 248, 0.4);
-  box-shadow: 0 0 14px rgba(40, 208, 248, 0.18);
+  background: rgba(255, 255, 255, 0.055);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+  color: #fff;
+  font-weight: 600;
 }
 
 .tab .tab-title {
@@ -104,9 +120,9 @@ body.platform-darwin #brandbar { padding-left: 78px; }
 .tab .tab-close:hover, .tab .tab-duplicate:hover { opacity: 1; color: var(--volt); }
 
 /* ---------------- Modo Privado real — sesión en memoria, ver main.js ---------------- */
-.tab.private { border-color: rgba(180, 140, 255, 0.35); }
-.tab.private.active { background: rgba(180, 140, 255, 0.14); border-color: rgba(180, 140, 255, 0.5); box-shadow: 0 0 14px rgba(180, 140, 255, 0.18); }
-.tab-private-mark { font-size: 11px; }
+.tab.private { box-shadow: inset 0 0 0 1px rgba(190, 150, 255, 0.4); }
+.tab.private.active { background: rgba(150, 110, 255, 0.08); box-shadow: inset 0 1px 0 rgba(210, 180, 255, 0.5), inset 0 0 0 1px rgba(190, 150, 255, 0.5); }
+.tab-private-mark { font-size: 10.5px; font-weight: 700; letter-spacing: .14em; color: #c4a6ff; }
 
 /* ---------------- Grupos de pestañas reales ---------------- */
 .tab[style*="--group-color"] { box-shadow: inset 0 -2px 0 0 var(--group-color); }
@@ -125,10 +141,13 @@ body.platform-darwin #brandbar { padding-left: 78px; }
   white-space: nowrap;
   cursor: pointer;
 }
-body.private-mode #chrome {
-  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(180, 140, 255, 0.28) 0%, rgba(180, 140, 255, 0.1) 28%, rgba(16, 12, 24, 0.65) 50%, var(--bg) 78%);
+/* Modo privado — única excepción a la regla de superficies neutras: el cristal se tiñe de
+   violeta, para que sea imposible confundirlo con una ventana normal. */
+body.private-mode #toolbar {
+  background: rgba(150, 110, 255, 0.05);
+  box-shadow: inset 0 0 0 1px rgba(190, 150, 255, 0.4), inset 0 1px 0 rgba(210, 180, 255, 0.45);
 }
-body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-shadow: 0 0 0 1px rgba(180, 140, 255, 0.35), 0 0 20px rgba(180, 140, 255, 0.2); }
+body.private-mode #address:focus { box-shadow: inset 0 0 0 1.5px rgba(190, 150, 255, 0.85), 0 0 16px -2px rgba(190, 150, 255, 0.5); }
 
 #btn-new-tab {
   background: none;
@@ -141,41 +160,37 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 }
 #btn-new-tab:hover { color: var(--volt); background: var(--volt-soft); }
 
-/* La barra entera es UNA sola lámina de vidrio real (blur + tinte muy claro) — los botones y la
- * barra de direcciones adentro son parte de ese mismo cristal, no cajas opacas separadas. */
+/* La barra entera es UNA sola lámina de vidrio real — los botones y la barra de direcciones
+ * adentro son parte de ese mismo cristal, no cajas opacas separadas. */
 #toolbar {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
   height: 50px;
-  background: var(--glass-thin);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border-top: 1px solid var(--glass-border-top);
-  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(14px) brightness(1.05);
+  -webkit-backdrop-filter: blur(14px) brightness(1.05);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.16);
 }
 
-/* Vidrio puro — a pedido explícito, sin relieve/metal ni gradientes: mismo material que los
- * paneles (--glass-bg-2/--glass-blur), esquinas cuadradas (no la píldora del resto de la barra).
- * "Prendido" (.active) mientras su panel está abierto, con acento volt, pero sigue siendo vidrio —
- * nunca un relleno plano/opaco. Nunca emoji — solo íconos SVG propios, trazo fino. */
+/* Círculos de solo contorno — el filo vive en box-shadow inset, nunca en border (si no, el
+ * color viejo queda pegado al cambiar de estado con una transición). "Activo" (su panel está
+ * abierto) enciende con el acento; nunca relleno plano/opaco. Solo íconos SVG, trazo fino. */
 .nav-btn {
-  width: 34px;
-  height: 34px;
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-top-color: var(--glass-border-top);
-  background: var(--glass-thin);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
   color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-  transition: border-color 0.15s ease, background 0.15s ease, color 0.15s ease;
+  transition: box-shadow 0.3s var(--ease), background 0.3s var(--ease), color 0.3s var(--ease);
 }
 .nav-btn svg {
   width: 17px;
@@ -186,11 +201,11 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.nav-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.22); }
-.nav-btn:disabled { opacity: 0.35; cursor: default; color: rgba(255, 255, 255, 0.4); }
+.nav-btn:hover { color: #fff; }
+.nav-btn:disabled { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); cursor: default; color: rgba(255, 255, 255, 0.3); }
 .nav-btn.active {
-  border-color: var(--volt);
-  background: linear-gradient(180deg, rgba(40, 208, 248, 0.16), rgba(40, 208, 248, 0.04)), var(--glass-thin);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--volt) 85%, transparent), 0 0 16px -2px color-mix(in srgb, var(--volt) 55%, transparent);
+  background: rgba(255, 255, 255, 0.055);
   color: #fff;
 }
 #btn-fav.active svg { fill: var(--volt); stroke: var(--volt); }
@@ -225,39 +240,42 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 
 #address {
   flex: 1;
-  height: 32px;
+  height: 40px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  border-top-color: var(--glass-border-top);
-  background: var(--glass-thin);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  border: none;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(14px) brightness(1.05);
+  -webkit-backdrop-filter: blur(14px) brightness(1.05);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.5);
   color: var(--text);
   padding: 0 16px;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: box-shadow 0.35s var(--ease);
 }
 #address:focus {
   outline: none;
-  border-color: var(--volt);
-  box-shadow: 0 0 0 1px rgba(40, 208, 248, 0.3), 0 0 20px rgba(40, 208, 248, 0.2);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--volt) 85%, transparent), 0 0 16px -2px color-mix(in srgb, var(--volt) 55%, transparent);
 }
 
+/* Panel lateral flotante — mismo cristal que las tarjetas del tema, filo en box-shadow
+   inset (nunca border) y sombra propia debajo (regla 6 del tema: filo arriba, sombra abajo).
+   Entra desde el lado, el contenido de la web nunca se desplaza. */
 .panel {
   position: absolute;
   top: 124px;
   right: 12px;
   width: 340px;
   max-height: 60vh;
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border);
-  border-top-color: var(--glass-border-top);
-  border-radius: 14px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  background: rgba(255, 255, 255, 0.022);
+  backdrop-filter: blur(7px) brightness(1.06);
+  -webkit-backdrop-filter: blur(7px) brightness(1.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 20px 46px -20px rgba(0, 0, 0, 0.8);
+  border-radius: 20px;
   z-index: 50;
   display: flex;
   flex-direction: column;
+  transition: transform 0.42s var(--ease), opacity 0.42s var(--ease);
 }
 .panel.hidden { display: none; }
 
@@ -266,7 +284,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.14);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -774,14 +792,12 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   max-width: 260px;
   max-height: 70vh;
   overflow-y: auto;
-  background: var(--glass-bg-2);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
-  border: 1px solid var(--border);
-  border-top-color: var(--glass-border-top);
-  border-radius: 10px;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-  padding: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px) brightness(1.06);
+  -webkit-backdrop-filter: blur(18px) brightness(1.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 20px 46px -20px rgba(0, 0, 0, 0.8);
+  border-radius: 16px;
+  padding: 8px;
 }
 #context-menu.hidden { display: none; }
 #context-menu button {
@@ -791,16 +807,19 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   background: none;
   border: none;
   color: var(--text);
-  padding: 8px 10px;
-  border-radius: 6px;
-  font-size: 12.5px;
+  padding: 10px 12px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: background 0.2s var(--ease);
 }
-#context-menu button:hover { background: var(--volt-soft); }
-#context-menu button.danger:hover { background: rgba(255, 90, 90, 0.15); color: #ff8080; }
+#context-menu button:hover { background: rgba(255, 255, 255, 0.1); }
+#context-menu button.danger { color: #ff8fae; }
+#context-menu button.danger:hover { background: rgba(255, 143, 174, 0.12); }
 #context-menu button:disabled { opacity: 0.4; cursor: default; }
 #context-menu button:disabled:hover { background: none; }
 #context-menu hr { border: none; border-top: 1px solid var(--border); margin: 4px 2px; }
@@ -1003,3 +1022,17 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 .text-prompt-actions { display: flex; gap: 10px; margin-top: 14px; }
 .text-prompt-actions .settings-btn { flex: 1; text-align: center; }
 .text-prompt-actions .onboarding-primary { flex: 1; padding: 9px; }
+
+/* ---------------- Accesibilidad — TEMA-NAVEGADOR.md sección 15 ---------------- */
+@media (prefers-reduced-transparency: reduce) {
+  #chrome, #toolbar, #tabstrip, .panel, #context-menu, #panel-more {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: #1c1f26 !important;
+  }
+}
+/* Foco de teclado siempre visible — en un navegador esto no es opcional. */
+:focus-visible {
+  outline: 2px solid var(--volt);
+  outline-offset: 2px;
+}

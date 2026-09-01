@@ -1,7 +1,7 @@
 {
   "name": "mabriona-browser",
   "productName": "MABRIONA Browser",
-  "version": "1.7.5",
+  "version": "1.7.6",
   "description": "El navegador web propio de MABRIONA Corporation — motor Chromium real (Electron), pestañas, perfiles, extensiones de Chrome, importación de datos de otros navegadores, historial, favoritos, descargas, privacidad, MABRIONA SHIELDS y MABRIONA Search.",
   "main": "main.js",
   "author": "MABRIONA Corporation <soporte@mabriona.com>",
