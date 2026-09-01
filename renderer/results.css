@@ -36,9 +36,12 @@ header {
   padding: 18px 32px;
   border-bottom: 1px solid var(--border-soft);
 }
-.logo { font-size: 14px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap; }
-.mabriona { color: var(--text); }
-.browser { color: var(--volt); font-weight: 700; }
+.logo {
+  font-size: 14px; font-weight: 800; letter-spacing: 0.02em; white-space: nowrap;
+  background: linear-gradient(96deg, #ffffff 4%, #28d0f8 46%, #a850f8 96%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.browser { font-weight: 700; }
 
 #search-form { flex: 1; max-width: 620px; }
 #q {

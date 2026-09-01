@@ -37,7 +37,7 @@ body {
   display: flex;
   flex-direction: column;
   /* Mismo fondo que MABRIONA STUDIO: glow radial bien visible sobre negro, no un negro plano. */
-  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(40, 208, 248, 0.30) 0%, rgba(40, 208, 248, 0.12) 28%, rgba(20, 24, 6, 0.65) 50%, var(--bg) 78%);
+  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(40, 208, 248, 0.30) 0%, rgba(40, 208, 248, 0.12) 28%, rgba(24, 16, 38, 0.65) 50%, var(--bg) 78%);
   border-bottom: 1px solid var(--border);
 }
 
@@ -52,9 +52,13 @@ body {
 /* Espacio real para los botones de semáforo nativos de macOS (titleBarStyle: 'hidden', ver
  * main.js) — sin esto el logo quedaría tapado por ellos. */
 body.platform-darwin #brandbar { padding-left: 78px; }
-#logo { font-size: 13px; letter-spacing: 0.02em; -webkit-app-region: no-drag; }
-#logo-mabriona { font-weight: 800; color: var(--text); }
-#logo-browser { font-weight: 700; color: var(--volt); }
+#logo {
+  font-size: 13px; letter-spacing: 0.02em; -webkit-app-region: no-drag;
+  background: linear-gradient(96deg, #ffffff 4%, #28d0f8 46%, #a850f8 96%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#logo-mabriona { font-weight: 800; }
+#logo-browser { font-weight: 700; }
 
 #tabstrip {
   display: flex;
@@ -622,9 +626,12 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   padding: 32px 28px;
   text-align: center;
 }
-.onboarding-step .logo { font-size: 15px; font-weight: 800; letter-spacing: 0.02em; }
-#ob-logo-mabriona { color: var(--text); }
-#ob-logo-browser { color: var(--volt); font-weight: 700; }
+.onboarding-step .logo {
+  font-size: 15px; font-weight: 800; letter-spacing: 0.02em;
+  background: linear-gradient(96deg, #ffffff 4%, #28d0f8 46%, #a850f8 96%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+#ob-logo-browser { font-weight: 700; }
 .onboarding-step h1 { font-size: 21px; margin: 16px 0 8px; }
 .onboarding-lead { color: var(--text-dim); font-size: 13px; line-height: 1.6; margin: 0 0 20px; }
 .onboarding-sources { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
