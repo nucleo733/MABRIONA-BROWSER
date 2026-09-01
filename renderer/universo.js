@@ -22,14 +22,8 @@
   }
   const YEAR = { llaves: 0.241, aterrizajes: 0.615, vuelo: 1, estela: 1.881, constelacion: 11.86, gravedad: 29.46, eclipse: 84.01, tripulacion: 164.8 }
   const DAY = { llaves: 58.6, aterrizajes: -243, vuelo: 1, estela: 1.03, constelacion: 0.41, gravedad: 0.45, eclipse: -0.72, tripulacion: 0.67 }
-  const MOONS = {
-    vuelo: [{ s: 0.27, d: 1.05, v: 1, c: '#9aa1ad' }],
-    estela: [{ s: 0.09, d: 0.95, v: 2.4, c: '#8d8378' }, { s: 0.07, d: 1.35, v: 1.5, c: '#7f766c' }],
-    constelacion: [{ s: 0.11, d: 0.85, v: 3.2, c: '#d8c9a0' }, { s: 0.1, d: 1.05, v: 2.1, c: '#b9ada0' }, { s: 0.14, d: 1.3, v: 1.4, c: '#9aa2a8' }, { s: 0.13, d: 1.55, v: 0.9, c: '#7c7469' }],
-    gravedad: [{ s: 0.13, d: 1.2, v: 1.1, c: '#c9a86a' }],
-    tripulacion: [{ s: 0.12, d: 1.15, v: -1.2, c: '#d9dde6' }],
-    eclipse: [{ s: 0.08, d: 1.2, v: 1.6, c: '#a9c4c8' }],
-  }
+  // Sin lunas orbitando los planetas — a pedido explícito, solo quedan los planetas (2026-09-01).
+  const MOONS = {}
   const EARTH_YEAR_MS = 90000, EARTH_DAY_MS = 7000
   const PAGE_HUES = ['#00f8f8', '#28d0f8', '#2880f8', '#6a6cf5', '#a850f8', '#c46cff']
   const EXT_HUE = '#a850f8'

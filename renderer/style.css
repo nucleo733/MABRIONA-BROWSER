@@ -5,8 +5,8 @@
   --border: rgba(255, 255, 255, 0.08);
   --text: #f2f2f2;
   --text-dim: rgba(242, 242, 242, 0.55);
-  --volt: #d4ff00;
-  --volt-soft: rgba(212, 255, 0, 0.14);
+  --volt: #28d0f8;
+  --volt-soft: rgba(40, 208, 248, 0.14);
   /* Vidrio real de MABRIONA — todo panel/menú/overlay propio lo usa, para que la identidad sea
    * consistente en toda la app (nunca un fondo plano/opaco genérico). El contenido real de una
    * pestaña vive en una capa nativa aparte (BrowserView) que este blur no puede alcanzar — el
@@ -37,7 +37,7 @@ body {
   display: flex;
   flex-direction: column;
   /* Mismo fondo que MABRIONA STUDIO: glow radial bien visible sobre negro, no un negro plano. */
-  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(212, 255, 0, 0.30) 0%, rgba(212, 255, 0, 0.12) 28%, rgba(20, 24, 6, 0.65) 50%, var(--bg) 78%);
+  background: radial-gradient(ellipse 140% 220% at 20% -60%, rgba(40, 208, 248, 0.30) 0%, rgba(40, 208, 248, 0.12) 28%, rgba(20, 24, 6, 0.65) 50%, var(--bg) 78%);
   border-bottom: 1px solid var(--border);
 }
 
@@ -85,8 +85,8 @@ body.platform-darwin #brandbar { padding-left: 78px; }
 .tab.active {
   background: var(--volt-soft);
   color: var(--text);
-  border-color: rgba(212, 255, 0, 0.4);
-  box-shadow: 0 0 14px rgba(212, 255, 0, 0.18);
+  border-color: rgba(40, 208, 248, 0.4);
+  box-shadow: 0 0 14px rgba(40, 208, 248, 0.18);
 }
 
 .tab .tab-title {
@@ -189,7 +189,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 .nav-btn:disabled { opacity: 0.35; cursor: default; color: rgba(255, 255, 255, 0.4); }
 .nav-btn.active {
   border-color: var(--volt);
-  background: linear-gradient(180deg, rgba(212, 255, 0, 0.16), rgba(212, 255, 0, 0.04)), var(--glass-thin);
+  background: linear-gradient(180deg, rgba(40, 208, 248, 0.16), rgba(40, 208, 248, 0.04)), var(--glass-thin);
   color: #fff;
 }
 #btn-fav.active svg { fill: var(--volt); stroke: var(--volt); }
@@ -238,7 +238,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 #address:focus {
   outline: none;
   border-color: var(--volt);
-  box-shadow: 0 0 0 1px rgba(212, 255, 0, 0.3), 0 0 20px rgba(212, 255, 0, 0.2);
+  box-shadow: 0 0 0 1px rgba(40, 208, 248, 0.3), 0 0 20px rgba(40, 208, 248, 0.2);
 }
 
 .panel {
@@ -439,7 +439,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   padding: 2px 6px;
   border-radius: 999px;
 }
-.panel-list .item-delete:hover { color: var(--volt); background: rgba(212, 255, 0, 0.12); }
+.panel-list .item-delete:hover { color: var(--volt); background: rgba(40, 208, 248, 0.12); }
 
 /* ---------------- Extensiones ---------------- */
 #extensions-list li { padding-right: 82px; }
@@ -464,7 +464,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
 }
 .ext-pin:hover { color: var(--text); background: rgba(255, 255, 255, 0.08); }
 .ext-pin.pinned { color: var(--volt); }
-.ext-pin.pinned:hover { background: rgba(212, 255, 0, 0.12); }
+.ext-pin.pinned:hover { background: rgba(40, 208, 248, 0.12); }
 #ext-scan-results { max-height: 160px; margin-top: 8px; border: 1px solid var(--border); border-radius: 8px; }
 
 /* ---------------- Contraseñas ---------------- */
@@ -483,7 +483,7 @@ body.private-mode #address:focus { border-color: rgba(180, 140, 255, 0.7); box-s
   font-weight: 700;
   border-radius: 999px;
 }
-.pw-reveal:hover { color: var(--volt); background: rgba(212, 255, 0, 0.12); }
+.pw-reveal:hover { color: var(--volt); background: rgba(40, 208, 248, 0.12); }
 
 #findbar {
   position: absolute;
