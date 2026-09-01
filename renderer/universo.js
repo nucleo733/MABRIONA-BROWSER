@@ -81,7 +81,7 @@
   const bodiesEl = el('div', 'position:absolute;inset:0', stage)
   const moonEl = el('div', 'position:absolute;cursor:pointer;z-index:25;border-radius:50%', stage)
   const moonFace = el('div', 'position:absolute;inset:0;border-radius:50%;background:radial-gradient(circle at 42% 38%,#ffffff 0%,#f3f7ff 42%,#dce6ff 74%,#b9c9f2 100%);box-shadow:0 0 26px rgba(235,242,255,.85),0 0 70px rgba(190,215,255,.5),0 0 130px rgba(150,190,255,.28)', moonEl)
-  const moonLabel = el('div', 'position:absolute;left:50%;top:calc(100% + 9px);transform:translateX(-50%);font-size:9px;letter-spacing:.2em;color:#c9d3ea;white-space:nowrap', moonEl)
+  const moonLabel = el('div', 'position:absolute;left:50%;top:calc(100% + 9px);transform:translateX(-50%);font-size:9px;letter-spacing:.2em;color:rgba(255,255,255,.55);white-space:nowrap', moonEl)
   moonLabel.textContent = 'LUNA'
 
   // Encabezado — decorativo y sin interacción mientras el Universo está a la vista (solo el
@@ -93,11 +93,11 @@
   headerWord.textContent = 'MABRIOON'
   const headerAddressWrap = el('div', 'display:none;flex:1;align-items:center;gap:14px;padding:14px 24px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(140,190,255,.22)', headerEl)
   const headerAddress = document.createElement('input')
-  headerAddress.style.cssText = "flex:1;background:transparent;border:none;outline:none;color:#eaf0ff;font-family:'JetBrains Mono',monospace;font-size:14px"
+  headerAddress.style.cssText = "flex:1;background:transparent;border:none;outline:none;color:#ffffff;font-family:'JetBrains Mono',monospace;font-size:14px"
   headerAddressWrap.appendChild(headerAddress)
-  const headerMoreBtn = el('button', 'display:none;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(140,190,255,.3);color:#eaf0ff;font-size:14px;cursor:pointer;flex:0 0 auto;pointer-events:auto', headerEl)
+  const headerMoreBtn = el('button', 'display:none;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(140,190,255,.3);color:#ffffff;font-size:14px;cursor:pointer;flex:0 0 auto;pointer-events:auto', headerEl)
   headerMoreBtn.textContent = '···'
-  const headerBackBtn = el('div', 'display:none;flex:0 0 auto;padding:11px 20px;border-radius:999px;border:1px solid rgba(140,200,255,.35);font-size:9px;letter-spacing:.22em;color:#cfe0ff;cursor:pointer;white-space:nowrap;pointer-events:auto', headerEl)
+  const headerBackBtn = el('div', 'display:none;flex:0 0 auto;padding:11px 20px;border-radius:999px;border:1px solid rgba(140,200,255,.35);font-size:9px;letter-spacing:.22em;color:#ffffff;cursor:pointer;white-space:nowrap;pointer-events:auto', headerEl)
   headerBackBtn.textContent = 'VOLVER AL SISTEMA'
 
   const morePopover = el('div', 'position:absolute;right:30px;top:96px;width:260px;display:none;flex-direction:column;gap:6px;padding:14px;border-radius:18px;z-index:70', stage)
@@ -112,43 +112,43 @@
   searchArrow.textContent = '›'
   const searchInput = document.createElement('input')
   searchInput.placeholder = 'dime a dónde volar'
-  searchInput.style.cssText = "flex:1;background:transparent;border:none;outline:none;color:#eaf0ff;font-family:'JetBrains Mono',monospace;font-size:15px"
+  searchInput.style.cssText = "flex:1;background:transparent;border:none;outline:none;color:#ffffff;font-family:'JetBrains Mono',monospace;font-size:15px"
   searchBox.appendChild(searchInput)
-  const searchEsc = el('div', 'font-size:9px;letter-spacing:.24em;color:#5a648a;cursor:pointer', searchBox)
+  const searchEsc = el('div', 'font-size:9px;letter-spacing:.24em;color:rgba(255,255,255,.4);cursor:pointer', searchBox)
   searchEsc.textContent = 'ESC'
 
   const landedEl = el('div', 'position:absolute;left:clamp(24px,6vw,88px);top:50%;transform:translateY(-50%);display:none;flex-direction:column;gap:14px;max-width:min(560px,72vw);max-height:82vh;overflow:auto;z-index:50', stage)
-  const landedKicker = el('div', 'font-size:9px;letter-spacing:.36em;color:#8b96bd', landedEl)
+  const landedKicker = el('div', 'font-size:9px;letter-spacing:.36em;color:rgba(255,255,255,.55)', landedEl)
   const landedTitle = el('div', "font-family:'Archivo Black',sans-serif;font-size:clamp(34px,5vw,62px);line-height:1;letter-spacing:-.02em;background:linear-gradient(100deg,#ffffff,#28d0f8 50%,#a850f8);-webkit-background-clip:text;background-clip:text;color:transparent", landedEl)
-  const landedDesc = el('div', 'font-size:13px;line-height:1.7;color:#97a2c8;max-width:520px', landedEl)
+  const landedDesc = el('div', 'font-size:13px;line-height:1.7;color:rgba(255,255,255,.78);max-width:520px', landedEl)
   const landedRows = el('div', 'display:flex;flex-direction:column;gap:9px;width:min(520px,80vw);max-height:40vh;overflow:auto', landedEl)
   const landedExtra = el('div', 'display:flex;flex-direction:column;gap:9px;width:min(520px,80vw)', landedEl)
   const landedActions = el('div', 'display:flex;gap:10px;flex-wrap:wrap', landedEl)
 
   const allEl = el('div', 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;z-index:66;background:rgba(3,4,10,.6)', stage)
   const allBox = el('div', 'width:min(880px,88vw);max-height:78vh;overflow:auto;padding:34px;border-radius:26px;background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(140,190,255,.26);box-shadow:0 40px 120px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.3);backdrop-filter:blur(24px);display:flex;flex-direction:column;gap:24px', allEl)
-  const allHeaderKicker = el('div', 'font-size:9px;letter-spacing:.34em;color:#8b96bd', allBox)
+  const allHeaderKicker = el('div', 'font-size:9px;letter-spacing:.34em;color:rgba(255,255,255,.55)', allBox)
   allHeaderKicker.textContent = 'EL SISTEMA COMPLETO'
-  const allHeaderTitle = el('div', "font-family:'Syncopate',sans-serif;font-weight:700;font-size:20px;letter-spacing:.1em;color:#eaf0ff", allBox)
+  const allHeaderTitle = el('div', "font-family:'Syncopate',sans-serif;font-weight:700;font-size:20px;letter-spacing:.1em;color:#ffffff", allBox)
   allHeaderTitle.textContent = 'TODOS LOS MUNDOS'
   const allGrid = el('div', 'display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:18px', allBox)
 
   const permBanner = el('div', 'position:absolute;left:50%;top:100px;transform:translateX(-50%);display:none;align-items:center;gap:14px;padding:12px 20px;border-radius:16px;z-index:90', stage)
   permBanner.className = 'u-glass'
-  const permText = el('div', 'font-size:11px;color:#dbe3ff;max-width:46vw', permBanner)
+  const permText = el('div', 'font-size:11px;color:rgba(255,255,255,.78);max-width:46vw', permBanner)
   const permAllow = el('button', 'u-pill', permBanner); permAllow.className = 'u-pill'; permAllow.textContent = 'PERMITIR'
   const permDeny = el('button', null, permBanner); permDeny.className = 'u-pill u-pill-danger'; permDeny.textContent = 'BLOQUEAR'
 
   const pwBanner = el('div', 'position:absolute;left:50%;top:100px;transform:translateX(-50%);display:none;align-items:center;gap:14px;padding:12px 20px;border-radius:16px;z-index:90', stage)
   pwBanner.className = 'u-glass'
-  const pwText = el('div', 'font-size:11px;color:#dbe3ff', pwBanner)
+  const pwText = el('div', 'font-size:11px;color:rgba(255,255,255,.78)', pwBanner)
   const pwYes = el('button', null, pwBanner); pwYes.className = 'u-pill'; pwYes.textContent = 'GUARDAR'
   const pwNo = el('button', null, pwBanner); pwNo.className = 'u-pill u-pill-danger'; pwNo.textContent = 'NO, GRACIAS'
 
   const promptEl = el('div', 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:95;background:rgba(3,4,10,.6)', stage)
   const promptBox = el('div', 'width:min(420px,86vw);display:flex;flex-direction:column;gap:14px;padding:24px;border-radius:20px', promptEl)
   promptBox.className = 'u-glass'
-  const promptLabel = el('div', 'font-size:12px;color:#cfe0ff', promptBox)
+  const promptLabel = el('div', 'font-size:12px;color:#ffffff', promptBox)
   const promptInput = document.createElement('input')
   promptInput.className = 'u-field'
   promptBox.appendChild(promptInput)
@@ -163,7 +163,7 @@
   findInput.style.width = '180px'
   findInput.placeholder = 'buscar en la página'
   findEl.appendChild(findInput)
-  const findCount = el('div', 'font-size:10px;color:#8b96bd;white-space:nowrap', findEl)
+  const findCount = el('div', 'font-size:10px;color:rgba(255,255,255,.55);white-space:nowrap', findEl)
   const findPrev = el('button', null, findEl); findPrev.textContent = '↑'
   const findNext = el('button', null, findEl); findNext.textContent = '↓'
   const findClose = el('button', null, findEl); findClose.textContent = '✕'
@@ -525,7 +525,7 @@
     box.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 10px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(140,180,255,.14);cursor:pointer'
     const disc = document.createElement('div')
     disc.style.cssText = `width:58px;height:58px;border-radius:50%;background:radial-gradient(120% 120% at 32% 26%,rgba(255,255,255,.22),rgba(255,255,255,.03) 52%,rgba(6,9,22,.9));border:1px solid ${hue};box-shadow:0 0 22px ${hue}66`
-    const label = document.createElement('div'); label.style.cssText = 'font-size:10px;letter-spacing:.14em;color:#eaf0ff;text-align:center'; label.textContent = name
+    const label = document.createElement('div'); label.style.cssText = 'font-size:10px;letter-spacing:.14em;color:#ffffff;text-align:center'; label.textContent = name
     const kindEl = document.createElement('div'); kindEl.style.cssText = 'font-size:9px;letter-spacing:.16em;color:#7b86ab'; kindEl.textContent = kind
     box.append(disc, label, kindEl)
     if (onDelete) {
@@ -547,7 +547,7 @@
     plus.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px 10px;border-radius:18px;border:1px dashed rgba(140,200,255,.4);cursor:pointer'
     plus.innerHTML = ''
     const plusDisc = document.createElement('div'); plusDisc.style.cssText = 'width:54px;height:54px;border-radius:50%;border:1px solid rgba(140,200,255,.5);display:flex;align-items:center;justify-content:center;font-size:22px;color:#eaf4ff'; plusDisc.textContent = '+'
-    const plusLabel = document.createElement('div'); plusLabel.style.cssText = 'font-size:10px;letter-spacing:.14em;color:#cfe0ff'; plusLabel.textContent = 'NUEVO'
+    const plusLabel = document.createElement('div'); plusLabel.style.cssText = 'font-size:10px;letter-spacing:.14em;color:#ffffff'; plusLabel.textContent = 'NUEVO'
     plus.append(plusDisc, plusLabel)
     plus.addEventListener('click', () => { closeAll(); openSearch() })
     allGrid.appendChild(plus)

@@ -2,25 +2,22 @@
   --bg: #060606;
   --bg-raised: #131313;
   --bg-raised-2: #1a1a1a;
-  --border: rgba(255, 255, 255, 0.08);
-  --text: #f2f2f2;
-  --text-dim: rgba(242, 242, 242, 0.55);
+  --border: rgba(255, 255, 255, 0.3);
+  --text: #ffffff;
+  --text-dim: rgba(255, 255, 255, 0.78);
   --volt: #28d0f8;
   --volt-soft: rgba(40, 208, 248, 0.14);
-  /* Vidrio real de MABRIONA — todo panel/menú/overlay propio lo usa, para que la identidad sea
-   * consistente en toda la app (nunca un fondo plano/opaco genérico). El contenido real de una
-   * pestaña vive en una capa nativa aparte (BrowserView) que este blur no puede alcanzar — el
-   * vidrio se aplica sobre el resto del propio chrome de MABRIONA, no finge ver la página a través.
-   * Más transparente que la primera versión — a pedido explícito ("cristal real", "todo dentro de
-   * un cristal"): se ve más el fondo real detrás, con más blur/saturación para que lea como vidrio
-   * de verdad y no como un panel oscuro casi opaco. */
-  --glass-bg: rgba(20, 20, 20, 0.38);
-  --glass-bg-2: rgba(24, 24, 24, 0.3);
-  --glass-blur: blur(30px) saturate(200%);
-  --glass-border-top: rgba(255, 255, 255, 0.22);
+  /* Tema MABRIONA — Cristal Líquido v1: vidrio incoloro (blanco translúcido, nunca gris ni
+   * teñido) en niveles — Panel (--glass-bg), Fila (--glass-bg-2), Nota/barra fina (--glass-thin).
+   * El contenido real de una pestaña vive en una capa nativa aparte (BrowserView) que este blur
+   * no puede alcanzar — el vidrio se aplica sobre el resto del propio chrome de MABRIONA. */
+  --glass-bg: rgba(255, 255, 255, 0.085);
+  --glass-bg-2: rgba(255, 255, 255, 0.06);
+  --glass-blur: blur(18px);
+  --glass-border-top: rgba(255, 255, 255, 0.6);
   /* Vidrio muy claro — la barra de herramientas entera y sus botones lo usan, para que se sientan
    * parte de UNA sola lámina de cristal (no cajas opacas separadas flotando encima). */
-  --glass-thin: rgba(255, 255, 255, 0.045);
+  --glass-thin: rgba(255, 255, 255, 0.055);
 }
 
 * { box-sizing: border-box; }

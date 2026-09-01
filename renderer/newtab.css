@@ -1,11 +1,16 @@
 * { box-sizing: border-box; }
 
+/* Tema MABRIONA — Cristal Líquido v1. Ambiente gris-azulado neutro (el vidrio no tiene
+   color propio); el cian/violeta de El Universo sigue siendo la luz de este navegador. */
 html, body {
   margin: 0;
   height: 100%;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: radial-gradient(ellipse 90% 70% at 50% 30%, rgba(40, 208, 248, 0.16) 0%, rgba(24, 16, 38, 0.55) 38%, #060606 70%);
-  color: #f2f2f2;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif;
+  background:
+    radial-gradient(48% 40% at 18% 0%, #222c38 0%, transparent 58%),
+    radial-gradient(34% 30% at 86% 8%, #1a222c 0%, transparent 54%),
+    linear-gradient(172deg, #11161c 0%, #0a0e13 54%, #06080b 100%);
+  color: #ffffff;
 }
 
 main {
@@ -19,13 +24,15 @@ main {
 
 h1 {
   margin: 0;
-  font-size: 40px;
-  font-weight: 800;
-  letter-spacing: 0.01em;
+  font-family: 'Syncopate', sans-serif;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
   background: linear-gradient(96deg, #ffffff 4%, #28d0f8 46%, #a850f8 96%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 16px rgba(255,255,255,.25));
 }
-.browser { font-weight: 700; }
+.browser { font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, sans-serif; font-weight: 600; letter-spacing: .1em; }
 
 form { width: min(560px, 82vw); }
 
@@ -33,17 +40,18 @@ input {
   width: 100%;
   height: 52px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: #131313;
-  color: #f2f2f2;
+  background: linear-gradient(178deg, rgba(255,255,255,.14) 0%, rgba(255,255,255,.05) 50%, rgba(255,255,255,.09) 100%);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.34), inset 0 2px 1px rgba(255,255,255,.66), 0 14px 30px -16px rgba(0,0,0,.8);
+  color: #ffffff;
   padding: 0 22px;
   font-size: 15px;
   outline: none;
+  transition: box-shadow .3s ease;
 }
-input::placeholder { color: rgba(242, 242, 242, 0.4); }
+input::placeholder { color: rgba(255,255,255,.4); }
 input:focus {
-  border-color: #28d0f8;
-  box-shadow: 0 0 0 1px rgba(40, 208, 248, 0.35), 0 0 28px rgba(40, 208, 248, 0.25);
+  box-shadow: 0 0 0 1.2px rgba(40, 208, 248, .9), inset 0 2px 1px rgba(255,255,255,.66), 0 0 30px rgba(40,208,248,.4);
 }
 
 /* Accesos directos reales (sitios más visitados) — vacío = sin grid, ver newtab.js. */
@@ -62,16 +70,17 @@ input:focus {
   text-decoration: none;
   color: inherit;
   padding: 8px;
-  border-radius: 12px;
+  border-radius: 14px;
   transition: background 0.15s ease;
 }
 .top-site:hover { background: rgba(255, 255, 255, 0.06); }
 .top-site-icon {
   width: 44px;
   height: 44px;
-  border-radius: 10px;
-  background: rgba(40, 208, 248, 0.12);
-  border: 1px solid rgba(40, 208, 248, 0.25);
+  border-radius: 12px;
+  background: linear-gradient(178deg,rgba(255,255,255,.13) 0%,rgba(255,255,255,.045) 48%,rgba(255,255,255,.08) 100%);
+  box-shadow: 0 0 0 1px rgba(255,255,255,.3), inset 0 2px 1px rgba(255,255,255,.6);
+  backdrop-filter: blur(14px);
   color: #28d0f8;
   display: flex;
   align-items: center;
@@ -81,7 +90,7 @@ input:focus {
 }
 .top-site-label {
   font-size: 11.5px;
-  color: rgba(242, 242, 242, 0.7);
+  color: rgba(255,255,255,.7);
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
