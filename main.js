@@ -119,7 +119,12 @@ function openAppModeWindow({ url, name }) {
   appModeWindows.set(url, win)
 }
 
-const TOOLBAR_HEIGHT = 118
+// El Universo ya no tiene barra de pestañas fija ni ventanas — cuando una página real está
+// "aterrizada" (a pantalla completa), solo queda este encabezado contextual arriba: logo + un
+// campo de dirección real + "VOLVER AL SISTEMA" (ver renderer/universo.js). Cuando el Universo
+// mismo está visible (sin página aterrizada) no hay ningún BrowserView activo, así que esta altura
+// ni siquiera se usa (ver `layoutActiveView`).
+const UNIVERSO_HUD_HEIGHT = 86
 const PRIVATE_PARTITION = 'mabriona-private' // sin "persist:" → en memoria, Electron la descarta al cerrar la app
 // Proxy real server-side compartido (Search y Traducir) — ver Fase 21 y Fase 1.4.3: ninguna key
 // real de MABRIONA viaja empaquetada dentro del `.app`/`.exe` distribuido, vive solo acá.
@@ -259,7 +264,7 @@ function layoutActiveView(windowId) {
   const [w, h] = state.window.getContentSize()
   const reserve = state.viewReserve
   const reservedPx = reserve === 'full' ? w : (typeof reserve === 'number' ? reserve : 0)
-  active.view.setBounds({ x: 0, y: TOOLBAR_HEIGHT, width: Math.max(0, w - reservedPx), height: Math.max(0, h - TOOLBAR_HEIGHT) })
+  active.view.setBounds({ x: 0, y: UNIVERSO_HUD_HEIGHT, width: Math.max(0, w - reservedPx), height: Math.max(0, h - UNIVERSO_HUD_HEIGHT) })
 }
 
 function activeTabForWindow(windowId) {
@@ -453,6 +458,19 @@ function createAndSwitchTab(url, windowId, options = {}) {
   return tab.id
 }
 
+// Últimas pestañas reales cerradas por ventana (en memoria, no en disco — igual que los grupos)
+// para la fila "cerradas hace poco" del Universo. Nunca guarda pestañas privadas, mismo criterio
+// que la recuperación de sesión real.
+const MAX_RECENTLY_CLOSED = 5
+const recentlyClosedByWindow = new Map()
+function noteRecentlyClosed(windowId, tab) {
+  if (tab.isPrivate || !tab.url || tab.url === HOME_URL || tab.url === 'about:blank') return
+  if (!recentlyClosedByWindow.has(windowId)) recentlyClosedByWindow.set(windowId, [])
+  const list = recentlyClosedByWindow.get(windowId)
+  list.unshift({ title: tab.title || tab.url, url: tab.url, closedAt: Date.now() })
+  if (list.length > MAX_RECENTLY_CLOSED) list.length = MAX_RECENTLY_CLOSED
+}
+
 function closeTab(id) {
   const tab = tabs.get(id)
   if (!tab) return
@@ -463,6 +481,7 @@ function closeTab(id) {
   if (state) state.window.removeBrowserView(tab.view)
   if (!tab.view.webContents.isDestroyed()) tab.view.webContents.close()
   tabs.delete(id)
+  noteRecentlyClosed(windowId, tab)
   saveSessionSoon(windowId)
   // Un grupo sin ninguna pestaña real adentro no queda como fantasma en la barra.
   if (oldGroupId) removeGroupIfEmpty(windowId, oldGroupId)
@@ -473,12 +492,11 @@ function closeTab(id) {
       switchToTab(remaining[remaining.length - 1].id)
       return
     }
+    // Ninguna pestaña real queda abierta: la ventana secundaria se cierra sola (comportamiento
+    // estándar de navegador); la ventana principal vuelve al Universo (sin BrowserView activo,
+    // no se reabre ninguna pestaña en blanco — ver renderer/universo.js).
     state.activeTabId = null
-    // Una ventana secundaria sin pestañas se cierra sola (comportamiento estándar de navegador);
-    // la ventana principal siempre queda con al menos una pestaña real.
     if (windows.size > 1) { state.window.close(); return }
-    createAndSwitchTab(HOME_URL, windowId)
-    return
   }
   broadcastTabs(windowId)
 }
@@ -669,7 +687,7 @@ function createWindow(options = {}) {
   })
   const windowId = nextWindowId++
   windows.set(windowId, { window: win, activeTabId: null, profileId, isGuest, viewReserve: false })
-  win.loadFile(path.join(__dirname, 'renderer', 'index.html'))
+  win.loadFile(path.join(__dirname, 'renderer', 'universo.html'))
   win.on('resize', () => layoutActiveView(windowId))
   win.on('closed', () => {
     for (const tab of Array.from(tabs.values())) {
@@ -688,9 +706,12 @@ function createWindow(options = {}) {
     ? profileStore.getLastSession()
     : []
   if (restoreUrls.length > 0) {
-    for (const url of restoreUrls) createAndSwitchTab(url, windowId)
-  } else {
-    createAndSwitchTab(options.initialUrl || HOME_URL, windowId, { private: isGuest })
+    // Las pestañas de la sesión anterior vuelven a existir (cargando en segundo plano, cada una
+    // un planeta-página real en órbita), pero la ventana arranca mostrando el Universo — el
+    // usuario elige a cuál aterrizar, en vez de caer directo en la última que tenía abierta.
+    for (const url of restoreUrls) createTab(url, windowId)
+  } else if (options.initialUrl) {
+    createAndSwitchTab(options.initialUrl, windowId, { private: isGuest })
   }
   return windowId
 }
@@ -792,6 +813,16 @@ ipcMain.on('view:panel-open', (e, reserve) => {
 })
 
 ipcMain.handle('tabs:create', (e, url) => createAndSwitchTab(url, windowIdForSender(e)))
+// El Sol del Universo crea el planeta-página en segundo plano (mismo `resolveAddressInput` que
+// ya usa la barra de direcciones real) mientras el halcón vuela — no lo muestra todavía, el
+// usuario elige cuándo aterrizar (ver `tabs:switch`).
+ipcMain.handle('tabs:create-background', (e, input) => {
+  const windowId = windowIdForSender(e)
+  const url = resolveAddressInput(input, storeForWindow(windowId).getSearchEngine())
+  const tab = createTab(url, windowId)
+  return { id: tab.id, url: tab.url }
+})
+ipcMain.handle('tabs:recently-closed', (e) => recentlyClosedByWindow.get(windowIdForSender(e)) || [])
 ipcMain.handle('tabs:new-private', (e) => createAndSwitchTab(HOME_URL, windowIdForSender(e), { private: true }))
 ipcMain.handle('tabs:duplicate', (_e, id) => {
   const tab = tabs.get(id)

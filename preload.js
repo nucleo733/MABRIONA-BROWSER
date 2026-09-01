@@ -8,7 +8,9 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
   platform: process.platform,
 
   createTab: (url) => ipcRenderer.invoke('tabs:create', url),
+  createTabBackground: (input) => ipcRenderer.invoke('tabs:create-background', input),
   createPrivateTab: () => ipcRenderer.invoke('tabs:new-private'),
+  listRecentlyClosed: () => ipcRenderer.invoke('tabs:recently-closed'),
   duplicateTab: (id) => ipcRenderer.invoke('tabs:duplicate', id),
   closeTab: (id) => ipcRenderer.invoke('tabs:close', id),
   switchTab: (id) => ipcRenderer.invoke('tabs:switch', id),
