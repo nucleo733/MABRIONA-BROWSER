@@ -10,7 +10,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node --test test/address-resolver.test.js test/blocklist.test.js test/braveSearch.test.js test/browserImport.test.js test/deeplTranslate.test.js test/djiaBridge.test.js test/extensions.test.js test/permissions.test.js test/profiles.test.js test/settings.test.js test/spectrumResolver.test.js test/store.test.js test/tools.test.js",
-    "dist": "electron-builder --mac zip dir",
+    "dist": "electron-builder --mac dmg zip dir",
     "dist:linux": "electron-builder --linux AppImage",
     "dist:win": "electron-builder --win nsis --publish=never"
   },
@@ -50,6 +50,13 @@
       "category": "public.app-category.productivity",
       "target": [
         {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
           "target": "zip",
           "arch": [
             "x64",
@@ -62,6 +69,29 @@
             "x64",
             "arm64"
           ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "MABRIONA Browser",
+      "icon": "build/icon.icns",
+      "background": "build/dmg-background.png",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "iconSize": 80,
+      "contents": [
+        {
+          "x": 140,
+          "y": 210,
+          "type": "file"
+        },
+        {
+          "x": 400,
+          "y": 210,
+          "type": "link",
+          "path": "/Applications"
         }
       ]
     },
