@@ -32,6 +32,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 header {
   position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   gap: 28px;
@@ -39,6 +40,15 @@ header {
   background: linear-gradient(178deg, rgba(255,255,255,.075), rgba(255,255,255,.014));
   backdrop-filter: blur(20px);
   box-shadow: inset 0 -1px 0 rgba(255,255,255,.14), inset 0 1.5px 0 rgba(255,255,255,.5);
+}
+/* Brillo especular — reflejo de luz real en el vidrio. */
+header::before {
+  content: '';
+  position: absolute;
+  left: 4%; right: 52%; top: 2px; height: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+  filter: blur(9px);
+  pointer-events: none;
 }
 .logo {
   font-family: 'Syncopate', sans-serif;
@@ -199,12 +209,22 @@ main#results.state-centered .search-error { text-align: left; }
 
 /* ---------------- Entity Focus — panel de entidad, lenguaje propio ---------------- */
 .entity-focus {
+  position: relative;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   backdrop-filter: blur(16px);
   border-radius: 22px;
   padding: 28px 30px;
   margin-bottom: 28px;
+}
+.entity-focus::before, .tool-card::before {
+  content: '';
+  position: absolute;
+  left: 4%; right: 46%; top: 2px; height: 18px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+  filter: blur(8px);
+  pointer-events: none;
 }
 .entity-header { display: flex; gap: 24px; align-items: flex-start; }
 .entity-photo {
@@ -424,6 +444,8 @@ main#results.state-centered .search-error { text-align: left; }
 
 /* ---------------- MABRIONA Tools — calculadora / conversión / hora, cálculo 100% real ---------------- */
 .tool-card {
+  position: relative;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--border);
   backdrop-filter: blur(16px);

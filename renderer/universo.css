@@ -46,10 +46,21 @@ button { border: none; background: none; color: inherit; cursor: pointer; paddin
 
 /* Panel — tarjeta, respuesta, modal */
 .u-glass {
+  position: relative;
+  overflow: hidden;
   background: linear-gradient(158deg, rgba(255,255,255,.085), rgba(255,255,255,.014));
   box-shadow: 0 0 0 1.2px rgba(255,255,255,.3), inset 0 2px 0 rgba(255,255,255,.6), inset 0 -1px 0 rgba(255,255,255,.16), 0 18px 40px -22px rgba(0,0,0,.8);
   backdrop-filter: blur(18px);
   border-radius: 26px;
+}
+/* Brillo especular — reflejo de luz real en el vidrio, sin eso no lee como cristal. */
+.u-glass::before {
+  content: '';
+  position: absolute;
+  left: 4%; right: 46%; top: 2px; height: 18px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
+  filter: blur(8px);
+  pointer-events: none;
 }
 
 /* Fila — listas y resultados */
