@@ -112,6 +112,13 @@ contextBridge.exposeInMainWorld('mabrionaBrowser', {
 
   getSearchEngine: () => ipcRenderer.invoke('settings:get-search-engine'),
   setSearchEngine: (engine) => ipcRenderer.invoke('settings:set-search-engine', engine),
+
+  getDefaultZoom: () => ipcRenderer.invoke('settings:get-default-zoom'),
+  setDefaultZoom: (percent) => ipcRenderer.invoke('settings:set-default-zoom', percent),
+  getDefaultTranslateLang: () => ipcRenderer.invoke('settings:get-translate-lang'),
+  setDefaultTranslateLang: (lang) => ipcRenderer.invoke('settings:set-translate-lang', lang),
+  getMinFontSize: () => ipcRenderer.invoke('settings:get-min-font-size'),
+  setMinFontSize: (size) => ipcRenderer.invoke('settings:set-min-font-size', size),
   getRestoreSession: () => ipcRenderer.invoke('settings:get-restore-session'),
   setRestoreSession: (enabled) => ipcRenderer.invoke('settings:set-restore-session', enabled),
 

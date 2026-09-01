@@ -32,6 +32,15 @@ function freshDefaults() {
     lastSession: [],
     searchEngine: 'mabriona', // 'mabriona' | 'google' | 'bing' | 'duckduckgo' | 'brave'
     restoreSessionOnStartup: true,
+    // Zoom real con el que arranca cada pestaña nueva (100 = tamaño normal) — Gravedad, ver
+    // main.js `createTab`. El usuario sigue pudiendo ajustar el zoom de una pestaña puntual desde
+    // el menú "···" sin que eso cambie este default.
+    defaultZoomPercent: 100,
+    // Idioma real al que traduce el botón de Traducir cuando no se elige otro — Gravedad.
+    defaultTranslateLang: 'ES',
+    // Tamaño mínimo real de fuente (px) que Chromium fuerza en cualquier página — accesibilidad
+    // real (Gravedad). 0 = sin mínimo (comportamiento normal de Chrome).
+    minimumFontSize: 0,
     // Extensiones reales de Chrome de este perfil — ver extensions.js. Cada entrada:
     // { recordId, origin: 'unpacked'|'imported'|'webstore', path, name, version, manifestVersion, enabled }.
     extensions: [],
@@ -322,6 +331,27 @@ function buildStore(readAll, writeAll) {
       data.searchEngine = engine
       writeAll(data)
       return data.searchEngine
+    },
+
+    getDefaultZoomPercent: () => data.defaultZoomPercent || 100,
+    setDefaultZoomPercent(percent) {
+      data.defaultZoomPercent = Math.min(300, Math.max(50, Number(percent) || 100))
+      writeAll(data)
+      return data.defaultZoomPercent
+    },
+
+    getDefaultTranslateLang: () => data.defaultTranslateLang || 'ES',
+    setDefaultTranslateLang(lang) {
+      data.defaultTranslateLang = lang || 'ES'
+      writeAll(data)
+      return data.defaultTranslateLang
+    },
+
+    getMinimumFontSize: () => data.minimumFontSize || 0,
+    setMinimumFontSize(size) {
+      data.minimumFontSize = Math.min(48, Math.max(0, Number(size) || 0))
+      writeAll(data)
+      return data.minimumFontSize
     },
 
     getRestoreSessionOnStartup: () => data.restoreSessionOnStartup !== false,

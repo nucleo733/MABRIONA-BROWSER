@@ -189,10 +189,17 @@
   }
   function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url || '' } }
   function clearChildren(node) { while (node.firstChild) node.removeChild(node.firstChild) }
-  function makeRow(text, meta, onDelete) {
+  function makeRow(text, meta, onDelete, thumbnail) {
     const row = document.createElement('div')
     row.className = 'u-row'
-    const dot = document.createElement('div'); dot.className = 'u-row-dot'
+    let dot
+    if (thumbnail) {
+      dot = document.createElement('div')
+      dot.style.cssText = 'width:28px;height:20px;border-radius:4px;background-size:cover;background-position:center;flex:0 0 auto;border:1px solid rgba(140,190,255,.25)'
+      dot.style.backgroundImage = `url("${thumbnail}")`
+    } else {
+      dot = document.createElement('div'); dot.className = 'u-row-dot'
+    }
     const t = document.createElement('div'); t.className = 'u-row-text'; t.textContent = text
     const m = document.createElement('div'); m.className = 'u-row-meta'; m.textContent = meta || ''
     row.append(dot, t, m)
@@ -300,7 +307,7 @@
     if (id === 'constelacion') {
       const list = await safe(() => api.listFavorites(), [])
       return list.map((f) => ({
-        text: f.title || f.url, meta: hostOf(f.url),
+        text: f.title || f.url, meta: hostOf(f.url), thumbnail: f.thumbnail || null,
         onClick: async () => { const { id: tid } = await api.createTabBackground(f.url); land(tid) },
         onDelete: async () => { await api.removeFavorite(f.url); openLanded('constelacion') },
       }))
@@ -320,9 +327,15 @@
       const engine = await safe(() => api.getSearchEngine(), 'mabriona')
       const shields = await safe(() => api.getShieldsEnabled(), true)
       const perms = await safe(() => api.listPermissions(), [])
+      const zoom = await safe(() => api.getDefaultZoom(), 100)
+      const translateLang = await safe(() => api.getDefaultTranslateLang(), 'ES')
+      const minFont = await safe(() => api.getMinFontSize(), 0)
       const rows = [
         { text: 'Buscador por defecto', meta: String(engine || 'mabriona').toUpperCase() },
         { text: 'MABRIONA SHIELDS', meta: shields ? 'ACTIVO' : 'APAGADO', onClick: async () => { await api.setShieldsEnabled(!shields); openLanded('gravedad') } },
+        { text: 'Zoom por defecto (pestañas nuevas)', meta: `${zoom}%` },
+        { text: 'Idioma de traducción por defecto', meta: String(translateLang || 'ES').toUpperCase() },
+        { text: 'Tamaño mínimo de letra (accesibilidad)', meta: minFont > 0 ? `${minFont}px` : 'SIN MÍNIMO' },
       ]
       for (const p of Array.isArray(perms) ? perms.slice(0, 10) : []) {
         rows.push({ text: `${hostOf(p.origin || '')} · ${p.kind || ''}`, meta: String(p.decision || '').toUpperCase(), onDelete: async () => { await api.clearPermission(p.origin, p.kind); openLanded('gravedad') } })
@@ -383,7 +396,7 @@
       landedRows.appendChild(empty)
     }
     for (const r of rows) {
-      const row = makeRow(r.text, r.meta, r.onDelete)
+      const row = makeRow(r.text, r.meta, r.onDelete, r.thumbnail)
       if (r.onClick) { row.style.cursor = 'pointer'; row.addEventListener('click', r.onClick) }
       landedRows.appendChild(row)
     }
@@ -402,6 +415,31 @@
       safe(() => api.getSearchEngine(), 'mabriona').then((cur) => { select.value = cur || 'mabriona' })
       select.addEventListener('change', () => api.setSearchEngine(select.value))
       landedExtra.appendChild(select)
+
+      const zoomRow = document.createElement('div'); zoomRow.style.cssText = 'display:flex;align-items:center;gap:10px'
+      const zoomLabel = document.createElement('div'); zoomLabel.className = 'u-note'; zoomLabel.textContent = 'Zoom por defecto'
+      const zoomInput = document.createElement('input'); zoomInput.className = 'u-field'; zoomInput.type = 'number'; zoomInput.min = '50'; zoomInput.max = '300'; zoomInput.step = '10'; zoomInput.style.width = '70px'
+      safe(() => api.getDefaultZoom(), 100).then((cur) => { zoomInput.value = cur || 100 })
+      zoomInput.addEventListener('change', async () => { await api.setDefaultZoom(zoomInput.value); openLanded('gravedad') })
+      zoomRow.append(zoomLabel, zoomInput)
+      landedExtra.appendChild(zoomRow)
+
+      const langSelect = document.createElement('select'); langSelect.className = 'u-select'
+      safe(() => api.getTranslateLanguages(), []).then((langs) => {
+        clearChildren(langSelect)
+        for (const l of langs) { const opt = document.createElement('option'); opt.value = l.code; opt.textContent = l.name; langSelect.appendChild(opt) }
+        safe(() => api.getDefaultTranslateLang(), 'ES').then((cur) => { langSelect.value = cur || 'ES' })
+      })
+      langSelect.addEventListener('change', () => api.setDefaultTranslateLang(langSelect.value))
+      landedExtra.appendChild(langSelect)
+
+      const fontRow = document.createElement('div'); fontRow.style.cssText = 'display:flex;align-items:center;gap:10px'
+      const fontLabel = document.createElement('div'); fontLabel.className = 'u-note'; fontLabel.textContent = 'Tamaño mínimo de letra (0 = sin mínimo)'
+      const fontInput = document.createElement('input'); fontInput.className = 'u-field'; fontInput.type = 'number'; fontInput.min = '0'; fontInput.max = '48'; fontInput.step = '1'; fontInput.style.width = '70px'
+      safe(() => api.getMinFontSize(), 0).then((cur) => { fontInput.value = cur || 0 })
+      fontInput.addEventListener('change', async () => { await api.setMinFontSize(fontInput.value); openLanded('gravedad') })
+      fontRow.append(fontLabel, fontInput)
+      landedExtra.appendChild(fontRow)
     }
     if (id === 'tripulacion') {
       const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px'
@@ -597,6 +635,15 @@
       ['← Atrás', () => api.back(tab.id)],
       ['→ Adelante', () => api.forward(tab.id)],
       [tab.loading ? '✕ Detener' : '⟳ Recargar', () => (tab.loading ? api.stop(tab.id) : api.reload(tab.id))],
+      ['⭐ Guardar en Constelación', async () => {
+        toggleMore(false)
+        await api.addFavorite({ url: tab.url, title: tab.title, tabId: tab.id, addedAt: Date.now() })
+      }],
+      ['🌐 Traducir', async () => {
+        toggleMore(false)
+        const lang = await safe(() => api.getDefaultTranslateLang(), 'ES')
+        await api.translatePage(lang)
+      }],
       ['🔍 Buscar en la página', () => { toggleMore(false); findEl.style.display = 'flex'; findInput.focus() }],
       ['🔗 Copiar link', async () => { await api.copyText(tab.url); toggleMore(false) }],
       ['🖨 Imprimir', () => api.print()],

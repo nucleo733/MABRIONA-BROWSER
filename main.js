@@ -352,11 +352,14 @@ function createTab(initialUrl, windowId, options = {}) {
   const partition = isPrivate ? PRIVATE_PARTITION : registry.partitionFor(winState ? winState.profileId : 'default')
   if (isPrivate) ensurePrivateSession()
   else ensureProfileSession(winState ? winState.profileId : 'default')
+  const profileStore = storeForWindow(windowId)
   const view = new BrowserView({
     webPreferences: {
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
+      // Accesibilidad real (Gravedad) — 0 = sin mínimo, mismo comportamiento de Chrome de fábrica.
+      minimumFontSize: profileStore.getMinimumFontSize() || undefined,
       // Modo Privado real: partición sin "persist:" = sesión en memoria. Electron la descarta
       // entera al cerrar la app — no queda un archivo en disco con cookies/almacenamiento de esa
       // sesión. No es anonimato frente a la red (tu proveedor de internet y los sitios que
@@ -379,6 +382,9 @@ function createTab(initialUrl, windowId, options = {}) {
   tabs.set(id, tab)
 
   const wc = view.webContents
+  // Zoom real con el que arranca esta pestaña (Gravedad) — el usuario puede seguir ajustando el
+  // zoom de esta pestaña puntual desde el menú "···" (`tabs:set-zoom`) sin que eso toque el default.
+  wc.setZoomFactor((profileStore.getDefaultZoomPercent() || 100) / 100)
   wc.on('did-start-loading', () => broadcastTabs(windowId))
   wc.on('did-stop-loading', () => {
     broadcastTabs(windowId)
@@ -999,7 +1005,23 @@ ipcMain.handle('history:clear', (e) => storeForWindow(windowIdForSender(e)).clea
 ipcMain.handle('history:remove', (e, url) => storeForWindow(windowIdForSender(e)).removeHistoryEntry(url))
 
 ipcMain.handle('favorites:list', (e) => storeForWindow(windowIdForSender(e)).listFavorites())
-ipcMain.handle('favorites:add', (e, fav) => storeForWindow(windowIdForSender(e)).addFavorite(fav))
+// Miniatura real (Electron `capturePage`, no un mock) de cómo se veía el sitio el día que se
+// guardó — Constelación. `tabId` es opcional: favoritos importados de otro navegador o creados
+// sin una pestaña real detrás simplemente quedan sin miniatura, no truncan el guardado.
+ipcMain.handle('favorites:add', async (e, fav) => {
+  const { tabId, ...rest } = fav || {}
+  let thumbnail = null
+  const tab = tabId != null ? tabs.get(tabId) : null
+  if (tab && !tab.view.webContents.isDestroyed()) {
+    try {
+      const image = await tab.view.webContents.capturePage()
+      thumbnail = image.resize({ width: 240 }).toDataURL()
+    } catch (err) {
+      console.error('[MABRIONA Browser] no se pudo capturar la miniatura del favorito:', err)
+    }
+  }
+  return storeForWindow(windowIdForSender(e)).addFavorite(thumbnail ? { ...rest, thumbnail } : rest)
+})
 ipcMain.handle('favorites:remove', (e, url) => storeForWindow(windowIdForSender(e)).removeFavorite(url))
 ipcMain.handle('favorites:is', (e, url) => storeForWindow(windowIdForSender(e)).isFavorite(url))
 ipcMain.handle('favorites:rename', (e, url, title) => storeForWindow(windowIdForSender(e)).renameFavorite(url, title))
@@ -1284,6 +1306,17 @@ ipcMain.handle('settings:choose-downloads-dir', async (e) => {
 // su propia carpeta de descargas o sus propios permisos).
 ipcMain.handle('settings:get-search-engine', (e) => storeForWindow(windowIdForSender(e)).getSearchEngine())
 ipcMain.handle('settings:set-search-engine', (e, engine) => storeForWindow(windowIdForSender(e)).setSearchEngine(engine))
+
+// Settings — Gravedad (zoom/idioma/accesibilidad, ver `Mabrioon Universo`). El zoom y el tamaño
+// mínimo de letra se aplican real a cada pestaña NUEVA que se crea después de cambiar el ajuste
+// (ver `createTab`) — cambiar el default no reescribe pestañas ya abiertas, mismo criterio que
+// Chrome/Brave real con sus ajustes de "Apariencia".
+ipcMain.handle('settings:get-default-zoom', (e) => storeForWindow(windowIdForSender(e)).getDefaultZoomPercent())
+ipcMain.handle('settings:set-default-zoom', (e, percent) => storeForWindow(windowIdForSender(e)).setDefaultZoomPercent(percent))
+ipcMain.handle('settings:get-translate-lang', (e) => storeForWindow(windowIdForSender(e)).getDefaultTranslateLang())
+ipcMain.handle('settings:set-translate-lang', (e, lang) => storeForWindow(windowIdForSender(e)).setDefaultTranslateLang(lang))
+ipcMain.handle('settings:get-min-font-size', (e) => storeForWindow(windowIdForSender(e)).getMinimumFontSize())
+ipcMain.handle('settings:set-min-font-size', (e, size) => storeForWindow(windowIdForSender(e)).setMinimumFontSize(size))
 
 ipcMain.handle('settings:get-spellcheck-languages', (e) => {
   const { profileStore, sess } = profileStoreAndSessionFor(windowIdForSender(e))
