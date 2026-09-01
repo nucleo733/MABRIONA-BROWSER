@@ -895,6 +895,36 @@
     const landedBody = typeof state.landed === 'string' ? state.byId.get(state.landed) : null
     const dimAll = state.landed !== null || state.allOpen
 
+    // Etiquetas sin choques — dos planetas cercanos en su órbita (ej. Gravedad/Estela) pueden
+    // terminar con los discos pegados; sin esto sus nombres se superponen y se leen como un
+    // solo texto ilegible. Se prueban candidatos en las 4 direcciones a 3 distancias, en orden
+    // de disco más grande a más chico, y se descarta cualquiera que se salga de pantalla, pise
+    // OTRO disco, o pise una etiqueta ya puesta.
+    const labelPlan = new Map()
+    const nonCore = state.bodies.filter((b) => !b.core)
+    const discOf = (b) => ({ x: b.x, y: b.y, r: unit * Math.max(0.045, Math.min(0.115, b.psize || 0.09)) / 2 })
+    const boxesOverlap = (a, o) => Math.abs(a.x - o.x) < (a.w + o.w) / 2 && Math.abs(a.y - o.y) < (a.h + o.h) / 2
+    const placedLabelBoxes = []
+    for (const b of [...nonCore].sort((p, q) => discOf(q).r - discOf(p).r)) {
+      const disc = discOf(b)
+      const labelW = Math.max(String(b.name || '').length, String(b.meta || '').length) * 8.9 + 6
+      const labelH = 30
+      const base = disc.r + labelH / 2 + 9
+      const candidates = [[0, base], [0, -base], [base, 0], [-base, 0], [0, base * 1.7], [0, -base * 1.7], [base * 1.7, 0], [-base * 1.7, 0]]
+      let chosen = candidates[0]
+      for (const [dx, dy] of candidates) {
+        const box = { x: b.x + dx, y: b.y + dy, w: labelW, h: labelH }
+        if (box.x - labelW / 2 < 6 || box.x + labelW / 2 > W - 6 || box.y - labelH / 2 < 6 || box.y + labelH / 2 > H - 6) continue
+        const onAnotherDisc = nonCore.some((o) => o !== b && !o.gone && Math.hypot(box.x - o.x, box.y - o.y) < labelH / 2 + discOf(o).r)
+        if (onAnotherDisc) continue
+        if (placedLabelBoxes.some((o) => boxesOverlap(box, o))) continue
+        chosen = [dx, dy]
+        break
+      }
+      placedLabelBoxes.push({ x: b.x + chosen[0], y: b.y + chosen[1], w: labelW, h: labelH })
+      labelPlan.set(b, chosen)
+    }
+
     for (const b of state.bodies) {
       ensureBodyEl(b)
       if (b.core) {
@@ -928,7 +958,10 @@
       b.el.style.transition = 'opacity .5s ease'
       b.el.style.cursor = b.held ? 'grabbing' : 'grab'
       b._disc.style.cssText = `width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at ${lightX}% ${lightY}%,#ffffff 0%,${b.hue} 26%,${b.hue}bb 46%,rgba(8,12,26,.96) 78%);box-shadow:0 0 ${near || b.held ? 44 : 20}px ${b.hue}44,inset -6px -6px 22px rgba(2,4,12,.75)`
-      b._label.style.cssText = 'position:absolute;left:50%;top:calc(100% + 10px);transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;white-space:nowrap'
+      {
+        const [ldx, ldy] = labelPlan.get(b) || [0, size / 2 + 24]
+        b._label.style.cssText = `position:absolute;left:calc(50% + ${ldx}px);top:calc(50% + ${ldy}px);transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none;white-space:nowrap`
+      }
       b._name.style.cssText = 'font-size:11px;letter-spacing:.2em;color:#e7ecfb'
       b._name.textContent = b.name
       b._meta.style.cssText = 'font-size:9px;letter-spacing:.18em;color:#7c86a8'
