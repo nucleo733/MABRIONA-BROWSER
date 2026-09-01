@@ -104,13 +104,16 @@
   const headerLogo = el('div', 'width:34px;height:34px;flex:0 0 auto;background:url(mabrioon-mark-t.png) center/contain no-repeat;filter:drop-shadow(0 0 22px rgba(40,150,248,.6))', headerEl)
   const headerWord = el('div', "font-family:'Syncopate',sans-serif;font-weight:700;font-size:14px;letter-spacing:.2em;flex:0 0 auto;white-space:nowrap;background:linear-gradient(96deg,#ffffff 4%,#28d0f8 46%,#a850f8 96%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent", headerEl)
   headerWord.textContent = 'MABRIOON'
-  const headerAddressWrap = el('div', 'display:none;flex:1;align-items:center;gap:14px;padding:14px 24px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid rgba(140,190,255,.22)', headerEl)
+  const headerAddressWrap = el('div', 'display:none;flex:1;align-items:center;gap:14px;padding:14px 24px;border-radius:999px', headerEl)
+  headerAddressWrap.className = 'u-address'
   const headerAddress = document.createElement('input')
-  headerAddress.style.cssText = "flex:1;background:transparent;border:none;outline:none;color:#ffffff;font-family:'JetBrains Mono',monospace;font-size:14px"
+  headerAddress.style.cssText = "flex:1;background:transparent;border:none;outline:none;color:#ffffff;font-family:'JetBrains Mono',monospace;font-size:14px;text-shadow:0 1px 3px rgba(0,0,0,.5)"
   headerAddressWrap.appendChild(headerAddress)
-  const headerMoreBtn = el('button', 'display:none;width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.08);border:1px solid rgba(140,190,255,.3);color:#ffffff;font-size:14px;cursor:pointer;flex:0 0 auto;pointer-events:auto', headerEl)
+  const headerMoreBtn = el('button', 'display:none;width:36px;height:36px;border-radius:50%;color:#ffffff;font-size:14px;cursor:pointer;flex:0 0 auto;pointer-events:auto', headerEl)
+  headerMoreBtn.className = 'u-icon-btn'
   headerMoreBtn.textContent = '···'
-  const headerBackBtn = el('div', 'display:none;flex:0 0 auto;padding:11px 20px;border-radius:999px;border:1px solid rgba(140,200,255,.35);font-size:9px;letter-spacing:.22em;color:#ffffff;cursor:pointer;white-space:nowrap;pointer-events:auto', headerEl)
+  const headerBackBtn = el('div', 'display:none;flex:0 0 auto;font-size:9px;letter-spacing:.22em;pointer-events:auto', headerEl)
+  headerBackBtn.className = 'u-pill'
   headerBackBtn.textContent = 'VOLVER AL SISTEMA'
 
   const morePopover = el('div', 'position:absolute;right:30px;top:96px;width:260px;display:none;flex-direction:column;gap:6px;padding:14px;border-radius:18px;z-index:70', stage)
@@ -139,12 +142,15 @@
   const landedActions = el('div', 'display:flex;gap:10px;flex-wrap:wrap', landedEl)
 
   const allEl = el('div', 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:24px;z-index:66;background:rgba(3,4,10,.6)', stage)
-  const allBox = el('div', 'width:min(880px,88vw);max-height:78vh;overflow:auto;padding:34px;border-radius:26px;background:linear-gradient(160deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid rgba(140,190,255,.26);box-shadow:0 40px 120px rgba(0,0,0,.7),inset 0 1px 0 rgba(255,255,255,.3);backdrop-filter:blur(24px);display:flex;flex-direction:column;gap:24px', allEl)
+  const allBox = el('div', 'width:min(880px,88vw);max-height:78vh;overflow:auto;padding:34px;display:flex;flex-direction:column;gap:24px', allEl)
+  allBox.className = 'u-glass'
   const allHeaderKicker = el('div', 'font-size:9px;letter-spacing:.34em;color:rgba(255,255,255,.55)', allBox)
   allHeaderKicker.textContent = 'EL SISTEMA COMPLETO'
   const allHeaderTitle = el('div', "font-family:'Syncopate',sans-serif;font-weight:700;font-size:20px;letter-spacing:.1em;color:#ffffff", allBox)
   allHeaderTitle.textContent = 'TODOS LOS MUNDOS'
   const allGrid = el('div', 'display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:18px', allBox)
+  allEl.addEventListener('click', (e) => { if (e.target === allEl) closeAll() })
+  allBox.addEventListener('click', (e) => e.stopPropagation())
 
   const permBanner = el('div', 'position:absolute;left:50%;top:100px;transform:translateX(-50%);display:none;align-items:center;gap:14px;padding:12px 20px;border-radius:16px;z-index:90', stage)
   permBanner.className = 'u-glass'
@@ -535,7 +541,8 @@
   // ---------------------------------------------------------------------------------------
   function tile(name, kind, hue, onPick, onDelete) {
     const box = document.createElement('div')
-    box.style.cssText = 'display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px 10px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid rgba(140,180,255,.14);cursor:pointer'
+    box.className = 'u-btn'
+    box.style.cssText = 'flex-direction:column;align-items:center;gap:10px;padding:16px 10px;border-radius:14px;cursor:pointer'
     const disc = document.createElement('div')
     disc.style.cssText = `width:58px;height:58px;border-radius:50%;background:radial-gradient(120% 120% at 32% 26%,rgba(255,255,255,.22),rgba(255,255,255,.03) 52%,rgba(6,9,22,.9));border:1px solid ${hue};box-shadow:0 0 22px ${hue}66`
     const label = document.createElement('div'); label.style.cssText = 'font-size:10px;letter-spacing:.14em;color:#ffffff;text-align:center'; label.textContent = name
@@ -557,9 +564,9 @@
     for (const tab of state.tabsById.values()) allGrid.appendChild(tile(tab.title || hostOf(tab.url), tab.isPrivate ? 'PRIVADA' : 'PÁGINA', tab.isPrivate ? '#7ea0c8' : '#28d0f8', () => { closeAll(); land(tab.id) }, () => { api.closeTab(tab.id); openAll() }))
     for (const ext of state.extensions) allGrid.appendChild(tile(ext.name || ext.origin, 'EXTENSIÓN', EXT_HUE, () => { closeAll(); state.launchedExtIds.add(ext.recordId); rebuildBodiesArray(); render() }, async () => { await api.removeExtension(ext.recordId); await refreshExtensions(); openAll() }))
     const plus = document.createElement('div')
-    plus.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px 10px;border-radius:18px;border:1px dashed rgba(140,200,255,.4);cursor:pointer'
+    plus.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px 10px;border-radius:14px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.4);cursor:pointer'
     plus.innerHTML = ''
-    const plusDisc = document.createElement('div'); plusDisc.style.cssText = 'width:54px;height:54px;border-radius:50%;border:1px solid rgba(140,200,255,.5);display:flex;align-items:center;justify-content:center;font-size:22px;color:#eaf4ff'; plusDisc.textContent = '+'
+    const plusDisc = document.createElement('div'); plusDisc.style.cssText = 'width:54px;height:54px;border-radius:50%;box-shadow:inset 0 0 0 1px rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:22px;color:#ffffff'; plusDisc.textContent = '+'
     const plusLabel = document.createElement('div'); plusLabel.style.cssText = 'font-size:10px;letter-spacing:.14em;color:#ffffff'; plusLabel.textContent = 'NUEVO'
     plus.append(plusDisc, plusLabel)
     plus.addEventListener('click', () => { closeAll(); openSearch() })
@@ -1060,6 +1067,8 @@
     const tab = showingPage ? state.tabsById.get(state.landed) : null
     headerEl.style.pointerEvents = showingPage ? 'auto' : 'none'
     headerEl.style.borderBottom = showingPage ? '1px solid rgba(140,180,255,.14)' : '1px solid transparent'
+    headerEl.style.background = showingPage ? 'rgba(8,10,18,.92)' : 'transparent'
+    headerEl.style.backdropFilter = showingPage ? 'blur(14px)' : 'none'
     headerAddressWrap.style.display = showingPage ? 'flex' : 'none'
     headerMoreBtn.style.display = showingPage ? 'flex' : 'none'
     headerBackBtn.style.display = showingPage ? 'flex' : 'none'
