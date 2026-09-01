@@ -89,9 +89,19 @@ header {
   transition: box-shadow .3s ease, background .3s ease;
 }
 .spectrum-tab:hover { filter: brightness(1.1); }
+/* Cada categoría enciende con su propia luz (tema Cristal Líquido) — rotación fija de 7
+   colores por posición (data-hue, ver rebuildTabButtons en results.js), no una elección
+   semántica real por categoría. */
+.spectrum-tab[data-hue="0"] { --hue: rgba(40,208,248,.95); }
+.spectrum-tab[data-hue="1"] { --hue: rgba(24,224,140,.92); }
+.spectrum-tab[data-hue="2"] { --hue: rgba(255,178,20,.92); }
+.spectrum-tab[data-hue="3"] { --hue: rgba(255,52,150,.92); }
+.spectrum-tab[data-hue="4"] { --hue: rgba(168,80,248,.95); }
+.spectrum-tab[data-hue="5"] { --hue: rgba(48,120,255,.95); }
+.spectrum-tab[data-hue="6"] { --hue: rgba(60,238,224,.9); }
 .spectrum-tab.active {
-  background: linear-gradient(178deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,.1) 40%,rgba(40,208,248,.95) 100%);
-  box-shadow: 0 0 0 1.2px rgba(255,255,255,.9), 0 6px 12px -2px rgba(40,208,248,.95), 0 20px 42px -10px rgba(40,208,248,.95), 0 0 54px rgba(40,208,248,.95), inset 0 2.5px 1px rgba(255,255,255,1), inset 0 -16px 28px -6px rgba(40,208,248,.95);
+  background: linear-gradient(178deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,.1) 40%,var(--hue,rgba(40,208,248,.95)) 100%);
+  box-shadow: 0 0 0 1.2px rgba(255,255,255,.9), 0 6px 12px -2px var(--hue,rgba(40,208,248,.95)), 0 20px 42px -10px var(--hue,rgba(40,208,248,.95)), 0 0 54px var(--hue,rgba(40,208,248,.95)), inset 0 2.5px 1px rgba(255,255,255,1), inset 0 -16px 28px -6px var(--hue,rgba(40,208,248,.95));
   color: #ffffff;
 }
 

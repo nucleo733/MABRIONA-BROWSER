@@ -617,10 +617,14 @@ function mountSpectrum(data, container, query, freshness) {
   function rebuildTabButtons() {
     spectrumEl.querySelectorAll('.spectrum-tab:not(.spectrum-more-trigger)').forEach((btn) => btn.remove())
     const toolsEl = spectrumEl.querySelector('.spectrum-tools')
-    for (const tab of tabs) {
+    tabs.forEach((tab, i) => {
       const btn = el('button', 'spectrum-tab', tab.label)
       btn.type = 'button'
       btn.dataset.tab = tab.id
+      // Tema Cristal Líquido: cada categoría enciende con su propia luz, no todas cian —
+      // rotación fija de 7 colores (ver --hue-0..6 en results.css), no una elección semántica
+      // real por categoría (Web/Videos/Imágenes no "significan" nada distinto entre sí).
+      btn.dataset.hue = String(i % 7)
       btn.setAttribute('role', 'tab')
       btn.setAttribute('aria-controls', 'results')
       btn.addEventListener('click', () => { active = tab.id; draw() })
@@ -637,7 +641,7 @@ function mountSpectrum(data, container, query, freshness) {
         if (next.dataset.tab) { active = next.dataset.tab; draw() }
       })
       spectrumEl.insertBefore(btn, toolsEl)
-    }
+    })
   }
 
   const toolsWrap = mountTools(freshness || '', (newFreshness) => {

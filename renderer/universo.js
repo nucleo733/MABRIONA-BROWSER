@@ -136,13 +136,13 @@
   const permBanner = el('div', 'position:absolute;left:50%;top:100px;transform:translateX(-50%);display:none;align-items:center;gap:14px;padding:12px 20px;border-radius:16px;z-index:90', stage)
   permBanner.className = 'u-glass'
   const permText = el('div', 'font-size:11px;color:rgba(255,255,255,.78);max-width:46vw', permBanner)
-  const permAllow = el('button', 'u-pill', permBanner); permAllow.className = 'u-pill'; permAllow.textContent = 'PERMITIR'
+  const permAllow = el('button', 'u-pill', permBanner); permAllow.className = 'u-pill u-pill-green'; permAllow.textContent = 'PERMITIR'
   const permDeny = el('button', null, permBanner); permDeny.className = 'u-pill u-pill-danger'; permDeny.textContent = 'BLOQUEAR'
 
   const pwBanner = el('div', 'position:absolute;left:50%;top:100px;transform:translateX(-50%);display:none;align-items:center;gap:14px;padding:12px 20px;border-radius:16px;z-index:90', stage)
   pwBanner.className = 'u-glass'
   const pwText = el('div', 'font-size:11px;color:rgba(255,255,255,.78)', pwBanner)
-  const pwYes = el('button', null, pwBanner); pwYes.className = 'u-pill'; pwYes.textContent = 'GUARDAR'
+  const pwYes = el('button', null, pwBanner); pwYes.className = 'u-pill u-pill-green'; pwYes.textContent = 'GUARDAR'
   const pwNo = el('button', null, pwBanner); pwNo.className = 'u-pill u-pill-danger'; pwNo.textContent = 'NO, GRACIAS'
 
   const promptEl = el('div', 'position:absolute;inset:0;display:none;align-items:center;justify-content:center;z-index:95;background:rgba(3,4,10,.6)', stage)
@@ -438,7 +438,7 @@
     if (id === 'tripulacion') {
       const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px'
       const input = document.createElement('input'); input.className = 'u-field'; input.placeholder = 'Nombre del perfil nuevo'
-      const btn = document.createElement('button'); btn.className = 'u-pill'; btn.textContent = '+ CREAR'
+      const btn = document.createElement('button'); btn.className = 'u-pill u-pill-violet'; btn.textContent = '+ CREAR'
       btn.addEventListener('click', async () => { if (!input.value.trim()) return; await api.createProfile(input.value.trim(), '👤'); input.value = ''; openLanded('tripulacion') })
       row.append(input, btn)
       landedExtra.appendChild(row)
@@ -449,7 +449,7 @@
       landedExtra.appendChild(clearBtn)
     }
     if (id === 'eclipse') {
-      const btn = document.createElement('button'); btn.className = 'u-pill'; btn.textContent = 'ABRIR PESTAÑA PRIVADA'
+      const btn = document.createElement('button'); btn.className = 'u-pill u-pill-violet'; btn.textContent = 'ABRIR PESTAÑA PRIVADA'
       btn.addEventListener('click', async () => { const id2 = await api.createPrivateTab(); land(id2) })
       landedExtra.appendChild(btn)
     }
@@ -468,9 +468,9 @@
     clearChildren(landedRows); clearChildren(landedExtra); clearChildren(landedActions)
     if (!ext) return
     landedRows.appendChild(makeRow(ext.enabled ? 'Activa' : 'Apagada', ext.pinned ? 'FIJADA EN LA BARRA' : ''))
-    const toggleBtn = document.createElement('div'); toggleBtn.className = 'u-pill'; toggleBtn.textContent = ext.enabled ? 'APAGAR' : 'PRENDER'
+    const toggleBtn = document.createElement('div'); toggleBtn.className = ext.enabled ? 'u-pill u-pill-amber' : 'u-pill u-pill-green'; toggleBtn.textContent = ext.enabled ? 'APAGAR' : 'PRENDER'
     toggleBtn.addEventListener('click', async () => { await api.setExtensionEnabled(ext.recordId, !ext.enabled); await refreshExtensions(); openLanded(b.id) })
-    const storeBtn = document.createElement('div'); storeBtn.className = 'u-pill'; storeBtn.textContent = 'GUARDAR EN EL BAÚL'
+    const storeBtn = document.createElement('div'); storeBtn.className = 'u-pill u-pill-turquoise'; storeBtn.textContent = 'GUARDAR EN EL BAÚL'
     storeBtn.addEventListener('click', () => { state.launchedExtIds.delete(b.extId); rebuildBodiesArray(); closeLanded() })
     const delBtn = document.createElement('div'); delBtn.className = 'u-pill u-pill-danger'; delBtn.textContent = 'ELIMINAR'
     delBtn.addEventListener('click', async () => { await api.removeExtension(ext.recordId); state.launchedExtIds.delete(b.extId); await refreshExtensions(); rebuildBodiesArray(); closeLanded() })
@@ -507,7 +507,7 @@
     loadBtn.addEventListener('click', async () => { await api.loadUnpackedExtension(); await refreshExtensions(); renderVaultPanel() })
     const webRow = document.createElement('div'); webRow.style.cssText = 'display:flex;gap:8px'
     const webInput = document.createElement('input'); webInput.className = 'u-field'; webInput.placeholder = 'ID o link de la Chrome Web Store'
-    const webBtn = document.createElement('button'); webBtn.className = 'u-pill'; webBtn.textContent = 'INSTALAR'
+    const webBtn = document.createElement('button'); webBtn.className = 'u-pill u-pill-violet'; webBtn.textContent = 'INSTALAR'
     webBtn.addEventListener('click', async () => { if (!webInput.value.trim()) return; await api.installExtensionFromWebStore(webInput.value.trim()); webInput.value = ''; await refreshExtensions(); renderVaultPanel() })
     webRow.append(webInput, webBtn)
     addRow.append(loadBtn, webRow)

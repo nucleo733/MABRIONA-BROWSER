@@ -78,8 +78,11 @@ button { border: none; background: none; color: inherit; cursor: pointer; paddin
 .u-row-x { font-size: 11px; color: #ff3496; cursor: pointer; flex: none; padding: 2px 4px; opacity: .85; }
 .u-row-x:hover { opacity: 1; }
 
-/* Botón — vidrio apagado por default, se enciende con la luz del color que le corresponda */
+/* Botón — vidrio apagado por default, se enciende con la luz del color que le corresponda.
+   Cada función tiene su propia luz (tema Cristal Líquido): cian = acción principal, verde =
+   confirmar/prender, ámbar = guardar/archivar, violeta = crear/lanzar, rosa = destructivo. */
 .u-pill {
+  --hue: rgba(40,208,248,.95);
   padding: 11px 20px;
   border-radius: 999px;
   font-size: 9px;
@@ -88,13 +91,16 @@ button { border: none; background: none; color: inherit; cursor: pointer; paddin
   cursor: pointer;
   white-space: nowrap;
   transition: box-shadow .3s ease, background .3s ease;
-  background: linear-gradient(178deg, rgba(255,255,255,.4) 0%, rgba(255,255,255,.1) 40%, rgba(40,208,248,.95) 100%);
-  box-shadow: 0 0 0 1.2px rgba(255,255,255,.9), 0 6px 12px -2px rgba(40,208,248,.95), 0 20px 42px -10px rgba(40,208,248,.95), 0 0 54px rgba(40,208,248,.95), inset 0 2.5px 1px rgba(255,255,255,1), inset 0 -16px 28px -6px rgba(40,208,248,.95), inset 0 -1.5px 0 rgba(255,255,255,.7);
+  background: linear-gradient(178deg, rgba(255,255,255,.4) 0%, rgba(255,255,255,.1) 40%, var(--hue) 100%);
+  box-shadow: 0 0 0 1.2px rgba(255,255,255,.9), 0 6px 12px -2px var(--hue), 0 20px 42px -10px var(--hue), 0 0 54px var(--hue), inset 0 2.5px 1px rgba(255,255,255,1), inset 0 -16px 28px -6px var(--hue), inset 0 -1.5px 0 rgba(255,255,255,.7);
 }
 .u-pill:hover { filter: brightness(1.08); }
+.u-pill.u-pill-green { --hue: rgba(24,224,140,.92); }
+.u-pill.u-pill-amber { --hue: rgba(255,178,20,.92); }
+.u-pill.u-pill-violet { --hue: rgba(168,80,248,.95); }
+.u-pill.u-pill-turquoise { --hue: rgba(60,238,224,.9); }
 .u-pill.u-pill-danger {
-  background: linear-gradient(178deg, rgba(255,255,255,.4) 0%, rgba(255,255,255,.1) 40%, rgba(255,52,150,.92) 100%);
-  box-shadow: 0 0 0 1.2px rgba(255,255,255,.9), 0 6px 12px -2px rgba(255,52,150,.92), 0 20px 42px -10px rgba(255,52,150,.92), 0 0 54px rgba(255,52,150,.92), inset 0 2.5px 1px rgba(255,255,255,1), inset 0 -16px 28px -6px rgba(255,52,150,.92), inset 0 -1.5px 0 rgba(255,255,255,.7);
+  --hue: rgba(255,52,150,.92);
 }
 
 /* Botón secundario — vidrio apagado (sin luz), tal como pide el tema para "no elegido" */
