@@ -24,6 +24,19 @@
   const DAY = { llaves: 58.6, aterrizajes: -243, vuelo: 1, estela: 1.03, constelacion: 0.41, gravedad: 0.45, eclipse: -0.72, tripulacion: 0.67 }
   // Sin lunas orbitando los planetas — a pedido explícito, solo quedan los planetas (2026-09-01).
   const MOONS = {}
+  // Cada planeta con su propia superficie (2026-09-01) — antes todos compartían el mismo
+  // patrón de rayas genérico. Opacidad baja a propósito: es textura, no debe competir con
+  // el nombre/meta ni con el brillo del disco.
+  const SURFACE_STYLE = {
+    llaves: 'opacity:.28;background:radial-gradient(38% 38% at 22% 30%,rgba(0,0,0,.4),transparent 60%),radial-gradient(26% 26% at 68% 62%,rgba(0,0,0,.32),transparent 60%),radial-gradient(18% 18% at 78% 22%,rgba(0,0,0,.28),transparent 60%)',
+    aterrizajes: 'opacity:.24;background:repeating-linear-gradient(18deg,transparent 0 9%,rgba(255,255,255,.14) 9% 13%,transparent 13% 22%)',
+    estela: 'opacity:.26;background:radial-gradient(30% 22% at 30% 70%,rgba(0,0,0,.3),transparent 60%),radial-gradient(20% 30% at 70% 30%,rgba(0,0,0,.24),transparent 60%)',
+    constelacion: 'opacity:.24;background:repeating-linear-gradient(0deg,transparent 0 10%,rgba(255,255,255,.14) 10% 16%,transparent 16% 26%)',
+    gravedad: 'opacity:.22;background:repeating-linear-gradient(0deg,transparent 0 14%,rgba(255,255,255,.12) 14% 19%,transparent 19% 32%)',
+    eclipse: 'opacity:.18;background:repeating-linear-gradient(88deg,transparent 0 16%,rgba(255,255,255,.1) 16% 20%,transparent 20% 36%)',
+    tripulacion: 'opacity:.26;background:radial-gradient(34% 26% at 40% 44%,rgba(0,0,0,.32),transparent 62%)',
+    _default: 'opacity:.22;background:repeating-linear-gradient(92deg,transparent 0 7%,rgba(255,255,255,.16) 7% 10%,transparent 10% 20%)',
+  }
   const EARTH_YEAR_MS = 90000, EARTH_DAY_MS = 7000
   const PAGE_HUES = ['#00f8f8', '#28d0f8', '#2880f8', '#6a6cf5', '#a850f8', '#c46cff']
   const EXT_HUE = '#a850f8'
@@ -968,10 +981,14 @@
       b._meta.textContent = b.meta || ''
       b._ring.style.cssText = `position:absolute;inset:-14%;border-radius:50%;border:1px solid ${b.hue}${near || b.held ? '88' : '22'};pointer-events:none`
       if (b.earth) {
-        b._surface.style.cssText = `position:absolute;inset:2%;border-radius:50%;pointer-events:none;overflow:hidden;opacity:.92;transform:rotate(${b.rot || 0}rad);background:radial-gradient(38% 26% at 26% 32%,#3f7d43 0%,#2f6337 62%,transparent 66%),radial-gradient(22% 34% at 44% 62%,#3c7a42 0%,#2b5c34 60%,transparent 64%),radial-gradient(26% 18% at 68% 30%,#4a834a 0%,#31633a 58%,transparent 62%);mix-blend-mode:screen`
+        // Solo nubes reales — sin la mancha de "continentes" (se veía como una hoja verde
+        // pegada encima, a pedido explícito).
+        b._surface.style.cssText = 'display:none'
         b._cloud.style.cssText = `position:absolute;inset:1%;border-radius:50%;pointer-events:none;opacity:.34;transform:rotate(${-(b.rot || 0) * 0.6}rad);background:radial-gradient(24% 12% at 32% 40%,#ffffff,transparent 70%),radial-gradient(18% 10% at 62% 26%,#ffffff,transparent 70%);mix-blend-mode:screen`
       } else {
-        b._surface.style.cssText = `position:absolute;inset:4%;border-radius:50%;pointer-events:none;overflow:hidden;opacity:.22;transform:rotate(${b.rot || 0}rad);background:repeating-linear-gradient(92deg,transparent 0 7%,rgba(255,255,255,.16) 7% 10%,transparent 10% 20%)`
+        // Cada planeta con su propia superficie — antes todos (menos Tierra) compartían la
+        // misma textura genérica de rayas; ahora cada `id` tiene su propio patrón.
+        b._surface.style.cssText = `position:absolute;inset:4%;border-radius:50%;pointer-events:none;overflow:hidden;transform:rotate(${b.rot || 0}rad);${SURFACE_STYLE[b.id] || SURFACE_STYLE._default}`
         b._cloud.style.cssText = 'display:none'
       }
       const moonDefs = MOONS[b.id] || []
