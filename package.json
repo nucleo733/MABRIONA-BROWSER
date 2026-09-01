@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.mabriona.browser",
     "productName": "MABRIONA Browser",
+    "copyright": "Copyright © 2026 MABRIONA Corporation",
     "icon": "build/icon.icns",
     "files": [
       "main.js",
@@ -80,6 +81,7 @@
     },
     "win": {
       "icon": "build/icon-windows-source.png",
+      "legalTrademarks": "MABRIONA Corporation",
       "target": [
         {
           "target": "nsis",
@@ -91,7 +93,16 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "build/installerHeaderIcon.ico",
+      "uninstallerIcon": "build/installerHeaderIcon.ico",
+      "installerHeaderIcon": "build/installerHeaderIcon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/uninstallerSidebar.bmp",
+      "artifactName": "${productName}-${version}-Setup.${ext}"
     }
   }
 }
