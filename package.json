@@ -31,6 +31,7 @@
     "icon": "build/icon.icns",
     "files": [
       "main.js",
+      "mabriona-update/**/*",
       "preload.js",
       "search-preload.js",
       "store.js",

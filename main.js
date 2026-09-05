@@ -29,6 +29,12 @@ const { startDjiaBridge, pickAndOpenExternalCallback } = require('./bridge/djiaB
 const QRCode = require('qrcode')
 const { LANGUAGES: TRANSLATE_LANGUAGES, buildTranslateRequest, normalizeTranslateResponse } = require('./translate/deeplTranslate')
 
+// MABRIONA UPDATE SYSTEM — cliente central de actualizaciones.
+// La lógica vive en `mabriona-update/`, que es una copia del repositorio
+// MABRIONA-UPDATE-SYSTEM y NO se edita acá (ver mabriona-update/ORIGEN.txt).
+// Esta app solo aporta su identidad: producto, versión y canal.
+const { integrarActualizaciones } = require('./mabriona-update/electron')
+
 // Integración oficial MABRIONA DJ AI (web, sin app de escritorio) —
 // `mabriona-browser://pick?q=...&back=...`, ver
 // `docs/INTEGRACION-DJ-AI.md`, sección "Web".
@@ -770,6 +776,15 @@ if (process.platform !== 'darwin') {
 
 app.whenReady().then(() => {
   createWindow({ restoreSession: true })
+
+  // MABRIONA UPDATE SYSTEM: se consulta después de abrir la ventana, para no
+  // demorar el arranque del navegador con una petición de red.
+  integrarActualizaciones({
+    producto: 'mabrio',
+    nombreProducto: 'MABRIONA Browser',
+    version: app.getVersion(),
+    canal: 'stable',
+  }).revisar()
 
   // Arranque en frío vía protocolo real en Windows/Linux (el usuario
   // no tenía el navegador abierto todavía) — el propio `process.argv`
